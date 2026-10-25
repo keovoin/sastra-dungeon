@@ -4811,10 +4811,3 @@ console.log('🤖 Smart auto-play ready. Press O in-game to toggle');
 
 /* expose for the story-intro wrapper (main.ts import order: game -> intro) */
 (window as any).startGame = startGame;
-/* debug probe for automated smoke tests */
-(window as any).__sastra = () => ({
-  pet: G && G.pet ? { x: Math.round(G.pet.x), y: Math.round(G.pet.y), t: G.pet.t } : null,
-  player: G && G.player ? { x: Math.round(G.player.x), y: Math.round(G.player.y) } : null,
-  panda: FXI.panda ? FXI.panda.map(i => i && i.naturalWidth ? 1 : 0) : null,
-  townbg: !!FX1.townbg,
-});
