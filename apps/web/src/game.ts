@@ -9,6 +9,9 @@ window.addEventListener('error', e => {
   console.error('❌ GAME ERROR:', e.message, '|', e.filename + ':' + e.lineno + ':' + e.colno);
 });
 
+import * as px from './pixel';
+import {PIXFAM,hasPx,drawPxSprite} from './pixelfam';
+
 export const TAU = Math.PI * 2;
 const rand = (a,b) => a + Math.random()*(b-a);
 const randInt = (a,b) => Math.floor(rand(a,b+1));
@@ -26,7 +29,7 @@ function shadeColor(hex,pct){
 }
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');
 let W=0,H=0,DPR=1;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
@@ -1348,7 +1351,7 @@ let currentFloorBiome = null;
 const TORCH_POSITIONS = [
   {x:500,y:500},{x:2300,y:500},{x:500,y:1600},{x:2300,y:1600},
   {x:1400,y:300},{x:1400,y:1800},{x:900,y:1050},{x:1900,y:1050},
-  {x:1400,y:1050},{x:700,y:800},{x:2100,y:1300}
+  {x:700,y:800},{x:2100,y:1300}
 ];
 const BIOME_DUST = {
   crypt:{vx:[-14,14],vy:[-28,-6],size:[0.6,2.1],colors:['#ffd88a','#c8b8a0','#ffcc88'],glow:false},
@@ -1459,16 +1462,10 @@ function buildFloorForBiome(biomeKey){
   const x=c.getContext('2d');
   const theme=FLOOR_THEMES[biomeKey]||FLOOR_THEMES.crypt;
   x.fillStyle=theme.baseColor;x.fillRect(0,0,WORLD.w,WORLD.h);
-  const T=80;
-  for(let ty=0;ty<WORLD.h;ty+=T)for(let tx=0;tx<WORLD.w;tx+=T){
-    const v=randInt(-theme.tileVar,theme.tileVar);
-    const [r,g,b]=theme.tileBase;
-    x.fillStyle=`rgb(${r+v},${g+v},${b+v})`;
-    x.fillRect(tx+1,ty+1,T-2,T-2);
-  }
+  px.buildPixelFloor(x,WORLD.w,WORLD.h,biomeKey);
   theme.decorate(x);
   drawTorchBases(x);
-  x.strokeStyle=theme.borderColor;x.lineWidth=60;x.strokeRect(0,0,WORLD.w,WORLD.h);
+  px.drawPixelWalls(x,WORLD.w,WORLD.h,biomeKey);
   return c;
 }
 function addBloodDecal(x,y){
@@ -2289,19 +2286,19 @@ function startCryptDefeatCutscene(g, boss) {
 
 /* Biomes */
 const BIOMES = [
-  { key:'crypt', name:'The Crypt', floorTint:'rgba(70,35,15,0.35)', tint:'rgba(40,20,10,0.10)',
+  { key:'crypt', name:'The Crypt', floorTint:'rgba(130,100,90,0.20)', tint:'rgba(40,20,10,0.10)',
     torchColor:'#ff9040', edge:'rgba(5,3,15,0.42)',
     enemies:['fallen','skeleton','archer','spider','shaman'], boss:'cryptLord' },
-  { key:'caverns', name:'The Deep Caverns', floorTint:'rgba(40,60,45,0.38)', tint:'rgba(20,35,25,0.14)',
+  { key:'caverns', name:'The Deep Caverns', floorTint:'rgba(110,140,120,0.20)', tint:'rgba(20,35,25,0.14)',
     torchColor:'#ffb040', edge:'rgba(3,10,8,0.48)',
     enemies:['brute','golem','bomber','spider','skeleton'], boss:'cavernTitan' },
-  { key:'frost', name:'Frozen Peaks', floorTint:'rgba(60,90,130,0.42)', tint:'rgba(30,45,70,0.16)',
+  { key:'frost', name:'Frozen Peaks', floorTint:'rgba(150,175,210,0.22)', tint:'rgba(30,45,70,0.16)',
     torchColor:'#7fd4ff', edge:'rgba(5,10,25,0.48)',
     enemies:['iceElemental','skeleton','sniper','mage','wraith'], boss:'frostWyrm' },
-  { key:'volcano', name:'The Ember Depths', floorTint:'rgba(110,40,15,0.42)', tint:'rgba(60,20,10,0.18)',
+  { key:'volcano', name:'The Ember Depths', floorTint:'rgba(190,120,85,0.20)', tint:'rgba(60,20,10,0.18)',
     torchColor:'#ff5020', edge:'rgba(20,3,0,0.50)',
     enemies:['fireImp','brute','bomber','charger','shaman'], boss:'volcanoBehemoth' },
-  { key:'shadow', name:'The Shadow Realm', floorTint:'rgba(60,30,90,0.42)', tint:'rgba(30,10,50,0.20)',
+  { key:'shadow', name:'The Shadow Realm', floorTint:'rgba(150,115,190,0.20)', tint:'rgba(30,10,50,0.20)',
     torchColor:'#a060ff', edge:'rgba(8,2,15,0.55)',
     enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' }
 ];
@@ -4018,7 +4015,7 @@ document.querySelectorAll('.arch-tab').forEach(tab=>{
 
 /* Render */
 /* ===== GFX polish: soft shadows, light pools, additive glow, mist, bloom (brings gameplay up to the cutscene look) ===== */
-const GFX={bloom:true,slow:0,last:0,bc:null,bx:null};
+const GFX={bloom:false,slow:0,last:0,bc:null,bx:null};
 const gfxShadow=(()=>{const c=document.createElement('canvas');c.width=64;c.height=32;const x=c.getContext('2d');x.translate(32,16);x.scale(1,.5);const g=x.createRadialGradient(0,0,1,0,0,31);g.addColorStop(0,'rgba(0,0,0,.62)');g.addColorStop(.6,'rgba(0,0,0,.3)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.arc(0,0,31,0,Math.PI*2);x.fill();return c})();
 const _glowC=new Map(),_brC=new Map();
 function gfxGlow(col){let c=_glowC.get(col);if(c)return c;c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);
@@ -4041,9 +4038,9 @@ function gfxGround(biome){
   for(const m of G.minions){const w=(m.r||13)*2.8,h=w*.5;ctx.drawImage(gfxShadow,m.x-w/2,m.y+(m.r||13)*.62-h/2+4,w,h)}
   ctx.drawImage(gfxShadow,p.x-26,p.y+10,52,26);ctx.restore();
   ctx.save();ctx.globalCompositeOperation='lighter';
-  const pc=(CLASSES[p.cls]||{}).accent||'#ffd9a0',ps=250;ctx.globalAlpha=.3+.05*Math.sin(t*3);ctx.drawImage(gfxGlow(pc),p.x-ps,p.y-ps,ps*2,ps*2);
+  const pc=(CLASSES[p.cls]||{}).accent||'#ffd9a0',ps=64;ctx.globalAlpha=.16+.04*Math.sin(t*3);ctx.drawImage(gfxGlow(pc),p.x-ps,p.y-ps,ps*2,ps*2);
   for(const e of G.enemies)if(!e.dead&&e.boss){const s=e.r*5.5;ctx.globalAlpha=.34+.1*Math.sin(t*4+e.x);ctx.drawImage(gfxGlow(e.color),e.x-s,e.y-s,s*2,s*2)}
-  const tc=biome.torchColor;ctx.globalAlpha=.07;for(let i=0;i<5;i++){const s=380+i*45;ctx.drawImage(gfxGlow(tc),G.cam.x+Math.sin(t*.05+i*1.7)*W*.5-s,G.cam.y+Math.cos(t*.04+i*2.3)*H*.5-s,s*2,s*2)}
+  const tc=biome.torchColor;ctx.globalAlpha=.04;for(let i=0;i<5;i++){const s=240+i*30;ctx.drawImage(gfxGlow(tc),G.cam.x+Math.sin(t*.05+i*1.7)*W*.5-s,G.cam.y+Math.cos(t*.04+i*2.3)*H*.5-s,s*2,s*2)}
   ctx.restore();
   if(!cutscene.active)for(const e of G.enemies)if(!e.dead&&e.boss)csCircle(e.x,e.y+e.r*.55-e.r*2.2*.35,e.r*2.2,t*.7,e.color,.45)}
 function gfxProjectiles(){
@@ -4063,12 +4060,26 @@ function gfxBloom(){
   if(!GFX.bc||GFX.bc.width!==bw||GFX.bc.height!==bh){GFX.bc=document.createElement('canvas');GFX.bc.width=bw;GFX.bc.height=bh;GFX.bx=GFX.bc.getContext('2d')}
   const b=GFX.bx;b.globalCompositeOperation='source-over';b.globalAlpha=1;b.imageSmoothingEnabled=true;b.imageSmoothingQuality='medium';b.clearRect(0,0,bw,bh);b.drawImage(canvas,0,0,bw,bh);
   b.globalCompositeOperation='multiply';b.drawImage(GFX.bc,0,0);
-  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.95;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(GFX.bc,0,0,cw,ch);ctx.restore()}
+  ctx.save();ctx.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.95;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(GFX.bc,0,0,W,H);ctx.restore()}
 function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(d>45&&d<400)GFX.slow++;else GFX.slow=Math.max(0,GFX.slow-1);if(GFX.slow>90&&GFX.bloom){GFX.bloom=false}}GFX.last=n}
+/* ===== Pixel downscale buffer (chunky 8/16-bit look) ===== */
+let pixBuf=null,pixCtx=null,mainCtxSaved=null;
+const PIX_SCALE=3;
+function ensurePixBuf(){
+  if(!pixBuf){pixBuf=document.createElement('canvas');pixCtx=pixBuf.getContext('2d')}
+  const bw=Math.max(8,Math.floor(W/PIX_SCALE)),bh=Math.max(8,Math.floor(H/PIX_SCALE));
+  if(pixBuf.width!==bw||pixBuf.height!==bh){pixBuf.width=bw;pixBuf.height=bh}
+  pixCtx.imageSmoothingEnabled=false;
+}
 function render(){
-  gfxPerf();ctx.setTransform(DPR,0,0,DPR,0,0);
+  ensurePixBuf();
+  gfxPerf();
+  mainCtxSaved=ctx;
+  ctx=pixCtx;
+  ctx.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,0,0);
+  ctx.imageSmoothingEnabled=false;
   ctx.fillStyle='#0a0806';ctx.fillRect(0,0,W,H);
-  if(!G||!floorCanvas)return;
+  if(!G||!floorCanvas){ctx=mainCtxSaved;return}
   const shakeX=G.shake>0?rand(-G.shake,G.shake):0;
   const shakeY=G.shake>0?rand(-G.shake,G.shake):0;
   ctx.save();
@@ -4080,16 +4091,17 @@ function render(){
   ctx.save();ctx.globalCompositeOperation='lighter';
   for(const t of torches){
     const flicker=0.75+Math.sin(G.time*8+t.phase)*0.14+Math.sin(G.time*17+t.phase*2)*0.09;
-    const r=200*flicker;
+    const r=130*flicker;
     const grd=ctx.createRadialGradient(t.x,t.y-20,0,t.x,t.y-20,r);
     const bc=biome.torchColor.replace('#','');
     const rr=parseInt(bc.substring(0,2),16),gg=parseInt(bc.substring(2,4),16),bb=parseInt(bc.substring(4,6),16);
-    grd.addColorStop(0,`rgba(${rr},${gg},${bb},${0.55*flicker})`);
-    grd.addColorStop(0.35,`rgba(${rr},${gg},${bb},${0.22*flicker})`);
+    grd.addColorStop(0,`rgba(${rr},${gg},${bb},${0.30*flicker})`);
+    grd.addColorStop(0.35,`rgba(${rr},${gg},${bb},${0.12*flicker})`);
     grd.addColorStop(1,`rgba(${rr},${gg},${bb},0)`);
     ctx.fillStyle=grd;ctx.beginPath();ctx.arc(t.x,t.y-20,r,0,TAU);ctx.fill();
   }
   ctx.restore();
+  for(const t of torches)px.drawTorchFlame(ctx,t.x,t.y,G.time,t.phase);
   ctx.save();ctx.globalCompositeOperation='lighter';
   for(const d of G.dust){
     const a=d.alpha*(0.5+0.5*Math.sin(G.time*2+d.phase));
@@ -4231,6 +4243,11 @@ function render(){
     g2.addColorStop(0,'rgba(150,15,15,0)');g2.addColorStop(1,`rgba(150,15,15,${intensity*pulse})`);
     ctx.fillStyle=g2;ctx.fillRect(0,0,W,H);
   }
+  /* blit pixel buffer to main canvas (chunky upscale) */
+  ctx=mainCtxSaved;
+  mainCtxSaved.setTransform(DPR,0,0,DPR,0,0);
+  mainCtxSaved.imageSmoothingEnabled=false;
+  mainCtxSaved.drawImage(pixBuf,0,0,W,H);
 }
 function drawFx(f){
   const t=1-f.life/f.max;
@@ -4288,17 +4305,8 @@ function drawPlayer(p){
   const sg=ctx.createRadialGradient(p.x,p.y+17,2,p.x,p.y+17,18);
   sg.addColorStop(0,'rgba(0,0,0,0.55)');sg.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=sg;ctx.beginPath();ctx.ellipse(p.x,p.y+17,18,8,0,0,TAU);ctx.fill();
-  ctx.save();ctx.translate(p.x,p.y-bob);
-  const grd=ctx.createLinearGradient(0,-18,0,20);
-  grd.addColorStop(0,shadeColor(p.color,0.25));grd.addColorStop(1,shadeColor(p.color,-0.45));
-  ctx.fillStyle=grd;roundRect(-9,-14,18,32,5);ctx.fill();
-  ctx.fillStyle=p.accent;ctx.fillRect(-9,-2,18,2);
-  ctx.fillStyle=shadeColor(p.color,-0.5);roundRect(-9,-14,18,5,3);ctx.fill();
-  ctx.fillStyle='#d8b090';ctx.beginPath();ctx.arc(0,-20,7,0,TAU);ctx.fill();
-  ctx.fillStyle=p.accent;ctx.shadowColor=p.accent;ctx.shadowBlur=6;
-  ctx.beginPath();ctx.arc(-2.5,-20,1.2,0,TAU);ctx.fill();
-  ctx.beginPath();ctx.arc(2.5,-20,1.2,0,TAU);ctx.fill();
-  ctx.shadowBlur=0;ctx.restore();
+  if(hasPx('hero'))drawPxSprite(ctx,'hero',p.color,p.accent,'',p.x,p.y-bob,3.6,0,Math.floor((walk||0)*1.1)%2);
+  else px.drawPixelHero(ctx,p.x,p.y-bob,p.color,p.accent,walk,t);
   ctx.globalAlpha=1;
   if(p._shieldT>0&&p._shieldAmt>0){
     ctx.save();ctx.globalAlpha=0.35+Math.sin(t*8)*0.1;
@@ -4341,14 +4349,7 @@ function drawPlayer(p){
 }
 function drawMinion(m){
   if(m.ally){drawAlly(m);return}
-  ctx.save();ctx.translate(m.x,m.y);
-  const wob=Math.sin(m.wobble)*1.5;
-  ctx.fillStyle='#c8d0d0';ctx.beginPath();ctx.ellipse(0,wob*0.5,6,7,0,0,TAU);ctx.fill();
-  ctx.fillStyle='#e8eeee';ctx.beginPath();ctx.arc(0,-9+wob,5.5,0,TAU);ctx.fill();
-  ctx.fillStyle='#7aff9a';ctx.shadowColor='#7aff9a';ctx.shadowBlur=5;
-  ctx.beginPath();ctx.arc(-2,-9.5+wob,0.9,0,TAU);ctx.fill();
-  ctx.beginPath();ctx.arc(2,-9.5+wob,0.9,0,TAU);ctx.fill();
-  ctx.shadowBlur=0;ctx.restore();
+  px.drawPixelSlime(ctx,m.x,m.y,m.wobble);
 }
 /* ===== Enemy sprites: unique silhouettes per type, with biome variants ===== */
 const drawEnemyBody=(function(){
@@ -4588,7 +4589,11 @@ const drawEnemyBody=(function(){
     const draw=()=>{
       ctx.save();ctx.translate(0,wob*0.4+feet*sc);ctx.rotate(lean);
       ctx.scale(sc*(e._face||1)*(1-b*0.6),sc*(1+b));ctx.translate(0,-feet);
-      if(fn)fn({B,t,c:e.color,d:e.dark,e});else circ(0,0,15,e.color);
+      const key=boss?e.bossKey:e.type;
+      if(hasPx(key)){
+        const def=PIXFAM[key],n=def.frames.length;
+        drawPxSprite(ctx,key,e.color,e.dark,B,0,feet,(boss?42:44)/def.w,0,Math.floor(t*7+e.wobble)%n);
+      }else if(fn)fn({B,t,c:e.color,d:e.dark,e});else circ(0,0,15,e.color);
       ctx.restore();
     };
     draw();
