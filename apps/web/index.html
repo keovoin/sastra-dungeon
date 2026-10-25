@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sastra Dungeon — 71 Classes</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div class="orb" id="hpOrb"><div class="fill" id="hpFill"></div><span id="hpText">100</span></div>
+  <div class="orb" id="enOrb"><div class="fill" id="enFill"></div><span id="enText">100</span></div>
+  <div id="skillbar"></div>
+  <div id="topbar">
+    <div id="xpOuter"><div id="xpFill"></div></div>
+    <div id="toptext">
+      <span id="waveTxt">Wave 1</span>
+      <span><span id="lvl">Lv 1</span> <span id="treePtsBadge" style="display:none">+0 🌳</span></span>
+      <span id="killTxt">0 kills</span>
+    </div>
+  </div>
+  <div id="biomeLabel"></div>
+  <div id="loreCard"></div>
+  <div id="goldDisplay">💰 <span id="goldTxt">0</span></div>
+  <div id="enemyCount">0 left</div>
+  <div id="toasts"></div>
+  <div id="autoBadge">◉ AUTO-ATTACK</div>
+  <div id="autoplayBadge">🤖 AUTO-PLAY</div>
+</div>
+
+<div class="overlay" id="menu">
+  <div class="panel">
+    <h1>SASTRA DUNGEON</h1>
+    <div class="sub">71 Classes · 9 Archetypes · Unique Skills · Cutscenes</div>
+    <div id="continuePanel" class="hidden">
+      <div class="continue-info">
+        <div class="continue-label">▶ CONTINUE SAVED GAME</div>
+        <div class="continue-detail" id="continueDetail">Level 5 · Wave 12</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="continue-btn" id="continueBtn">RESUME</button>
+        <button class="delete-btn" id="deleteBtn" title="Delete">🗑</button>
+      </div>
+    </div>
+    <div id="archetypeTabs">
+      <button class="arch-tab active" data-arch="Warrior">⚔ Warrior</button>
+      <button class="arch-tab" data-arch="Ranger">🏹 Ranger</button>
+      <button class="arch-tab" data-arch="Mage">🔮 Mage</button>
+      <button class="arch-tab" data-arch="Rogue">🗡 Rogue</button>
+      <button class="arch-tab" data-arch="Necromancer">💀 Necromancer</button>
+      <button class="arch-tab" data-arch="Healer">✝ Healer</button>
+      <button class="arch-tab" data-arch="Summoner">🐺 Summoner</button>
+      <button class="arch-tab" data-arch="Druid">🌿 Druid</button>
+      <button class="arch-tab" data-arch="Demon">😈 Demon</button>
+    </div>
+    <div class="classes" id="classesGrid"></div>
+    <div class="hint">
+      <b>Left click</b> move &nbsp;•&nbsp; <b>Right click</b> auto-attack &nbsp;•&nbsp; <b>WASD</b> move &nbsp;•&nbsp; <b>1/2/3</b> skills &nbsp;•&nbsp; <b>4</b> hold ult &nbsp;•&nbsp; <b>T</b> tree &nbsp;•&nbsp; <b>C</b> character &nbsp;•&nbsp; <b>B</b> shop &nbsp;•&nbsp; <b>O</b> auto-play &nbsp;•&nbsp; <b>Esc</b> pause
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="deathScreen">
+  <div class="panel">
+    <div id="deathTitle">YOU DIED</div>
+    <div class="stats" id="deathStats"></div>
+    <button class="btn" id="againBtn">Try Again</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseScreen">
+  <div class="panel pause-panel">
+    <div id="pauseMsg">PAUSED</div>
+    <div class="pause-sub">The shadows wait for you</div>
+    <div class="pause-buttons">
+      <button class="menu-btn primary" id="resumeBtn">▶ &nbsp; RESUME</button>
+      <button class="menu-btn" id="saveBtn">💾 &nbsp; SAVE PROGRESS</button>
+      <button class="menu-btn" id="backBtn">↩ &nbsp; SAVE &amp; MAIN MENU</button>
+    </div>
+    <div class="pause-hint">Press <b>Esc</b> to resume</div>
+    <div class="pause-save-info" id="pauseSaveInfo"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="inventoryScreen">
+  <div class="inv-panel">
+    <div class="inv-header">
+      <div class="inv-tabs">
+        <span class="inv-tab active" data-tab="char">CHARACTER</span>
+        <span class="inv-tab" data-tab="shop">🛒 SHOP</span>
+      </div>
+      <span class="inv-close" id="invClose">✕</span>
+    </div>
+    <div class="inv-body" id="charView">
+      <div class="equip-col" id="equipCol"></div>
+      <div class="inv-main">
+        <div class="inv-stats" id="invStats"></div>
+        <div class="inv-grid-wrap"><div class="inv-grid" id="invGrid"></div></div>
+        <div class="inv-hint">Left-click equip &nbsp;·&nbsp; Right-click sell &nbsp;·&nbsp; <b>B</b> shop &nbsp;·&nbsp; <b>C</b> close</div>
+      </div>
+    </div>
+    <div class="inv-body hidden" id="shopView">
+      <div class="shop-main">
+        <div class="shop-top">
+          <div class="shop-gold">💰 <span id="shopGold">0</span> gold</div>
+          <button class="shop-reroll" id="shopReroll">⟳ Refresh — <span id="shopRerollCost">0</span>g</button>
+        </div>
+        <div class="shop-grid" id="shopGrid"></div>
+        <div class="inv-hint">Click <b>BUY</b> to purchase &nbsp;·&nbsp; stock refreshes each wave &nbsp;·&nbsp; <b>B</b> close</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="treeScreen">
+  <div class="tree-panel">
+    <div class="tree-header">
+      <span class="tree-title">SKILL TREE</span>
+      <span class="tree-points" id="treePointsText">0 points available</span>
+      <span class="tree-close" id="treeClose">✕</span>
+    </div>
+    <div class="tree-canvas" id="treeCanvas">
+      <svg class="tree-svg" id="treeSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="tree-hint">Left-click a node to unlock &nbsp;·&nbsp; <b>ULTIMATE</b> requires any 2 branch capstones &nbsp;·&nbsp; <b>COUNTER</b> is melee-only</div>
+  </div>
+</div>
+<div id="treeTooltip" class="tree-tooltip hidden"></div>
+<div id="finaleHud" class="hidden"><div id="fhCount"></div><div id="fhPrompt">▶ PRESS <b>R</b> TO FINISH ◀</div></div>
+<div id="victoryCard"><div class="vk">VICTORY</div><div class="vt">THE FIVE THRONES HAVE FALLEN</div><div class="vs">The Rift is sealed… for now. But the dark never sleeps.</div></div>
+<div id="cutsceneBars" class="hidden">
+  <div class="cs-bar-top"></div>
+  <div class="cs-bar-bottom"></div>
+</div>
+
+<div id="cutsceneDialogue" class="hidden">
+  <div class="cs-portrait">💀</div>
+  <div class="cs-body">
+    <div class="cs-name">Crypt Lord</div>
+    <div class="cs-text">...</div>
+  </div>
+  <div class="cs-skip">[ Space ] Skip</div>
+</div>
+
+<div id="itemTooltip" class="hidden"></div>
+<div id="skillTooltip" class="hidden"></div>
+<div id="storyIntro" class="hidden">
+  <div id="siWrap"><canvas id="siCanvas" width="320" height="180"></canvas><div id="siCap"></div></div>
+  <div id="siMute">♪ SOUND ON [M]</div><div id="siSkip">SKIP ▸ [SPACE]</div>
+</div>
+<div id="bgmBtn">♪ MUSIC ON [M]</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

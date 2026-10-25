@@ -1,0 +1,11 @@
+{
+  "name": "sastra-dungeon",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "npm run dev -w @sastra-dungeon/web",
+    "build": "npm run build -w @sastra-dungeon/web",
+    "preview": "npm run preview -w @sastra-dungeon/web"
+  }
+}
