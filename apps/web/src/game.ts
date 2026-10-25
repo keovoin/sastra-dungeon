@@ -2462,7 +2462,11 @@ export function startGame(clsKey){
     starter.baseDmg=Math.max(starter.baseDmg,6);
     G.player.equipment.weapon=starter;
     recalcStats(G.player);
-    G.pet={x:G.player.x-46,y:G.player.y,t:0};
+    G.pets=[
+      {kind:'panda',x:G.player.x-46,y:G.player.y,t:0},
+      {kind:'cat',x:G.player.x-66,y:G.player.y+10,t:0},
+      {kind:'bear',x:G.player.x-72,y:G.player.y-14,t:0},
+    ];
     G.player.hp=G.player.maxHp;
     G.player.energy=G.player.maxEnergy;
     G.cam.x=G.player.x;G.cam.y=G.player.y;
@@ -3671,13 +3675,14 @@ function updatePlayer(dt,g){
       p.y=clamp(p.y+Math.sin(a)*step,30,WORLD.h-30);
     }
   }
-  if(G.pet){
-    const off=48;
-    const tx=p.x-Math.cos(p.facing||0)*off, ty=p.y-Math.sin(p.facing||0)*off;
-    const ddx=tx-G.pet.x, ddy=ty-G.pet.y, dd=Math.hypot(ddx,ddy);
+  for(const pt of (G.pets||[])){
+    const off=pt.kind==='panda'?48:pt.kind==='cat'?66:84;
+    const side=pt.kind==='panda'?0:pt.kind==='cat'?12:-14;
+    const tx=p.x-Math.cos(p.facing||0)*off-Math.sin(p.facing||0)*side, ty=p.y-Math.sin(p.facing||0)*off+Math.cos(p.facing||0)*side;
+    const ddx=tx-pt.x, ddy=ty-pt.y, dd=Math.hypot(ddx,ddy);
     if(dd>1){
       const st=Math.min(dd,p.speed*1.05*dt);
-      G.pet.x+=ddx/dd*st;G.pet.y+=ddy/dd*st;G.pet.t+=st*0.06;
+      pt.x+=ddx/dd*st;pt.y+=ddy/dd*st;pt.t+=st*0.06;
     }
   }
   if(autoTarget&&p.atkTimer<=0){
@@ -4207,9 +4212,19 @@ function render(){
   if(cutscene.active)for(const a of cutscene.actors)if(a.drawGround&&!a.dead)a.drawGround(a);
   for(const e of G.enemies)if(!e.dead){drawEnemy(e);if(e._redAura)drawBossRage(e);if(e.finale&&!cutscene.active&&e.hp<=Math.ceil(e.maxHp*.1))drawFinaleMark(e)}
   for(const m of G.minions)drawMinion(m);
-  if(G.pet&&FXI.panda&&FXI.panda.length===8){
-    const fr=FXI.panda[Math.floor(G.pet.t*3)%8];
-    if(fr){ctx.save();ctx.globalAlpha=0.95;ctx.drawImage(fr,G.pet.x-20,G.pet.y-24,40,40);ctx.restore()}
+  for(const pt of (G.pets||[])){
+    ctx.save();ctx.globalAlpha=0.95;
+    if(pt.kind==='panda'&&FXI.panda&&FXI.panda.length===8){
+      const fr=FXI.panda[Math.floor(pt.t*3)%8];
+      if(fr)ctx.drawImage(fr,pt.x-20,pt.y-24,40,40);
+    }else if(pt.kind==='cat'&&FX1.cat){
+      const bob=Math.sin(pt.t*0.15)*2;
+      ctx.drawImage(FX1.cat,pt.x-16,pt.y-20+bob,32,32);
+    }else if(pt.kind==='bear'&&FX1.bear){
+      const bob=Math.sin(pt.t*0.12+1.3)*2;
+      ctx.drawImage(FX1.bear,pt.x-16,pt.y-20+bob,32,32);
+    }
+    ctx.restore();
   }
   drawPlayer(G.player);
   if(cutscene.active){
