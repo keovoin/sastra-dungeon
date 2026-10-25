@@ -53,6 +53,7 @@
   #goldDisplay{position:absolute;top:12px;left:20px;font-size:15px;letter-spacing:1px;color:#ffd54f;font-weight:bold;text-shadow:0 2px 6px #000;pointer-events:none}
   .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:radial-gradient(ellipse at center,rgba(20,12,8,.9),rgba(0,0,0,.98));z-index:20}
+  #menu{background:radial-gradient(ellipse at center,rgba(20,12,8,.45),rgba(0,0,0,.72))}
   .hidden{display:none!important}
   .panel{max-width:1200px;max-height:96vh;overflow-y:auto;text-align:center;padding:20px}
   .panel::-webkit-scrollbar{width:8px}

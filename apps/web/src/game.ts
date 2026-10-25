@@ -11,6 +11,8 @@ window.addEventListener('error', e => {
 
 import * as px from './pixel';
 import {PIXFAM,hasPx,drawPxSprite} from './pixelfam';
+import {FXI,FX1,preloadFx} from './fxassets';
+preloadFx();
 
 export const TAU = Math.PI * 2;
 const rand = (a,b) => a + Math.random()*(b-a);
@@ -489,6 +491,7 @@ const CHAINHEAL = (name, icon, pct, dur, cost, cd, color) => ({
     p._healingT = dur;
     p._healingRate = (p.maxHp * pct) / dur;
     g.fx.push({type:'ring', x:p.x, y:p.y, r:80, life:.5, max:.5, color});
+    g.fx.push({type:'healbeam', x:p.x, y:p.y, life:1.15, max:1.15});
   }
 });
 
@@ -2459,6 +2462,7 @@ export function startGame(clsKey){
     starter.baseDmg=Math.max(starter.baseDmg,6);
     G.player.equipment.weapon=starter;
     recalcStats(G.player);
+    G.pet={x:G.player.x-46,y:G.player.y,t:0};
     G.player.hp=G.player.maxHp;
     G.player.energy=G.player.maxEnergy;
     G.cam.x=G.player.x;G.cam.y=G.player.y;
@@ -2848,6 +2852,7 @@ function killEnemy(e,g){
   }
   e.dead=true;g.kills++;
   addBloodDecal(e.x,e.y);
+  g.fx.push({type:'smoke',x:e.x,y:e.y,s:e.boss?2.0:0.9,life:0.55,max:0.55});
   for(let i=0;i<(e.boss?40:14);i++){
     const a=rand(0,TAU),sp=rand(60,e.boss?400:240);
     g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
@@ -3055,6 +3060,7 @@ function spawnEnemy(type,g,forcedX,forcedY){
   };
   g.enemies.push(e);
   if(isBossSpawn){e.maxHp*=1.5;e.hp=e.maxHp;g.shake=12}
+  if(e.boss)g.fx.push({type:'summon',x:e.x,y:e.y,s:1.7,life:1.5,max:1.5});
 }
 function spawnEnemyAt(type,g,x,y,hpScale){
   const t=ENEMY_TYPES[type];if(!t)return;
@@ -3665,6 +3671,15 @@ function updatePlayer(dt,g){
       p.y=clamp(p.y+Math.sin(a)*step,30,WORLD.h-30);
     }
   }
+  if(G.pet){
+    const off=48;
+    const tx=p.x-Math.cos(p.facing||0)*off, ty=p.y-Math.sin(p.facing||0)*off;
+    const ddx=tx-G.pet.x, ddy=ty-G.pet.y, dd=Math.hypot(ddx,ddy);
+    if(dd>1){
+      const st=Math.min(dd,p.speed*1.05*dt);
+      G.pet.x+=ddx/dd*st;G.pet.y+=ddy/dd*st;G.pet.t+=st*0.06;
+    }
+  }
   if(autoTarget&&p.atkTimer<=0){
     doBasicAttack(p,g,autoTarget);
     let spd=p.atkSpeed;
@@ -4079,7 +4094,19 @@ function render(){
   ctx.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,0,0);
   ctx.imageSmoothingEnabled=false;
   ctx.fillStyle='#0a0806';ctx.fillRect(0,0,W,H);
-  if(!G||!floorCanvas){ctx=mainCtxSaved;return}
+  if(!G||!floorCanvas){
+    ctx=mainCtxSaved;
+    const bg=FX1.townbg;
+    if(bg){
+      ctx.save();
+      ctx.imageSmoothingEnabled=true;
+      const sc=Math.max(W/bg.width,H/bg.height)*1.12;
+      const dw=bg.width*sc,dh=bg.height*sc;
+      const drift=(performance.now()*0.004)%120-60;
+      ctx.drawImage(bg,(W-dw)/2+drift,(H-dh)/2,dw,dh);
+      ctx.restore();
+    }
+    return}
   const shakeX=G.shake>0?rand(-G.shake,G.shake):0;
   const shakeY=G.shake>0?rand(-G.shake,G.shake):0;
   ctx.save();
@@ -4180,6 +4207,10 @@ function render(){
   if(cutscene.active)for(const a of cutscene.actors)if(a.drawGround&&!a.dead)a.drawGround(a);
   for(const e of G.enemies)if(!e.dead){drawEnemy(e);if(e._redAura)drawBossRage(e);if(e.finale&&!cutscene.active&&e.hp<=Math.ceil(e.maxHp*.1))drawFinaleMark(e)}
   for(const m of G.minions)drawMinion(m);
+  if(G.pet&&FXI.panda&&FXI.panda.length===8){
+    const fr=FXI.panda[Math.floor(G.pet.t*3)%8];
+    if(fr){ctx.save();ctx.globalAlpha=0.95;ctx.drawImage(fr,G.pet.x-20,G.pet.y-24,40,40);ctx.restore()}
+  }
   drawPlayer(G.player);
   if(cutscene.active){
     for(const a of cutscene.actors){
@@ -4292,6 +4323,47 @@ function drawFx(f){
     ctx.strokeStyle=f.color;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(f.x1,f.y1);ctx.lineTo(f.x2,f.y2);ctx.stroke();
     ctx.restore();
+  } else if(f.type==='smoke'){
+    const list=FXI.smoke;
+    if(list&&list.length){
+      const fr=list[Math.min(list.length-1,(t*list.length)|0)];
+      if(fr){
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=(1-t)*0.85;
+      const s=f.s*(0.85+0.45*t);
+      const w=fr.width*s,hh=fr.height*s;
+      ctx.drawImage(fr,f.x-w/2,f.y-hh*(1+0.5*t)-hh/2,w,hh);
+      ctx.restore();
+      }
+    }
+  } else if(f.type==='summon'){
+    const list=FXI.summon;
+    if(list&&list.length){
+      const fr=list[Math.min(list.length-1,(t*list.length)|0)];
+      if(fr){
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.9-t*0.45;
+      const w=fr.width*f.s,hh=fr.height*f.s;
+      ctx.drawImage(fr,f.x-w/2,f.y-hh/2,w,hh);
+      ctx.restore();
+      }
+    }
+  } else if(f.type==='healbeam'){
+    const list=FXI.holybeam;
+    if(list&&list.length){
+      const fr=list[Math.min(list.length-1,(t*list.length)|0)];
+      if(fr){
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      const s=3.5;
+      ctx.drawImage(fr,f.x-fr.width*s/2,f.y-fr.height*s-40,fr.width*s,fr.height*s);
+      if(t>0.7){
+        const cx=FXI.holycross;
+        if(cx&&cx.length){
+          const fr2=cx[Math.min(cx.length-1,(((t-0.7)/0.3)*cx.length)|0)];
+          if(fr2){ctx.globalAlpha=(t-0.7)/0.3;const s2=4;ctx.drawImage(fr2,f.x-fr2.width*s2/2,f.y-fr2.height*s2-30,fr2.width*s2,fr2.height*s2)}
+        }
+      }
+      ctx.restore();
+      }
+    }
   }
   ctx.restore();
 }
@@ -4591,7 +4663,7 @@ const drawEnemyBody=(function(){
       ctx.scale(sc*(e._face||1)*(1-b*0.6),sc*(1+b));ctx.translate(0,-feet);
       const key=boss?e.bossKey:e.type;
       if(hasPx(key)){
-        const def=PIXFAM[key],n=def.frames.length;
+        const def=PIXFAM.SPRITES[key],n=def.frames.length;
         drawPxSprite(ctx,key,e.color,e.dark,B,0,feet,(boss?42:44)/def.w,0,Math.floor(t*7+e.wobble)%n);
       }else if(fn)fn({B,t,c:e.color,d:e.dark,e});else circ(0,0,15,e.color);
       ctx.restore();
@@ -4625,6 +4697,18 @@ function drawEnemy(e){
   if(e.markT>0){
     ctx.save();ctx.globalAlpha=0.6;ctx.strokeStyle='#ff8f2e';ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(0,0,e.r+6,0,TAU);ctx.stroke();ctx.restore();
+  }
+  if(e.boss&&!(e.sink>0)&&!(e.lift>0)){
+    const aura=FXI.aura;
+    if(aura&&aura.length===13){
+      const fr=aura[Math.floor(G.time*14)%13];
+      if(fr){
+      const s=e.r*4.2/Math.max(fr.width,fr.height);
+      const w=fr.width*s,hh=fr.height*s;
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.45+.18*Math.sin(G.time*3);
+      ctx.drawImage(fr,-w/2,-hh/2,w,hh);ctx.restore();
+      }
+    }
   }
   if(e.stunT>0){
     ctx.save();ctx.globalAlpha=0.8;
@@ -4727,3 +4811,10 @@ console.log('🤖 Smart auto-play ready. Press O in-game to toggle');
 
 /* expose for the story-intro wrapper (main.ts import order: game -> intro) */
 (window as any).startGame = startGame;
+/* debug probe for automated smoke tests */
+(window as any).__sastra = () => ({
+  pet: G && G.pet ? { x: Math.round(G.pet.x), y: Math.round(G.pet.y), t: G.pet.t } : null,
+  player: G && G.player ? { x: Math.round(G.player.x), y: Math.round(G.player.y) } : null,
+  panda: FXI.panda ? FXI.panda.map(i => i && i.naturalWidth ? 1 : 0) : null,
+  townbg: !!FX1.townbg,
+});
