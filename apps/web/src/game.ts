@@ -2417,7 +2417,7 @@ export function startGame(clsKey){
       time:0,shake:0,kills:0,
       wave:0,waveTimer:2.0,betweenWaves:true,waveStallTimer:0,
       spawnQueue:[],spawnTimer:0,fullMsgTimer:0,
-      enemies:[],projectiles:[],particles:[],texts:[],fx:[],loot:[],rains:[],
+      enemies:[],projectiles:[],particles:[],texts:[],fx:[],loot:[],orbs:[],rains:[],
       minions:[],dust:[],portals:[],delayed:[],hazards:[],
       traps:[],totems:[],grounds:[],
       shopStock:[],shopWave:0,
@@ -2473,6 +2473,7 @@ export function startGame(clsKey){
     setFloorForBiome('crypt');
     respawnDustForBiome('crypt');
     buildSkillbar(G.player);
+    addToast(C.name.toUpperCase()+' READY',C.accent||'#fff',G.player.skills.map(s=>s.name).join('  ·  '));
     inv.open=false;inv.el.classList.add('hidden');hideTooltip();hideSkillTooltip();
     tree.open=false;tree.el.classList.add('hidden');
     document.getElementById('menu').classList.add('hidden');
@@ -2497,7 +2498,7 @@ function buildSkillbar(p){
   p.skills.forEach((s,i)=>{
     const d=document.createElement('div');
     d.className='skill';
-    d.innerHTML=`<div class="cd"></div><div class="icon">${s.icon}</div><div class="key">${s.key}</div>`;
+    d.innerHTML=`<div class="cd"></div><div class="sname">${s.name}</div><div class="icon">${s.icon}</div><div class="key">${s.key}</div>`;
     bar.appendChild(d);
     s.el=d;s.cdEl=d.querySelector('.cd');
     d.addEventListener('mouseenter',ev=>showSkillTooltip(s,ev));
@@ -2831,11 +2832,41 @@ function damageEnemy(e,amount,g,src,opts){
     text:String(amount),color:dmgColor,size:crit?21:15});
   if(e.hp<=0)killEnemy(e,g);
 }
+function dropXP(g,x,y,amount){
+  if(!amount||amount<=0)return;
+  if(g.orbs.length>400){gainXP(amount,g);return}
+  const n=clamp(Math.max(1,Math.round(amount/7)),1,5);
+  const part=Math.ceil(amount/n);
+  for(let i=0;i<n;i++)g.orbs.push({x:x+rand(-12,12),y:y+rand(-12,12),vx:rand(-50,50),vy:rand(-110,-30),life:14,amount:part,kind:'xp',r:4.5});
+}
 function dropGold(g,x,y,amount){
   if(!amount||amount<=0)return;
+  if(g.orbs.length>400){g.player.gold=(g.player.gold||0)+amount;return}
+  const n=clamp(Math.max(1,Math.round(amount/4)),1,6);
+  const part=Math.ceil(amount/n);
+  for(let i=0;i<n;i++)g.orbs.push({x:x+rand(-12,12),y:y+rand(-12,12),vx:rand(-60,60),vy:rand(-120,-30),life:14,amount:part,kind:'gold',r:4});
+}
+function updateOrbs(dt,g){
   const p=g.player;
-  p.gold=(p.gold||0)+amount;
-  g.texts.push({x:x+rand(-8,8),y:y-6,vy:-62,life:0.9,max:0.9,spawn:0.9,text:'+'+amount+'g',color:'#ffd54f',size:12});
+  for(let i=g.orbs.length-1;i>=0;i--){
+    const o=g.orbs[i];
+    o.life-=dt;
+    if(o.life<=0){g.orbs.splice(i,1);continue}
+    o.vy+=260*dt;
+    const d=dist(p,o);
+    if(d<140){
+      const a=Math.atan2(p.y-o.y,p.x-o.x);
+      const pull=520+(140-d)*5;
+      o.vx=Math.cos(a)*pull;o.vy=Math.sin(a)*pull;
+    }
+    o.x+=o.vx*dt;o.y+=o.vy*dt;
+    if(d<26){
+      if(o.kind==='xp'){gainXP(o.amount,g);}
+      else{p.gold=(p.gold||0)+o.amount;
+        g.texts.push({x:p.x+rand(-10,10),y:p.y-p.r-10,vy:-55,life:.7,max:.7,spawn:.7,text:'+'+o.amount+'g',color:'#ffd54f',size:12});}
+      g.orbs.splice(i,1);
+    }
+  }
 }
 function killEnemy(e,g){
   if(e.dead)return;
@@ -2868,10 +2899,13 @@ function killEnemy(e,g){
     g.shake=Math.max(g.shake,8);
     if(dist({x:e.x,y:e.y},g.player)<110)damagePlayer(e.dmg*1.4,g,'melee',e);
   }
-  gainXP(e.xp,g);
+  dropXP(g,e.x,e.y,e.xp);
   { const kp=g.player;if(kp&&kp._killHeal&&kp.hp>0)kp.hp=Math.min(kp.maxHp,kp.hp+kp.maxHp*kp._killHeal); }
   const goldAmt=Math.round((e.gold||Math.round((e.xp||5)*0.7))*(e.boss?1.5:1));
   dropGold(g,e.x,e.y,goldAmt);
+  if(e.boss){rollLoot(g,e.x+22,e.y,g.wave,true);rollLoot(g,e.x-22,e.y,g.wave,true);}
+  else if(e.elite){if(Math.random()<0.3)rollLoot(g,e.x,e.y,g.wave,false);}
+  else if(Math.random()<0.06)rollLoot(g,e.x,e.y,g.wave,false);
   if(e.boss){
     g.shake=20;
     if(!e.finale)addToast('BOSS DEFEATED!','#ffd54f','+'+goldAmt+' gold · '+e.name+' has fallen');
@@ -2953,6 +2987,7 @@ function gainXP(amount,g){
     g.texts.push({x:p.x,y:p.y-55,vy:-40,life:1.5,max:1.5,spawn:1.5,text:'LEVEL UP!',color:'#f0c14b',size:24});
     g.texts.push({x:p.x,y:p.y-30,vy:-50,life:2.0,max:2.0,spawn:2.0,text:'+1 TREE POINT 🌳',color:'#7aff9a',size:16});
     g.fx.push({type:'ring',x:p.x,y:p.y,r:100,life:.7,max:.7,color:'#f0c14b'});
+    addToast('LEVEL UP!','#f0c14b','Lv '+p.level+' · +1 Tree Point 🌳 — press T to spend it on spells');
   }
 }
 function rollLoot(g,x,y,wave,guaranteed){
@@ -3555,7 +3590,7 @@ function updateWaves(dt,g){
     const alive=g.enemies.some(e=>!e.dead);
     if(!alive){
       g.waveStallTimer=0;
-      if(!g.betweenWaves){g.betweenWaves=true;g.waveTimer=2.6;if(g.wave%5===0)saveGame()}
+      if(!g.betweenWaves){g.betweenWaves=true;g.waveTimer=2.6;rollLoot(g,g.player.x+rand(-50,50),g.player.y+rand(-50,50),g.wave,true);if(g.wave%5===0)saveGame()}
       else {g.waveTimer-=dt;if(g.waveTimer<=0)startWave(g)}
     } else {
       const bossAlive=g.enemies.some(e=>!e.dead&&e.boss);
@@ -3936,6 +3971,13 @@ function toggleInventory(tab){
 document.getElementById('invClose').addEventListener('click',closeInventory);
 document.getElementById('treeClose').addEventListener('click',toggleTree);
 document.getElementById('treePtsBadge').addEventListener('click',toggleTree);
+document.getElementById('autoBadge').addEventListener('click',()=>{
+  if(!G||!G.player)return;
+  G.player.autoAttack=!G.player.autoAttack;
+  addToast(G.player.autoAttack?'◉ AUTO-ATTACK ON':'○ AUTO-ATTACK OFF',G.player.autoAttack?'#ffd54f':'#8c7a63','Click the badge or right-click to toggle');
+  updateAutoBadge();
+});
+document.getElementById('autoplayBadge').addEventListener('click',()=>{ if(!G||!G.running)return; toggleAutoPlay(); });
 
 /* Pause */
 function togglePause(){
@@ -4207,6 +4249,19 @@ function render(){
     ctx.save();ctx.translate(it.x,it.y+bob);
     ctx.shadowColor=it.color;ctx.shadowBlur=22;ctx.fillStyle=it.color;
     ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(9,0);ctx.lineTo(0,11);ctx.lineTo(-9,0);ctx.closePath();ctx.fill();ctx.restore();
+  }
+  for(const o of G.orbs){
+    ctx.save();ctx.translate(o.x,o.y);
+    if(o.kind==='xp'){
+      const pulse=0.75+Math.sin(G.time*8+o.x)*0.25;
+      ctx.shadowColor='#5aff8f';ctx.shadowBlur=10;ctx.fillStyle='#5aff8f';
+      ctx.beginPath();ctx.arc(0,0,o.r*pulse,0,TAU);ctx.fill();
+    }else{
+      ctx.shadowColor='#ffd54f';ctx.shadowBlur=8;ctx.fillStyle='#ffd54f';
+      ctx.beginPath();ctx.arc(0,0,o.r,0,TAU);ctx.fill();
+      ctx.shadowBlur=0;ctx.strokeStyle='#8a6a1a';ctx.lineWidth=1.5;ctx.stroke();
+    }
+    ctx.restore();
   }
   gfxGround(biome);
   if(cutscene.active)for(const a of cutscene.actors)if(a.drawGround&&!a.dead)a.drawGround(a);
@@ -4792,6 +4847,7 @@ function loop(ts){
       updateFx(dt,G);
       updateDelayed(dt,G);
       updateLoot(dt,G);
+      updateOrbs(dt,G);
       updateWaves(dt,G);
       updateCamera(dt,G);
       updateHUD(G);

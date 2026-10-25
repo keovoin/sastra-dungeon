@@ -18,7 +18,8 @@
     box-shadow:0 4px 14px rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;
     transition:transform .12s,border-color .12s}
   .skill:hover{transform:translateY(-2px);border-color:#c9a24a}
-  .skill .icon{font-size:26px;color:#ffe0a3;text-shadow:0 0 10px #ff9d3c;z-index:2}
+  .skill .icon{font-size:24px;color:#ffe0a3;text-shadow:0 0 10px #ff9d3c;z-index:2}
+  .skill .sname{position:absolute;top:3px;left:2px;right:2px;text-align:center;font-size:7px;letter-spacing:.2px;color:#c8b89a;z-index:2;white-space:nowrap;overflow:hidden;text-transform:uppercase;pointer-events:none}
   .skill .cd{position:absolute;left:0;right:0;bottom:0;height:0%;background:rgba(0,0,0,.8);z-index:3}
   .skill .key{position:absolute;bottom:1px;right:4px;font-size:11px;color:#c8b89a;z-index:4}
   .skill.ready{border-color:#c9a24a;box-shadow:0 0 16px rgba(255,180,80,.5),0 4px 14px #000}
@@ -42,11 +43,13 @@
   @keyframes tf{0%{opacity:0;transform:translateY(-8px)}12%{opacity:1;transform:translateY(0)}80%{opacity:1}100%{opacity:0}}
   #autoBadge{position:absolute;top:14px;right:20px;padding:7px 14px;border:2px solid #ff8f2e;border-radius:8px;
     background:rgba(255,143,46,.18);color:#ffd54f;font-weight:bold;font-size:11px;letter-spacing:2px;
-    display:none;box-shadow:0 0 18px rgba(255,143,46,.5);text-shadow:0 1px 2px #000}
+    display:none;box-shadow:0 0 18px rgba(255,143,46,.5);text-shadow:0 1px 2px #000;cursor:pointer;user-select:none;z-index:15;pointer-events:auto}
+  #autoBadge:hover{background:rgba(255,143,46,.34)}
   #autoBadge.off{border-color:#6b5d4e;background:rgba(60,50,40,.3);color:#8c7a63;box-shadow:none}
   #autoplayBadge{position:absolute;top:52px;right:20px;padding:7px 14px;border:2px solid #7aff9a;border-radius:8px;
     background:rgba(122,255,154,.18);color:#7aff9a;font-weight:bold;font-size:11px;letter-spacing:2px;
-    display:none;box-shadow:0 0 18px rgba(122,255,154,.5);text-shadow:0 1px 2px #000}
+    display:none;box-shadow:0 0 18px rgba(122,255,154,.5);text-shadow:0 1px 2px #000;cursor:pointer;user-select:none;z-index:15;pointer-events:auto}
+  #autoplayBadge:hover{background:rgba(122,255,154,.32)}
   #autoplayBadge.off{border-color:#6b5d4e;background:rgba(60,50,40,.3);color:#8c7a63;box-shadow:none}
   #biomeLabel{position:absolute;top:50px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:4px;color:#c8b89a;opacity:.7}
   #enemyCount{position:absolute;top:36px;left:20px;font-size:11px;letter-spacing:1px;color:#8c7a63;opacity:.85}
