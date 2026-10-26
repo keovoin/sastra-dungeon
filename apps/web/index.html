@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sastra Dungeon — 71 Classes</title>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<meta name="description" content="Sastra Dungeon — a top-down dungeon crawler with 71 unique classes, 9 archetypes, cutscenes, shops, skill trees and auto-play.">
+<meta property="og:title" content="Sastra Dungeon — 71 Classes">
+<meta property="og:description" content="Top-down dungeon crawler · 71 classes · cutscenes · skill trees · auto-play.">
+<meta property="og:image" content="/og.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -17,24 +23,41 @@
   <div id="topbar">
     <div id="xpOuter"><div id="xpFill"></div></div>
     <div id="toptext">
-      <span id="waveTxt">Wave 1</span>
+      <span id="waveTxt" data-i18n="Wave 1">Wave 1</span>
       <span><span id="lvl">Lv 1</span> <span id="treePtsBadge" style="display:none">+0 🌳</span></span>
-      <span id="killTxt">0 kills</span>
+      <span id="killTxt" data-i18n="0 kills">0 kills</span>
     </div>
   </div>
   <div id="biomeLabel"></div>
   <div id="loreCard"></div>
   <div id="goldDisplay">💰 <span id="goldTxt">0</span></div>
+  <div id="potionBtn" class="hidden" title="Drink potion [Q]">🧪 <span class="pb-count">×0</span></div>
   <div id="enemyCount">0 left</div>
   <div id="toasts"></div>
-  <div id="autoBadge">◉ AUTO-ATTACK</div>
-  <div id="autoplayBadge">🤖 AUTO-PLAY</div>
+  <div id="autoBadge" data-i18n="◉ AUTO-ATTACK">◉ AUTO-ATTACK</div>
+  <div id="autoplayBadge" data-i18n="🤖 AUTO-PLAY">🤖 AUTO-PLAY</div>
+</div>
+
+<div id="touchUI" class="hidden">
+  <div id="joyZone"><div id="joyKnob"></div></div>
+  <button id="touchAtk">⚔</button>
+  <button id="touchPause">⏸</button>
 </div>
 
 <div class="overlay" id="menu">
   <div class="panel">
     <h1>SASTRA DUNGEON</h1>
     <div class="sub">71 Classes · 9 Archetypes · Unique Skills · Cutscenes</div>
+    <div id="menuRow">
+      <button id="langBtn" title="Switch language">EN · ខ្មែរ</button>
+      <div id="diffSel" title="Difficulty">
+        <button class="diff-opt" data-diff="easy">EASY</button>
+        <button class="diff-opt active" data-diff="normal">NORMAL</button>
+        <button class="diff-opt" data-diff="hard">HARD</button>
+      </div>
+      <span id="diffLabel">DIFFICULTY: NORMAL</span>
+      <span id="bestRun"></span>
+    </div>
     <div id="continuePanel" class="hidden">
       <div class="continue-info">
         <div class="continue-label">▶ CONTINUE SAVED GAME</div>
@@ -58,23 +81,37 @@
     </div>
     <div class="classes" id="classesGrid"></div>
     <div class="hint">
-      <b>Left click</b> move &nbsp;•&nbsp; <b>Right click</b> auto-attack &nbsp;•&nbsp; <b>WASD</b> move &nbsp;•&nbsp; <b>1/2/3</b> skills &nbsp;•&nbsp; <b>4</b> hold ult &nbsp;•&nbsp; <b>T</b> tree &nbsp;•&nbsp; <b>C</b> character &nbsp;•&nbsp; <b>B</b> shop &nbsp;•&nbsp; <b>O</b> auto-play &nbsp;•&nbsp; <b>Esc</b> pause
+      <b>Left click</b> move &nbsp;•&nbsp; <b>Right click</b> auto-attack &nbsp;•&nbsp; <b>WASD</b> move &nbsp;•&nbsp; <b>1/2/3</b> skills &nbsp;•&nbsp; <b>4</b> hold ult &nbsp;•&nbsp; <b>T</b> tree &nbsp;•&nbsp; <b>C</b> character &nbsp;•&nbsp; <b>B</b> shop &nbsp;•&nbsp; <b>Q</b> potion &nbsp;•&nbsp; <b>O</b> auto-play &nbsp;•&nbsp; <b>Esc</b> pause
     </div>
   </div>
 </div>
 
 <div class="overlay hidden" id="deathScreen">
   <div class="panel">
-    <div id="deathTitle">YOU DIED</div>
+    <div id="deathTitle" data-i18n="YOU DIED">YOU DIED</div>
     <div class="stats" id="deathStats"></div>
-    <button class="btn" id="againBtn">Try Again</button>
+    <button class="btn" id="againBtn" data-i18n="Try Again">Try Again</button>
+    <button class="btn ghost" id="menuBtn2" data-i18n="Main Menu">Main Menu</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="victoryScreen">
+  <div class="panel">
+    <div id="vicTitle" data-i18n="VICTORY">VICTORY</div>
+    <div class="sub" data-i18n="The Rift is sealed">The Rift is sealed</div>
+    <div class="vstats" id="victoryStats"></div>
+    <div class="pause-buttons" style="flex-direction:column">
+      <button class="menu-btn primary" id="ngplusBtn">🔥 <span data-i18n="NEW GAME+ — restart Wave 1, keep everything">NEW GAME+ — restart Wave 1, keep everything</span></button>
+      <button class="menu-btn" id="endlessBtn">♾ <span data-i18n="ENDLESS — keep pushing beyond the Rift">ENDLESS — keep pushing beyond the Rift</span></button>
+      <button class="menu-btn" id="vicMenuBtn">↩ <span data-i18n="Main Menu">Main Menu</span></button>
+    </div>
   </div>
 </div>
 
 <div class="overlay hidden" id="pauseScreen">
   <div class="panel pause-panel">
     <div id="pauseMsg">PAUSED</div>
-    <div class="pause-sub">The shadows wait for you</div>
+    <div class="pause-sub" data-i18n="The shadows wait for you">The shadows wait for you</div>
     <div class="pause-buttons">
       <button class="menu-btn primary" id="resumeBtn">▶ &nbsp; RESUME</button>
       <button class="menu-btn" id="saveBtn">💾 &nbsp; SAVE PROGRESS</button>
@@ -83,6 +120,12 @@
     <div class="pause-hint">Press <b>Esc</b> to resume</div>
     <div class="pause-save-info" id="pauseSaveInfo"></div>
   </div>
+</div>
+
+<div id="tutorial" class="hidden">
+  <div id="tutText"></div>
+  <div id="tutDots"></div>
+  <button id="tutClose" title="Skip tutorial">✕</button>
 </div>
 
 <div class="overlay hidden" id="inventoryScreen">

@@ -28,13 +28,13 @@ function init(){try{AC=new(window.AudioContext||(window as any).webkitAudioConte
   an=AC.createAnalyser();an.fftSize=1024;anBuf=new Float32Array(an.fftSize);master.connect(an);
   nbuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=nbuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   pw[.25]=pulse(.25);pw[.125]=pulse(.125)}catch(e){AC=null}}
-function note(f,at,dur,vol,wave,type){const o=AC.createOscillator(),g=AC.createGain();if(wave)o.setPeriodicWave(wave);else o.type=type||'triangle';o.frequency.setValueAtTime(f,at);
+function note(f,at,dur,vol,wave,type){try{const o=AC.createOscillator(),g=AC.createGain();if(wave)o.setPeriodicWave(wave);else o.type=type||'triangle';o.frequency.setValueAtTime(f,at);
   g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(vol,at+.005);g.gain.setValueAtTime(vol,at+Math.max(.006,dur*.55));g.gain.exponentialRampToValueAtTime(.0001,at+dur);
-  o.connect(g);g.connect(master);o.start(at);o.stop(at+dur+.03)}
-function noise(at,dur,vol,type,f){const s=AC.createBufferSource();s.buffer=nbuf;s.loop=true;const fl=AC.createBiquadFilter();fl.type=type;fl.frequency.value=f;const g=AC.createGain();
-  g.gain.setValueAtTime(vol,at);g.gain.exponentialRampToValueAtTime(.0001,at+dur);s.connect(fl);fl.connect(g);g.connect(master);s.start(at);s.stop(at+dur+.03)}
-function kick(at,v){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(150,at);o.frequency.exponentialRampToValueAtTime(40,at+.12);
-  g.gain.setValueAtTime(v,at);g.gain.exponentialRampToValueAtTime(.0001,at+.16);o.connect(g);g.connect(master);o.start(at);o.stop(at+.2)}
+  o.connect(g);g.connect(master);o.start(at);o.stop(at+dur+.03)}catch(e){}}
+function noise(at,dur,vol,type,f){try{const s=AC.createBufferSource();s.buffer=nbuf;s.loop=true;const fl=AC.createBiquadFilter();fl.type=type;fl.frequency.value=f;const g=AC.createGain();
+  g.gain.setValueAtTime(vol,at);g.gain.exponentialRampToValueAtTime(.0001,at+dur);s.connect(fl);fl.connect(g);g.connect(master);s.start(at);s.stop(at+dur+.03)}catch(e){}}
+function kick(at,v){try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(150,at);o.frequency.exponentialRampToValueAtTime(40,at+.12);
+  g.gain.setValueAtTime(v,at);g.gain.exponentialRampToValueAtTime(.0001,at+.16);o.connect(g);g.connect(master);o.start(at);o.stop(at+.2)}catch(e){}}
 function playStep(T,i,at,sd){
   const bar=Math.floor(i/16)%4,s=i%16,root=T.prog[bar][0],c=ch(root,T.prog[bar][1]);
   const L=T.lead[i%64];if(L&&L[0])note(mtof(L[0]),at,L[1]*sd*.92,hot?.052:.045,pw[.25]);

@@ -328,10 +328,10 @@ const EV=[[5,'th'],[7.6,'th'],[12.7,'roar'],[16.5,'th'],[18.3,'sword'],[S2+4,'th
 const PR=[45,41,43,40],QL=[3,4,4,4],PM={5:[[52,3],[48,4],[55,4],[50,4]],6:[[45,3],[45,3],[53,4],[52,4]],7:[[48,3],[44,4],[46,4],[43,4]],8:[[45,3],[41,4],[48,4],[43,4]]},mf=m=>440*Math.pow(2,(m-69)/12);let SD=60/76/4;
 function aInit(){try{AC=new(window.AudioContext||(window as any).webkitAudioContext)();mg=AC.createGain();mg.gain.value=muted?0:.55;mg.connect(AC.destination);
   nb=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;if(AC.resume)AC.resume()}catch(e){AC=null}}
-function tn(ty,f,at,du,v,f2){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.setValueAtTime(f,at);if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),at+du);
-  g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.01);g.gain.exponentialRampToValueAtTime(.0001,at+du);o.connect(g);g.connect(mg);o.start(at);o.stop(at+du+.05)}
-function nz(at,du,v,ty,f1,f2){if(!AC)return;const s=AC.createBufferSource();s.buffer=nb;s.loop=true;const fl=AC.createBiquadFilter();fl.type=ty;fl.frequency.setValueAtTime(f1,at);if(f2)fl.frequency.exponentialRampToValueAtTime(f2,at+du);
-  const g=AC.createGain();g.gain.setValueAtTime(v,at);g.gain.exponentialRampToValueAtTime(.0001,at+du);s.connect(fl);fl.connect(g);g.connect(mg);s.start(at);s.stop(at+du+.05)}
+function tn(ty,f,at,du,v,f2){if(!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.setValueAtTime(f,at);if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),at+du);
+  g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.01);g.gain.exponentialRampToValueAtTime(.0001,at+du);o.connect(g);g.connect(mg);o.start(at);o.stop(at+du+.05)}catch(e){AC=null}}
+function nz(at,du,v,ty,f1,f2){if(!AC)return;try{const s=AC.createBufferSource();s.buffer=nb;s.loop=true;const fl=AC.createBiquadFilter();fl.type=ty;fl.frequency.setValueAtTime(f1,at);if(f2)fl.frequency.exponentialRampToValueAtTime(f2,at+du);
+  const g=AC.createGain();g.gain.setValueAtTime(v,at);g.gain.exponentialRampToValueAtTime(.0001,at+du);s.connect(fl);fl.connect(g);g.connect(mg);s.start(at);s.stop(at+du+.05)}catch(e){AC=null}}
 function sfx(n){if(!AC)return;const at=AC.currentTime+.02;
   if(n==='th'){nz(at,1.8,.5,'lowpass',2400,120);tn('sine',70,at,1.2,.3,35)}
   else if(n==='roar'){tn('sawtooth',150,at,1.9,.12,45);tn('square',90,at,1.6,.06,40);nz(at,1.9,.22,'bandpass',900,200)}
