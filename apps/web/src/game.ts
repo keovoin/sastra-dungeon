@@ -2477,6 +2477,7 @@ export function startGame(clsKey){
   try {
     const C=CLASSES[clsKey];
     if(!C){console.error('❌ Class not found:', clsKey);addToast('Class not found: '+clsKey,'#ef4444','');return;}
+    closeUpgradePanel();
     G={
       running:true,paused:false,pauseMenu:false,
       diff:DIFFS[diffKey],endless:false,ngPlus:0,_victoryOpen:false,
@@ -2568,9 +2569,9 @@ function buildSkillbar(p){
   p.skills.forEach((s,i)=>{
     const d=document.createElement('div');
     d.className='skill';
-    d.innerHTML=`<div class="cd"></div><div class="sname">${s.name}</div><div class="icon">${s.icon}</div><div class="key">${s.key}</div>`;
+    d.innerHTML=`<div class="cd"></div><div class="sname">${s.name}</div><div class="icon">${s.icon}</div><div class="key">${i+1}</div>`;
     bar.appendChild(d);
-    s.el=d;s.cdEl=d.querySelector('.cd');
+    s.el=d;s.cdEl=d.querySelector('.cd');s._slotKey=i+1;
     d.addEventListener('mouseenter',ev=>showSkillTooltip(s,ev));
     d.addEventListener('mousemove',ev=>positionSkillTooltip(ev));
     d.addEventListener('mouseleave',hideSkillTooltip);
@@ -2603,7 +2604,7 @@ function showSkillTooltip(skill,e){
   const info=skill.info||{desc:'',calc:()=>[]};
   const cdText=skill.baseCd<1?skill.baseCd.toFixed(2)+'s':skill.baseCd.toFixed(1)+'s';
   const stats=info.calc(p);
-  let h=`<div class="st-header"><div class="st-icon">${skill.icon}</div><div class="st-title"><div class="st-name">${skill.name}</div><div class="st-meta"><span>Cost <b>${skill.cost}</b></span><span>CD <b>${cdText}</b></span><span>Key <b>${skill.key}</b></span></div></div></div><div class="st-desc">${info.desc}</div>`;
+  let h=`<div class="st-header"><div class="st-icon">${skill.icon}</div><div class="st-title"><div class="st-name">${skill.name}</div><div class="st-meta"><span>Cost <b>${skill.cost}</b></span><span>CD <b>${cdText}</b></span><span>Key <b>${skill._slotKey||skill.key}</b></span></div></div></div><div class="st-desc">${info.desc}</div>`;
   for(const row of stats){
     const cls=row.kind==='dmg'?'st-stat dmg':row.kind==='heal'?'st-stat heal':row.kind==='util'?'st-stat util':'st-stat';
     h+=`<div class="${cls}"><span class="k">${row.label}</span><span class="v">${row.value}</span></div>`;
@@ -3135,7 +3136,6 @@ function chooseUpgrade(i){
   if(upgState.pending>0&&G&&G.running)setTimeout(()=>{if(G&&G.running)openUpgradePanel(G);},380);
 }
 function closeUpgradePanel(){
-  if(!upgState.open)return;
   upgState.open=false;upgState.pending=0;upgState.opts=[];
   const el=document.getElementById('upgScreen');
   if(el)el.classList.add('hidden');
@@ -5172,6 +5172,7 @@ document.getElementById('vicMenuBtn').addEventListener('click',()=>{
 function gameOver(){
   if(!G)return;
   G.running=false;
+  closeUpgradePanel();
   sfx.death();
   recordBestRun(G);
   hideSkillTooltip();hideTreeTooltip();
