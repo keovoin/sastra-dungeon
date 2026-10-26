@@ -942,6 +942,7 @@ function saveGamePayload(g) {
     kills: g.kills, hp: p.hp, energy: p.energy, gold: p.gold || 0,
     potions: p.potions || 0,
     treePoints: p.treePoints, treeUnlocked: p.treeUnlocked.slice(), hasUltimate: p.hasUltimate,
+    upg: { ...(p.upg||{}) },
     itemIdCounter, savedAt: Date.now()
   };
   return save;
@@ -973,7 +974,8 @@ function resumeFromSave(data, silent) {
   p.level = data.level || 1;
   p.xp = data.xp || 0;
   p.xpNext = data.xpNext || 100;
-  p.baseStats = { dmg:C.dmg, maxHp:C.hp, armor:0, speed:C.speed, crit:C.crit, energyRegen:C.energyRegen, maxEnergy:C.energy, ...(data.baseStats||{}) };
+  p.baseStats = { dmg:C.dmg, maxHp:C.hp, armor:0, speed:C.speed, crit:C.crit, energyRegen:C.energyRegen, maxEnergy:C.energy, atkSpeed:C.atkSpeed, range:C.range, ...(data.baseStats||{}) };
+  p.upg = { ...UPG_EMPTY, ...(data.upg||{}) };
   if (data.treeMods) {
     const m = data.treeMods;
     p._critDmg = m._critDmg||2; p._executioner = !!m._executioner;
@@ -1306,9 +1308,15 @@ window.addEventListener('mouseup',e=>{if(e.button===0)mouse.down=false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
-  if(!G||!G.running)return;
+  if(!G||!G.running){if(upgState.open)closeUpgradePanel();return}
   if(cutscene.active){
     if(k===' '||k==='enter'){e.preventDefault();skipCutscene();}
+    return;
+  }
+  if(upgState.open){
+    const ui=['1','2','3'].indexOf(k);
+    if(ui>=0&&ui<upgState.opts.length){e.preventDefault();chooseUpgrade(ui);return}
+    if(k==='escape'){e.preventDefault();chooseUpgrade(0);return}
     return;
   }
   if(keys[k])return;
@@ -1510,6 +1518,20 @@ function addBloodDecal(x,y){
   floorCtx.beginPath();floorCtx.ellipse(x,y,r,r*0.7,rand(0,TAU),0,TAU);floorCtx.fill();
   floorCtx.restore();
 }
+/* ═══ LEVEL-UP UPGRADES — pick 1 of 3 (Vampire-Survivors style) ═══ */
+const UPG_DEFS=[
+  {id:'dmg',  icon:'⚔️', name:'Sharpened Edge', desc:'+12% damage',              cap:10, ranged:false},
+  {id:'atk',  icon:'💥', name:'Faster Attacks', desc:'+10% attack speed',        cap:8,  ranged:false},
+  {id:'shots',icon:'🏹', name:'Multi-Strike',   desc:'+1 bolt per attack',       cap:3,  ranged:true},
+  {id:'range',icon:'🎯', name:'Long Reach',     desc:'+12% attack range',        cap:5,  ranged:false},
+  {id:'spd',  icon:'👟', name:'Swift Steps',    desc:'+8% move speed',           cap:6,  ranged:false},
+  {id:'hp',   icon:'❤️', name:'Vitality',       desc:'+12% max HP · heals 12%',  cap:8,  ranged:false},
+  {id:'crit', icon:'💢', name:'Deadly Aim',     desc:'+4% critical chance',      cap:5,  ranged:false},
+  {id:'cd',   icon:'⚡', name:'Quick Cast',     desc:'-8% skill cooldowns',      cap:6,  ranged:false},
+];
+const UPG_EMPTY={dmg:0,atk:0,shots:0,spd:0,hp:0,crit:0,cd:0,range:0};
+const upgState={pending:0,open:false,opts:[] as any[],token:0,openAt:0};
+
 function recalcStats(p){
   const tot={dmg:0,hp:0,armor:0,speed:0,crit:0,regen:0};
   for(const slot in p.equipment){
@@ -1518,13 +1540,17 @@ function recalcStats(p){
     const s=itemStats(it);
     for(const k in tot)tot[k]+=s[k];
   }
+  const up=p.upg||UPG_EMPTY;
+  const CL=CLASSES[p.cls]||{};
   const oldMax=p.maxHp||0;
-  p.dmg=p.baseStats.dmg+tot.dmg;
-  p.maxHp=p.baseStats.maxHp+tot.hp;
+  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+up.dmg*0.12);
+  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+up.hp*0.12));
   p.armor=p.baseStats.armor+tot.armor;
-  p.speed=p.baseStats.speed+tot.speed;
-  p.crit=Math.min(0.75,p.baseStats.crit+tot.crit);
+  p.speed=(p.baseStats.speed+tot.speed)*(1+up.spd*0.08);
+  p.crit=Math.min(0.75,(p.baseStats.crit+tot.crit)+up.crit*0.04);
   p.energyRegen=p.baseStats.energyRegen+tot.regen;
+  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+up.atk*0.10);
+  p.range=(p.baseStats.range||CL.range||100)*(1+up.range*0.12);
   if(p.baseStats.maxEnergy){
     p.maxEnergy=p.baseStats.maxEnergy;
     p.energy=Math.min(p.energy||p.maxEnergy,p.maxEnergy);
@@ -2467,7 +2493,7 @@ export function startGame(clsKey){
       player:{
         x:WORLD.w/2,y:WORLD.h/2,r:15,
         cls:clsKey,color:C.color,accent:C.accent,
-        baseStats:{dmg:C.dmg,maxHp:C.hp,armor:0,speed:C.speed,crit:C.crit,energyRegen:C.energyRegen,maxEnergy:C.energy},
+        baseStats:{dmg:C.dmg,maxHp:C.hp,armor:0,speed:C.speed,crit:C.crit,energyRegen:C.energyRegen,maxEnergy:C.energy,atkSpeed:C.atkSpeed,range:C.range},
         equipment:{weapon:null,helm:null,chest:null,gloves:null,boots:null,ring:null,amulet:null},
         inventory:[],
         maxHp:C.hp,hp:C.hp,maxEnergy:C.energy,energy:C.energy,
@@ -2475,6 +2501,7 @@ export function startGame(clsKey){
         range:C.range,atkSpeed:C.atkSpeed,
         facing:0,atkTimer:0,moveTarget:null,swing:0,
         level:1,xp:0,xpNext:100,invuln:0,gold:50,
+        upg:{dmg:0,atk:0,shots:0,spd:0,hp:0,crit:0,cd:0,range:0},
         dashT:0,dashSpeed:0,dashAng:0,dashDamage:0,dashHits:new Set(),
         spinT:0,spinTick:0,walkPhase:0,isMoving:false,
         autoAttack:true,_autoTarget:null,
@@ -2605,7 +2632,7 @@ function tryCast(i){
   if(p._skillPower)p.dmg=Math.round(p.dmg*(1+p._skillPower));
   s.cast(p,G);
   p.dmg=origDmg;
-  const cdMult=Math.max(0.3,1-(p._cdr||0));
+  const cdMult=Math.max(0.3,1-((p._cdr||0)+(p.upg&&p.upg.cd?p.upg.cd*0.08:0)));
   s.cd=s.baseCd*cdMult;
   p.energy-=s.cost;
   if(p._refund&&Math.random()<p._refund){s.cd=0;p.energy=Math.min(p.maxEnergy,p.energy+s.cost);G.fx.push({type:'ring',x:p.x,y:p.y,r:50,life:.35,max:.35,color:'#7fb4ff'})}
@@ -3024,9 +3051,10 @@ function damagePlayer(amount,g,kind,attacker){
 function gainXP(amount,g){
   const p=g.player;
   p.xp+=amount;
+  let ups=0;
   while(p.xp>=p.xpNext){
     sfx.levelup();
-    p.xp-=p.xpNext;p.level++;
+    p.xp-=p.xpNext;p.level++;ups++;
     p.xpNext=Math.round(p.xpNext*1.5);
     p.baseStats.maxHp+=14;p.baseStats.dmg+=2.2;p.baseStats.energyRegen+=0.4;
     p.treePoints=(p.treePoints||0)+1;
@@ -3034,8 +3062,84 @@ function gainXP(amount,g){
     g.texts.push({x:p.x,y:p.y-55,vy:-40,life:1.5,max:1.5,spawn:1.5,text:'LEVEL UP!',color:'#f0c14b',size:24});
     g.texts.push({x:p.x,y:p.y-30,vy:-50,life:2.0,max:2.0,spawn:2.0,text:'+1 TREE POINT 🌳',color:'#7aff9a',size:16});
     g.fx.push({type:'ring',x:p.x,y:p.y,r:100,life:.7,max:.7,color:'#f0c14b'});
-    addToast('LEVEL UP!','#f0c14b','Lv '+p.level+' · +1 Tree Point 🌳 — press T to spend it on spells');
   }
+  if(ups>0&&!cutscene.active&&G===g&&G.running){
+    upgState.pending+=ups;
+    openUpgradePanel(g);
+  }
+}
+/* ── Level-up upgrade pick (Vampire-Survivors style) ── */
+function openUpgradePanel(g){
+  const p=g.player;
+  if(!p)return;
+  if(!p.upg)p.upg={...UPG_EMPTY};
+  const isMelee=(CLASSES[p.cls]||{}).basic==='melee';
+  const avail=UPG_DEFS.filter(d=>(!d.ranged||!isMelee)&&((p.upg[d.id]||0)<d.cap));
+  if(avail.length===0){
+    upgState.pending=0;
+    p.hp=Math.min(p.maxHp,p.hp+Math.round(p.maxHp*0.1));
+    addToast('ALL UPGRADES MAXED — +10% HP','#ffd54f','');
+    return;
+  }
+  upgState.opts=avail.slice().sort(()=>Math.random()-0.5).slice(0,Math.min(3,avail.length));
+  upgState.open=true;upgState.token++;upgState.openAt=performance.now();
+  const token=upgState.token;
+  const el=document.getElementById('upgScreen');
+  if(el){
+    el.classList.remove('hidden');
+    const sub=document.getElementById('upgSub');
+    if(sub)sub.textContent='Level '+p.level+' — choose a power'+(upgState.pending>1?'  ·  '+(upgState.pending-1)+' more to come':'');
+    const wrap=document.getElementById('upgCards');
+    wrap.innerHTML='';
+    upgState.opts.forEach((d,i)=>{
+      const c=document.createElement('div');
+      c.className='upg-card';
+      c.innerHTML='<div class="upg-key">'+(i+1)+'</div>'
+        +'<div class="upg-ico">'+d.icon+'</div>'
+        +'<div class="upg-name">'+tr(d.name)+'</div>'
+        +'<div class="upg-desc">'+tr(d.desc)+'</div>'
+        +'<div class="upg-lvl">'+(p.upg[d.id]||0)+' → '+((p.upg[d.id]||0)+1)+'</div>';
+      c.addEventListener('click',()=>chooseUpgrade(i));
+      wrap.appendChild(c);
+    });
+  }
+  syncPause();
+  if(autoPlay.enabled){
+    setTimeout(()=>{
+      if(!upgState.open||upgState.token!==token||!G||!G.running)return;
+      const order=['dmg','atk','shots','range','hp','cd','crit','spd'];
+      let best=0;
+      for(let i=1;i<upgState.opts.length;i++){
+        if(order.indexOf(upgState.opts[i].id)<order.indexOf(upgState.opts[best].id))best=i;
+      }
+      chooseUpgrade(best);
+    },1200);
+  }
+}
+function chooseUpgrade(i){
+  if(!upgState.open||!G||!G.player)return;
+  const d=upgState.opts[i];if(!d)return;
+  const g=G,p=g.player;
+  upgState.open=false;
+  if(!p.upg)p.upg={...UPG_EMPTY};
+  p.upg[d.id]=(p.upg[d.id]||0)+1;
+  if(d.id==='hp')p.hp+=p.maxHp*0.12;
+  recalcStats(p);
+  addToast(tr(d.name),'#ffd54f',tr(d.desc));
+  g.texts.push({x:p.x,y:p.y-46,vy:-40,life:1.2,max:1.2,spawn:1,text:d.icon+' '+tr(d.name),color:'#ffd54f',size:15});
+  g.fx.push({type:'ring',x:p.x,y:p.y,r:80,life:.5,max:.5,color:'#ffd54f'});
+  const el=document.getElementById('upgScreen');
+  if(el)el.classList.add('hidden');
+  syncPause();
+  upgState.pending--;
+  if(upgState.pending>0&&G&&G.running)setTimeout(()=>{if(G&&G.running)openUpgradePanel(G);},380);
+}
+function closeUpgradePanel(){
+  if(!upgState.open)return;
+  upgState.open=false;upgState.pending=0;upgState.opts=[];
+  const el=document.getElementById('upgScreen');
+  if(el)el.classList.add('hidden');
+  syncPause();
 }
 function rollLoot(g,x,y,wave,guaranteed){
   let r=Math.random(),idx=0;
@@ -3794,8 +3898,12 @@ function doBasicAttack(p,g,target){
     }
     g.fx.push({type:'slash',x:p.x,y:p.y,r:p.range+6,ang:a,arc:1.9,life:.14,max:.14,color:p.accent});
   } else {
-    spawnProj(g,{x:p.x+Math.cos(a)*20,y:p.y+Math.sin(a)*20,
-      vx:Math.cos(a)*560,vy:Math.sin(a)*560,r:8,dmg:p.dmg,life:1.2,color:p.accent,from:'player',isBasic:true});
+    const n=1+((p.upg&&p.upg.shots)||0);
+    for(let k2=0;k2<n;k2++){
+      const aa=a+(k2-(n-1)/2)*0.13;
+      spawnProj(g,{x:p.x+Math.cos(aa)*20,y:p.y+Math.sin(aa)*20,
+        vx:Math.cos(aa)*560,vy:Math.sin(aa)*560,r:8,dmg:p.dmg,life:1.2,color:p.accent,from:'player',isBasic:true});
+    }
   }
 }
 function updateHUD(g){
@@ -4052,7 +4160,7 @@ document.addEventListener('mousemove',e=>{
   if(!skillTipEl.classList.contains('hidden'))positionSkillTooltip(e);
   if(!tree.tooltip.classList.contains('hidden'))positionTreeTooltip(e);
 });
-function syncPause(){if(G)G.paused=G.pauseMenu||inv.open||tree.open}
+function syncPause(){if(G)G.paused=G.pauseMenu||inv.open||tree.open||upgState.open}
 function closeInventory(){
   inv.open=false;inv.el.classList.add('hidden');hideTooltip();syncPause();
 }
@@ -4934,6 +5042,10 @@ let lastTs=0;
 function loop(ts){
   const dt=Math.min(0.05,(ts-lastTs)/1000||0);
   lastTs=ts;
+  if(upgState.open){
+    if(!G||!G.running)closeUpgradePanel();
+    else if(performance.now()-upgState.openAt>30000)chooseUpgrade(0);
+  }
   if(cutscene.active){const _cb=document.getElementById('cutsceneBars');if(_cb&&_cb.classList.contains('hidden'))endCutscene()}
   if(G&&G._finaleDone&&!G._victoryOpen&&G.player&&G.player.hp>0&&!G.endless)showVictoryScreen();
   if(G&&G.running&&!G.paused){
