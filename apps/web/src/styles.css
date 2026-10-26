@@ -13,7 +13,7 @@
   #enOrb{right:16px}#enOrb .fill{background:linear-gradient(180deg,#6cc8ff,#0f4c8b)}
   .orb span{position:relative;z-index:2;font-weight:bold;text-shadow:0 2px 4px #000;font-size:15px}
   #skillbar{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
-  .skill{position:relative;width:58px;height:58px;border-radius:9px;overflow:hidden;pointer-events:auto;
+  .skill{position:relative;width:58px;height:58px;border-radius:9px;overflow:hidden;pointer-events:auto;touch-action:manipulation;
     background:linear-gradient(180deg,#2b2420,#14100d);border:2px solid #4a3d34;
     box-shadow:0 4px 14px rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;
     transition:transform .12s,border-color .12s}
@@ -385,6 +385,30 @@ body{font-family:'Trebuchet MS',system-ui,'Noto Sans Khmer',sans-serif}
 body.touch #touchUI{display:block}
 #joyZone{position:absolute;left:24px;bottom:24px;width:130px;height:130px;border-radius:50%;border:2px solid rgba(200,184,154,.35);background:rgba(20,16,12,.35);pointer-events:auto;touch-action:none}
 #joyKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(232,192,122,.4);border:2px solid rgba(232,192,122,.6);opacity:.6;transition:opacity .15s}
-#touchAtk,#touchPause{position:absolute;pointer-events:auto;width:64px;height:64px;border-radius:50%;font-size:26px;color:#e8c07a;background:rgba(20,16,12,.5);border:2px solid #6b543a;touch-action:manipulation}
-#touchAtk{right:24px;bottom:40px}
-#touchPause{right:104px;bottom:100px;width:48px;height:48px;font-size:18px}
+#touchAtk,#touchPause,#touchSkill,#touchItems,#touchShop{position:absolute;pointer-events:auto;width:48px;height:48px;border-radius:50%;font-size:20px;color:#e8c07a;background:rgba(20,16,12,.5);border:2px solid #6b543a;touch-action:manipulation}
+#touchAtk{width:64px;height:64px;font-size:26px;right:16px;bottom:16px}
+#touchPause{right:92px;bottom:80px;font-size:16px}
+#touchSkill{right:156px;bottom:24px}
+#touchItems{right:156px;bottom:80px}
+#touchShop{right:156px;bottom:136px}
+/* Portrait phone: lift the skillbar above the touch-button cluster */
+@media (orientation:portrait) and (max-width:600px){
+  #skillbar{bottom:192px}
+  .skill{width:52px;height:52px}
+}
+/* Landscape phone: tighter button cluster, keep skillbar low */
+@media (orientation:landscape) and (max-width:900px){
+  #touchAtk{width:56px;height:56px;right:12px;bottom:12px}
+  #touchPause{right:76px;bottom:66px;font-size:14px}
+  #touchSkill{width:42px;height:42px;right:130px;bottom:12px;font-size:17px}
+  #touchItems{width:42px;height:42px;right:130px;bottom:66px;font-size:17px}
+  #touchShop{width:42px;height:42px;right:184px;bottom:12px;font-size:17px}
+}
+/* Mobile: upgrade cards stack vertically instead of 3-across */
+@media (max-width:700px){
+  .upg-panel{min-width:0;max-width:94vw;gap:12px;padding:22px 14px 16px}
+  .upg-title{font-size:22px;letter-spacing:5px}
+  .upg-cards{flex-direction:column;align-items:center;gap:10px;width:100%}
+  .upg-card{width:min(320px,86vw);padding:12px 10px}
+  .upg-ico{font-size:30px}
+}

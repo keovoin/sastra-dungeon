@@ -3067,6 +3067,7 @@ function gainXP(amount,g){
   if(ups>0&&!cutscene.active&&G===g&&G.running){
     upgState.pending+=ups;
     openUpgradePanel(g);
+    refreshShopStock(g); // shop gear re-anchored to the new level
   }
 }
 /* ── Level-up upgrade pick (Vampire-Survivors style) ── */
@@ -4015,6 +4016,7 @@ function shopRerollCost(g){return Math.round(30+Math.max(1,(g&&g.wave)||1)*10);}
 function refreshShopStock(g){
   if(!g)return;
   const wave=Math.max(1,g.wave||1);
+  const lvl=Math.max(1,Math.floor(g.player.level||1));
   g.shopStock=[];
   const boost=Math.min(0.18,wave*0.018);
   if((g.player.potions||0)<5)g.shopStock.push({kind:'potion',name:'Healing Potion',icon:'🧪',color:'#7aff9a',value:60,rarity:3,slot:'potion'});
@@ -4024,7 +4026,9 @@ function refreshShopStock(g){
     if(r>0.96-boost)idx=3;
     else if(r>0.82-boost)idx=2;
     else if(r>0.52-boost*0.6)idx=1;
-    g.shopStock.push(makeItem(wave,idx));
+    const it=makeItem(wave,idx);
+    it.reqLevel=lvl; // gear requirement tracks PLAYER level (was wave*0.7 — shop was always out of reach)
+    g.shopStock.push(it);
   }
   g.shopWave=wave;
   if(inv&&inv.open&&invTab==='shop')refreshShop();
@@ -5239,6 +5243,8 @@ function tutorialTick(dt){
 (function initTouch(){
   if(!('ontouchstart' in window)&&!(navigator.maxTouchPoints>0))return;
   document.body.classList.add('touch');
+  const touchUI=document.getElementById('touchUI');
+  if(touchUI)touchUI.classList.remove('hidden');
   const joyZone=document.getElementById('joyZone');
   const joyKnob=document.getElementById('joyKnob');
   let joyId=null,jx=0,jy=0;
@@ -5293,6 +5299,12 @@ function tutorialTick(dt){
   });
   const pauseB=document.getElementById('touchPause');
   if(pauseB)pauseB.addEventListener('click',()=>{sfx.ui();togglePause()});
+  const skillB=document.getElementById('touchSkill');
+  if(skillB)skillB.addEventListener('click',()=>{sfx.ui();if(tree.open){toggleTree();return}closeInventory();toggleTree()});
+  const itemsB=document.getElementById('touchItems');
+  if(itemsB)itemsB.addEventListener('click',()=>{sfx.ui();if(inv.open&&invTab!=='shop'){closeInventory();return}if(tree.open){tree.open=false;tree.el.classList.add('hidden');hideTreeTooltip()}toggleInventory()});
+  const shopB=document.getElementById('touchShop');
+  if(shopB)shopB.addEventListener('click',()=>{sfx.ui();if(inv.open&&invTab==='shop'){closeInventory();return}if(tree.open){tree.open=false;tree.el.classList.add('hidden');hideTreeTooltip()}toggleInventory('shop')});
 })();
 /* Boot */
 try { buildEquipUI(); } catch(e) { console.error('❌ buildEquipUI:', e); }
