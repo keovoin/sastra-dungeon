@@ -157,6 +157,7 @@ const S = (name, icon, cost, cd, color, count, dmgMult, hpMult) => ({
     for (let i = 0; i < n; i++) {
       const a = rand(0, TAU), d = rand(35, 55) + i*10;
       const hpMax = Math.round((55+p.level*12)*(hpMult||1));
+      tcount(p,'summons');
       g.minions.push({
         x: p.x+Math.cos(a)*d, y: p.y+Math.sin(a)*d, r: 11,
         hp: hpMax, maxHp: hpMax, dmg: p.dmg*(dmgMult||0.55),
@@ -178,7 +179,9 @@ const HEAL = (name, icon, pct, cost, cd, color, extra) => ({
       ...(extra && extra.invuln ? [{label:'Invulnerable', value: extra.invuln+' s', kind:'util'}] : [])
     ] },
   cast(p, g) {
-    p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp*pct));
+    const _healAmt=Math.round(p.maxHp*pct);
+    p.hp = Math.min(p.maxHp, p.hp + _healAmt);
+    tcount(p,'heals',_healAmt);
     if (extra && extra.energy) p.energy = Math.min(p.maxEnergy, p.energy + extra.energy);
     if (extra && extra.invuln) p.invuln = Math.max(p.invuln, extra.invuln);
     g.fx.push({type:'ring', x:p.x, y:p.y, r:80, life:.5, max:.5, color});
@@ -717,7 +720,85 @@ CLASSES.demonlord   = mkCls('Demon Lord','👑','#8b0000','#ff5050',270,125,11,2
 CLASSES.chaosfiend  = mkCls('Chaos Fiend','🌀','#6b3a7a','#c8a0e0',195,145,14,252,25,460,1.6,0.13,'bolt','Demon',
   [HOMING('Chaos Bolt','🌀',1.9,700,14,1.4,'#c8a0e0'),FEAR('Chaos Nova','💫',1.5,220,28,7,'#6b3a7a'),BEAM('Chaos Rift','🌌',2.3,450,34,9,'#c8a0e0')]);
 
-console.log('📊 CLASSES defined:', Object.keys(CLASSES).length);
+/* ── Curated 10-class roster: each with a distinct playstyle / skill identity ──
+   The full 71-class library above stays in source (zero risk to skill
+   factories, bosses, cutscenes or any CLASSES.<key> reference), but only these
+   10 are playable. Every dynamic consumer reads Object.keys(CLASSES) — class
+   grid, allies, friends, cutscenes — so they all automatically see exactly
+   these 10. Old saves that reference a cut class are handled gracefully:
+   loadSaveData() returns null when CLASSES[cls] is missing, so they simply
+   show as "no save" (no crash). */
+const ROSTER = [
+  'ironclad',      // 🛡 Warrior tank   — Shield Wall / Shield Slam / Rallying War Cry
+  'berserker',     // 🪓 Warrior AoE    — Blood Rage / Whirlwind / Death Strike
+  'assassin',      // 🗡 Rogue crit     — Shadow Dance / Fan of Knives / Execution
+  'sniper',        // 🔭 Ranger burst   — Headshot / Rapid Volley / Kill Zone
+  'beastmaster',   // 🐺 Ranger pet     — Summon Wolf / Wild Hunt / Pack Leader
+  'pyromancer',    // 🔥 Mage nuke      — Fireball / Flame Wave / Inferno
+  'cryomancer',    // ❄ Mage slow      — Ice Bolt / Frost Nova / Blizzard
+  'bonelord',      // 💀 Necro minion   — Bone Spear / Raise Skeleton / Bone Storm
+  'cleric',        // ✝ Healer         — Holy Bolt / Smite / Holy Nova
+  'dragonknight',  // 🐉 Summoner       — Dragon Breath / Summon Dragon / Flame Guard
+];
+for (const _k of Object.keys(CLASSES)) if (!ROSTER.includes(_k)) delete CLASSES[_k];
+console.log('📊 ROSTER active:', ROSTER.length, 'playable classes (full library: 71)');
+
+/* ===== Class titles: one permanent unlock per class — stat effect + unique visual aura ===== */
+const TITLES: Record<string, {name:string; icon:string; cond:string; fx:Record<string,number>; aura:string; color:string}> = {
+  ironclad:    {name:'Bulwark Eternal', icon:'🛡️', cond:'reach wave 30',            fx:{hp:0.15},        aura:'shield', color:'#9fd8ff'},
+  berserker:   {name:'Blood King',      icon:'🪓', cond:'100 kills in one run',     fx:{dmg:0.12},       aura:'blood',  color:'#ff5c5c'},
+  assassin:    {name:'Ghost Blade',     icon:'🗡️', cond:'25 critical kills',        fx:{crit:0.06},      aura:'mist',   color:'#c9f5ff'},
+  sniper:      {name:'Dead Eye',        icon:'🔭', cond:'20 kills from 400px away', fx:{atk:0.15},       aura:'tracer', color:'#ffb040'},
+  beastmaster: {name:'Wolf Father',     icon:'🐺', cond:'30 pet kills',             fx:{spd:0.12},       aura:'spirit', color:'#a5e86c'},
+  pyromancer:  {name:'Cinder Lord',     icon:'🔥', cond:'35 skill kills',           fx:{skill:0.25},     aura:'ember',  color:'#ff9a3d'},
+  cryomancer:  {name:'Frost King',      icon:'❄️', cond:'slow 30 enemies',          fx:{critDmg:0.4},    aura:'frost',  color:'#8fe8ff'},
+  bonelord:    {name:'Grave Reaper',    icon:'💀', cond:'summon 15 allies',         fx:{regen:25},       aura:'bone',   color:'#d8d0b8'},
+  cleric:      {name:'Hand of Light',   icon:'✨', cond:'heal 1500 HP',             fx:{dmg:0.15},       aura:'halo',   color:'#ffe9a8'},
+  dragonknight:{name:'Dragon Lord',     icon:'🐉', cond:'defeat 2 bosses',          fx:{dmg:0.1,spd:0.10},aura:'dragon', color:'#ff7a45'},
+};
+let TITLES_UNLOCKED: Record<string,boolean> = {};
+try{ TITLES_UNLOCKED = JSON.parse(localStorage.getItem('sastra_titles_v1')||'{}') }catch{ TITLES_UNLOCKED = {} }
+function saveTitles(){ try{ localStorage.setItem('sastra_titles_v1',JSON.stringify(TITLES_UNLOCKED)) }catch{} }
+function fxLabel(fx:Record<string,number>){
+  const L:string[]=[];
+  if(fx.hp)L.push('+'+Math.round(fx.hp*100)+'% HP');
+  if(fx.dmg)L.push('+'+Math.round(fx.dmg*100)+'% DMG');
+  if(fx.spd)L.push('+'+Math.round(fx.spd*100)+'% SPD');
+  if(fx.crit)L.push('+'+Math.round(fx.crit*100)+'% CRIT');
+  if(fx.atk)L.push('+'+Math.round(fx.atk*100)+'% ATK SPD');
+  if(fx.critDmg)L.push('+'+Math.round(fx.critDmg*100)+'% CRIT DMG');
+  if(fx.regen)L.push('+'+fx.regen+' ENERGY');
+  if(fx.skill)L.push('+'+Math.round(fx.skill*100)+'% SKILL PWR');
+  return L.join(' · ');
+}
+function tcount(p:any,k:string,n=1){
+  if(!p.tstats)p.tstats={};
+  p.tstats[k]=(p.tstats[k]||0)+(n||1);
+  checkTitleUnlocks(p,G);
+}
+function checkTitleUnlocks(p:any,g:any){
+  const T=TITLES[p.cls];
+  if(!T||TITLES_UNLOCKED[p.cls])return;
+  const s0=p.tstats||{};
+  let met=false;
+  if(p.cls==='ironclad')met=(g.wave||1)>=30;
+  else if(p.cls==='berserker')met=(s0.kills||0)>=100;
+  else if(p.cls==='assassin')met=(s0.critKills||0)>=25;
+  else if(p.cls==='sniper')met=(s0.rangeKills||0)>=20;
+  else if(p.cls==='beastmaster')met=(s0.petKills||0)>=30;
+  else if(p.cls==='pyromancer')met=(s0.skillKills||0)>=35;
+  else if(p.cls==='cryomancer')met=(s0.slows||0)>=30;
+  else if(p.cls==='bonelord')met=(s0.summons||0)>=15;
+  else if(p.cls==='cleric')met=(s0.heals||0)>=1500;
+  else if(p.cls==='dragonknight')met=(s0.bossKills||0)>=2;
+  if(!met)return;
+  TITLES_UNLOCKED[p.cls]=true;saveTitles();
+  p.titleBonus=T.fx;p.titleName=T.name;p.titleIcon=T.icon;
+  recalcStats(p);
+  sfx.levelup();
+  addToast(T.icon+' TITLE UNLOCKED: '+T.name,'#ffd54f',T.cond+' · '+fxLabel(T.fx)+' — permanent');
+  g.texts.push({x:p.x,y:p.y-42,vy:-40,life:1.8,max:1.8,spawn:1.8,text:T.icon+' '+T.name,color:T.color,size:18});
+}
 
 /* Ultimate */
 const ULT_NAMES = {
@@ -923,6 +1004,7 @@ function saveGamePayload(g) {
   const p = g.player;
   const save = {
     version: 6, cls: p.cls, level: p.level, xp: p.xp, xpNext: p.xpNext,
+    tstats: p.tstats||{}, titleName: p.titleName||'', titleIcon: p.titleIcon||'',
     baseStats: { ...p.baseStats },
     treeMods: {
       _critDmg: p._critDmg||2, _executioner: !!p._executioner,
@@ -974,6 +1056,9 @@ function resumeFromSave(data, silent) {
   p.level = data.level || 1;
   p.xp = data.xp || 0;
   p.xpNext = data.xpNext || 100;
+  p.tstats = data.tstats || {};
+  if(TITLES_UNLOCKED[p.cls]&&TITLES[p.cls]){p.titleBonus=TITLES[p.cls].fx;p.titleName=TITLES[p.cls].name;p.titleIcon=TITLES[p.cls].icon;}
+  else{p.titleBonus=null;p.titleName=data.titleName||'';p.titleIcon=data.titleIcon||'';}
   p.baseStats = { dmg:C.dmg, maxHp:C.hp, armor:0, speed:C.speed, crit:C.crit, energyRegen:C.energyRegen, maxEnergy:C.energy, atkSpeed:C.atkSpeed, range:C.range, ...(data.baseStats||{}) };
   p.upg = { ...UPG_EMPTY, ...(data.upg||{}) };
   if (data.treeMods) {
@@ -1543,13 +1628,14 @@ function recalcStats(p){
   const up=p.upg||UPG_EMPTY;
   const CL=CLASSES[p.cls]||{};
   const oldMax=p.maxHp||0;
-  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+up.dmg*0.12);
-  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+up.hp*0.12));
+  const tb=p.titleBonus||{};
+  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+up.dmg*0.12)*(1+(tb.dmg||0));
+  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+up.hp*0.12)*(1+(tb.hp||0)));
   p.armor=p.baseStats.armor+tot.armor;
-  p.speed=(p.baseStats.speed+tot.speed)*(1+up.spd*0.08);
-  p.crit=Math.min(0.75,(p.baseStats.crit+tot.crit)+up.crit*0.04);
-  p.energyRegen=p.baseStats.energyRegen+tot.regen;
-  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+up.atk*0.10);
+  p.speed=(p.baseStats.speed+tot.speed)*(1+up.spd*0.08)*(1+(tb.spd||0));
+  p.crit=Math.min(0.75,(p.baseStats.crit+tot.crit)+up.crit*0.04+(tb.crit||0));
+  p.energyRegen=p.baseStats.energyRegen+tot.regen+(tb.regen||0);
+  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+up.atk*0.10)*(1+(tb.atk||0));
   p.range=(p.baseStats.range||CL.range||100)*(1+up.range*0.12);
   if(p.baseStats.maxEnergy){
     p.maxEnergy=p.baseStats.maxEnergy;
@@ -2511,7 +2597,7 @@ export function startGame(clsKey){
         _whirlT:0,_whirlMult:0,_whirlR:0,_whirlTick:0,_whirlColor:'#fff',
         _shieldT:0,_shieldAmt:0,_shieldColor:'#fff',
         _stealthT:0,_reflectT:0,
-        _critDmg:2,_executioner:false,_cdr:0,_skillPower:0,
+        _critDmg:2,_executioner:false,_cdr:0,_skillPower:0,tstats:{},
         _regenPct:0,_undying:false,_echo:0,_lifesteal:0,
         _aegis:false,_frostfire:false,
         _friends:[],_friendBond:false,
@@ -2520,7 +2606,10 @@ export function startGame(clsKey){
         slowT:0,
         treePoints:0,treeUnlocked:[],hasUltimate:false,
         ultimate:makeUltimateSkill(C),chargingUlt:false,chargeTime:0,ultCooldown:0,
-        skills:C.skills.map(s=>({...s,baseCd:s.cd,cd:0}))
+        skills:C.skills.map(s=>({...s,baseCd:s.cd,cd:0})),
+        titleBonus:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].fx:null,
+        titleName:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].name:'',
+        titleIcon:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].icon:''
       }
     };
     cutscene.active=false;cutscene.actors=[];cutscene.dialogue=null;
@@ -2631,6 +2720,7 @@ function tryCast(i){
   if(!s||s.cd>0||p.energy<s.cost)return;
   const origDmg=p.dmg;
   if(p._skillPower)p.dmg=Math.round(p.dmg*(1+p._skillPower));
+  if(p.titleBonus&&p.titleBonus.skill)p.dmg=Math.round(p.dmg*(1+p.titleBonus.skill));
   s.cast(p,G);
   p.dmg=origDmg;
   const cdMult=Math.max(0.3,1-((p._cdr||0)+(p.upg&&p.upg.cd?p.upg.cd*0.08:0)));
@@ -2867,7 +2957,7 @@ function updateMinions(dt,g){
       m.facing=Math.atan2(best.y-m.y,best.x-m.x);
       const stopDist=m.r+best.r+4;
       if(bd>stopDist){m.x+=Math.cos(m.facing)*m.speed*dt;m.y+=Math.sin(m.facing)*m.speed*dt}
-      else if(m.atkTimer<=0){m.atkTimer=0.9;damageEnemy(best,m.dmg,g,{crit:0})}
+      else if(m.atkTimer<=0){m.atkTimer=0.9;damageEnemy(best,m.dmg,g,{crit:0,pet:true})}
     } else {
       const d=dist(m,p);
       if(d>65){const a=Math.atan2(p.y-m.y,p.x-m.x);m.facing=a;m.x+=Math.cos(a)*m.speed*dt;m.y+=Math.sin(a)*m.speed*dt}
@@ -2879,7 +2969,7 @@ function damageEnemy(e,amount,g,src,opts){
   if(e.dead)return;
   opts=opts||{};
   let crit=false;
-  const critMult=(src&&src._critDmg)||2;
+  const critMult=((src&&src._critDmg)||2)+((src&&src.titleBonus&&src.titleBonus.critDmg)||0);
   if(opts.forceCrit||(src&&src.crit&&Math.random()<src.crit)){
     crit=true;amount*=critMult;
   }
@@ -2888,6 +2978,7 @@ function damageEnemy(e,amount,g,src,opts){
   if(src&&src._executioner&&e.hp<e.maxHp*0.3)amount*=1.4;
   if(src&&src._aegis&&src.maxHp&&src.hp/src.maxHp<0.5)amount*=1.3;
   amount=Math.max(1,Math.round(amount));
+  e._lastCrit=!!crit;e._lastSkill=!!(opts.skill);e._lastPet=!!(opts.pet);
   e.hp-=amount;e.hitFlash=1;
   if(crit)sfx.crit();else sfx.hit();
   if(crit&&src&&src._critNova&&!opts.noNova&&g.time-(src._novaLast||-9)>0.2){
@@ -2959,6 +3050,15 @@ function killEnemy(e,g){
     return;
   }
   e.dead=true;g.kills++;
+  { const tp=g.player;
+    if(tp&&tp.cls){
+      tcount(tp,'kills');
+      if(e.boss)tcount(tp,'bossKills');
+      if(e._lastCrit)tcount(tp,'critKills');
+      if(e._lastSkill)tcount(tp,'skillKills');
+      if(e._lastPet)tcount(tp,'petKills');
+      if(dist(e,tp)>400)tcount(tp,'rangeKills');
+    } }
   addBloodDecal(e.x,e.y);
   g.fx.push({type:'smoke',x:e.x,y:e.y,s:e.boss?2.0:0.9,life:0.55,max:0.55});
   for(let i=0;i<(e.boss?40:14);i++){
@@ -3056,7 +3156,7 @@ function gainXP(amount,g){
   while(p.xp>=p.xpNext){
     sfx.levelup();
     p.xp-=p.xpNext;p.level++;ups++;
-    p.xpNext=Math.round(p.xpNext*1.5);
+    p.xpNext=Math.round(p.xpNext*1.18);
     p.baseStats.maxHp+=14;p.baseStats.dmg+=2.2;p.baseStats.energyRegen+=0.4;
     p.treePoints=(p.treePoints||0)+1;
     recalcStats(p);p.hp=p.maxHp;
@@ -3236,7 +3336,7 @@ function spawnEnemy(type,g,forcedX,forcedY){
     maxHp:Math.round(t.hp*hpScale*eliteMult),hp:Math.round(t.hp*hpScale*eliteMult),
     speed:t.speed,dmg:t.dmg*dmgScale*(isEliteSpawn?1.5:1),
     color:t.color,dark:t.dark,
-    xp:Math.round(t.xp*(1+g.wave*0.07)*eliteMult*dM.xp),
+    xp:Math.round(t.xp*(1+g.wave*0.16)*eliteMult*dM.xp),
     gold:Math.round(t.xp*(1+g.wave*0.07)*eliteMult*(isBossSpawn?1.2:0.7)*dM.gold),
     range:t.range,atkCd:t.atkCd,atkTimer:rand(0.4,t.atkCd),
     ranged:!!t.ranged,boss:!!t.boss||isBossSpawn,elite:isEliteSpawn,
@@ -3280,6 +3380,7 @@ function updateEnemies(dt,g){
     if(e.spawnAnim>0)e.spawnAnim=Math.max(0,e.spawnAnim-dt*2.5);
     e.hitFlash=Math.max(0,e.hitFlash-dt*4);
     e.slowT=Math.max(0,e.slowT-dt);
+    { const sl=e.slowT>0; if(sl&&!e._wasSlowed){e._wasSlowed=true;if(p)tcount(p,'slows')} else if(!sl)e._wasSlowed=false; }
     e.markT=Math.max(0,(e.markT||0)-dt);
     if(e.dotT>0){
       e.dotT-=dt;e.dotTick-=dt;
@@ -3600,7 +3701,7 @@ function updateProjectiles(dt,g){
         if(e.dead||pr.hit.has(e))continue;
         if(dist(pr,e)<pr.r+e.r){
           pr.hit.add(e);
-          const opts = pr.isBasic ? {fromBasic:true} : {};
+          const opts = pr.isBasic ? {fromBasic:true} : {skill:true};
           damageEnemy(e,pr.dmg,g,p,opts);
           if(pr.isBasic&&p._frostfire&&!e.dead)e.slowT=Math.max(e.slowT,1.5);
           if(pr.enemyEffect)pr.enemyEffect(e,g,p);
@@ -4263,9 +4364,11 @@ function renderClassGrid(arch){
   try {
     const grid = document.getElementById('classesGrid');
     if (!grid) { console.error('❌ classesGrid element not found'); return; }
-    const entries = Object.entries(CLASSES).filter(([k,C]) => C && C.roleTag === arch);
+    // Roster mode: show all 10 curated classes in ROSTER order (arch ignored —
+    // each card still shows its own roleTag, so archetype info is preserved).
+    const entries = (typeof ROSTER !== 'undefined' ? ROSTER : Object.keys(CLASSES))
+      .map(k => [k, CLASSES[k]]).filter((pair) => pair[1]);
     grid.innerHTML = '';
-    entries.sort((a,b) => a[1].name.localeCompare(b[1].name));
     for (const [key,C] of entries) {
       const card = document.createElement('div');
       card.className = 'card';
@@ -4277,7 +4380,9 @@ function renderClassGrid(arch){
       }
       card.innerHTML = `<div class="ico" style="color:${C.color || '#fff'}">${C.icon || '?'}</div>
         <h3 style="color:${C.accent || '#fff'}">${C.name || key}</h3>
-        <div class="role">${C.roleTag || '?'}</div>`;
+        <div class="role">${C.roleTag || '?'}</div>
+        <div class="cls-attrs">❤ ${Math.round(C.hp)} · ⚔ ${C.dmg} · 👟 ${C.speed} · 🎯 ${Math.round(C.crit*100)}%</div>
+        ${(TITLES[key]&&TITLES_UNLOCKED[key])?`<div class="cls-title on">${TITLES[key].icon} ${TITLES[key].name} · ${fxLabel(TITLES[key].fx)}</div>`:(TITLES[key]?`<div class="cls-title">🔒 ${TITLES[key].icon} ${TITLES[key].name} — ${TITLES[key].cond}</div>`:'')}`;
       card.addEventListener('click', () => {
         try { sfx.ui(); (window as any).startGame(key); }
         catch (err) { console.error('❌ startGame failed:', err); }
@@ -4666,6 +4771,46 @@ function drawFx(f){
   }
   ctx.restore();
 }
+function drawTitleAura(p:any,t:number){
+  if(!p.titleName||!TITLES[p.cls])return;
+  const T=TITLES[p.cls];
+  const c=T.color,x=p.x,y=p.y,r=p.r+14;
+  ctx.save();
+  if(T.aura==='shield'){
+    ctx.globalAlpha=0.55+Math.sin(t*3)*0.25;ctx.strokeStyle=c;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(x,y,r+4,t*1.3,t*1.3+4.4);ctx.stroke();
+    ctx.globalAlpha=0.35;ctx.beginPath();ctx.arc(x,y,r+4,t*1.3+Math.PI,t*1.3+Math.PI+1.8);ctx.stroke();
+  } else if(T.aura==='ember'||T.aura==='dragon'){
+    for(let i=0;i<8;i++){const a=t*1.6+i*TAU/8;const rr=r+6+Math.sin(t*3+i*1.7)*5;
+      ctx.globalAlpha=0.35+Math.sin(t*4+i)*0.3;ctx.fillStyle=c;
+      ctx.beginPath();ctx.arc(x+Math.cos(a)*rr,y+Math.sin(a)*rr,1.8+(i%3),0,TAU);ctx.fill();}
+  } else if(T.aura==='mist'||T.aura==='spirit'){
+    for(let i=0;i<6;i++){const a=t*0.8+i*TAU/6;const rr=r+4+Math.sin(t*2+i*2)*6;
+      ctx.globalAlpha=0.3+Math.sin(t*3+i*1.3)*0.2;ctx.fillStyle=c;
+      ctx.beginPath();ctx.arc(x+Math.cos(a)*rr,y+Math.sin(a)*rr,2.6,0,TAU);ctx.fill();}
+  } else if(T.aura==='frost'||T.aura==='bone'){
+    for(let i=0;i<6;i++){const a=-t*0.9+i*TAU/6;const rr=r+6;
+      ctx.globalAlpha=0.55+Math.sin(t*4+i)*0.25;ctx.fillStyle=c;
+      ctx.save();ctx.translate(x+Math.cos(a)*rr,y+Math.sin(a)*rr);ctx.rotate(a+Math.PI/4);
+      ctx.fillRect(-2,-3.5,4,7);ctx.restore();}
+  } else if(T.aura==='tracer'){
+    ctx.globalAlpha=0.45+Math.sin(t*6)*0.3;ctx.strokeStyle=c;ctx.lineWidth=1.6;
+    for(let i=0;i<4;i++){const a=t*2+i*Math.PI/2;
+      ctx.beginPath();ctx.moveTo(x+Math.cos(a)*(r-2),y+Math.sin(a)*(r-2));ctx.lineTo(x+Math.cos(a)*(r+9),y+Math.sin(a)*(r+9));ctx.stroke();}
+  } else if(T.aura==='halo'){
+    ctx.globalAlpha=0.55+Math.sin(t*2.5)*0.3;ctx.strokeStyle=c;ctx.lineWidth=3;
+    ctx.beginPath();ctx.ellipse(x,y-p.r-16,12,4.5,0,0,TAU);ctx.stroke();
+    ctx.globalAlpha=0.22;ctx.fillStyle=c;ctx.fill();
+  } else if(T.aura==='blood'){
+    ctx.globalAlpha=0.35+Math.sin(t*5)*0.2;ctx.strokeStyle=c;ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(x,y,r+2,0,TAU);ctx.stroke();
+    ctx.fillStyle=c;
+    for(let i=0;i<5;i++){const a=i*TAU/5+t*0.5;
+      ctx.globalAlpha=0.8;
+      ctx.beginPath();ctx.arc(x+Math.cos(a)*(r+2),y+Math.sin(a)*(r+2)+((t*25+i*7)%10),1.8,0,TAU);ctx.fill();}
+  }
+  ctx.restore();
+}
 function drawPlayer(p){
   const t=G.time;
   const walk=p.walkPhase||0;
@@ -4676,6 +4821,7 @@ function drawPlayer(p){
   const sg=ctx.createRadialGradient(p.x,p.y+17,2,p.x,p.y+17,18);
   sg.addColorStop(0,'rgba(0,0,0,0.55)');sg.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=sg;ctx.beginPath();ctx.ellipse(p.x,p.y+17,18,8,0,0,TAU);ctx.fill();
+  drawTitleAura(p,t);
   if(hasPx('hero'))drawPxSprite(ctx,'hero',p.color,p.accent,'',p.x,p.y-bob,3.6,0,Math.floor((walk||0)*1.1)%2);
   else px.drawPixelHero(ctx,p.x,p.y-bob,p.color,p.accent,walk,t);
   ctx.globalAlpha=1;

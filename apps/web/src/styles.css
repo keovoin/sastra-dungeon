@@ -333,6 +333,9 @@ h1{letter-spacing:5px;animation:pflk 1.6s steps(2) infinite;
 .card:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 rgba(0,0,0,.6);border-color:#c9a24a}
 .card h3{font-family:'Press Start 2P','Courier New',monospace;font-size:8px;letter-spacing:0}
 
+.card .cls-attrs{font-family:'Press Start 2P','Courier New',monospace;font-size:6px;letter-spacing:0;color:#8c7a63;margin-top:5px;line-height:1.5}
+.card .cls-title{font-family:'Press Start 2P','Courier New',monospace;font-size:6px;letter-spacing:0;color:#6b5d4e;margin-top:4px;line-height:1.7}
+.card .cls-title.on{color:#ffd54f;text-shadow:0 0 6px rgba(255,213,79,.5)}
 .skill{border-radius:0;border:3px solid #4a3d34;box-shadow:3px 3px 0 rgba(0,0,0,.6);transition:none}
 .skill:hover{transform:translate(-1px,-2px)}
 .skill.ready{animation:pready 0.9s steps(2) infinite}
