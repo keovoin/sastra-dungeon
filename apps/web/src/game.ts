@@ -2405,7 +2405,8 @@ function weightedSlot(){const r=Math.random();
 function makeItem(wave,rarityIdx,forcedSlot){
   const slot=forcedSlot||weightedSlot();const rar=RARITIES[rarityIdx];
   const it={id:++itemIdCounter,slot,rarity:rarityIdx,color:rar.color,
-    name:`${pick(PREFIX[rarityIdx])} ${pick(BASES[slot])}`,baseDmg:0,baseArmor:0,affixes:[]};
+    name:`${pick(PREFIX[rarityIdx])} ${pick(BASES[slot])}`,baseDmg:0,baseArmor:0,affixes:[],
+    reqLevel:Math.max(1,Math.round(wave*0.7)+(rarityIdx===3?1:0))};
   if(slot==='weapon')it.baseDmg=Math.round((7+wave*2.7)*rar.mult*rand(0.85,1.15));
   else if(['helm','chest','gloves','boots'].includes(slot))it.baseArmor=Math.round((5+wave*2.0)*rar.mult*rand(0.85,1.15));
   let pool;
@@ -2434,6 +2435,15 @@ function sellValue(it){
   if(!it)return 0;
   const base=it.value||Math.round([70,160,340,780][it.rarity]||70);
   return Math.max(1,Math.round(base*0.4));
+}
+/* Item power: weighted sum of all stats — one number so you can tell good from bad at a glance */
+const POWER_WEIGHTS={dmg:10,armor:6,hp:2.5,speed:4,crit:500,regen:30};
+function itemPower(it){
+  if(!it)return 0;
+  const s=itemStats(it);
+  let pw=0;
+  for(const k in POWER_WEIGHTS)pw+=(s[k]||0)*POWER_WEIGHTS[k];
+  return Math.round(pw);
 }
 
 /* Start game */
@@ -3868,7 +3878,7 @@ function refreshInventory(){
     d.className='inv-cell'+(it?' filled':'');
     if(it){
       d.style.borderColor=it.color;d.style.boxShadow=`inset 0 0 14px ${it.color}44`;
-      d.innerHTML=`<span class="cell-icon" style="color:${it.color}">${SLOT_ICONS[it.slot]}</span>`;
+      d.innerHTML=`<span class="cell-icon" style="color:${it.color}">${SLOT_ICONS[it.slot]}</span><span class="cell-power">⚔${itemPower(it)}</span>`;
       d.addEventListener('click',()=>equipFromInventory(i));
       d.addEventListener('contextmenu',ev=>{ev.preventDefault();sellFromInventory(i)});
       d.addEventListener('mouseenter',ev=>showTooltip(itemTooltipHTML(it,p.equipment[it.slot]),ev));
@@ -3884,7 +3894,7 @@ function refreshInventory(){
 /* ── SHOP ── */
 let invTab='char';
 function setInvTab(tab){
-  invTab=tab;
+  invTab=tab;hideTooltip();
   document.querySelectorAll('.inv-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
   const cv=document.getElementById('charView'),sv=document.getElementById('shopView');
   if(cv)cv.classList.toggle('hidden',tab!=='char');
@@ -3943,14 +3953,15 @@ function refreshShop(){
     if(it.baseArmor)stats.push(it.baseArmor+' Armor');
     for(const a of it.affixes)stats.push(AFFIX_DEFS[a.k].fmt(a.v)+' '+AFFIX_DEFS[a.k].label);
     const afford=(p.gold||0)>=it.value;
+    const locked=it.reqLevel&&p.level<it.reqLevel;
     const card=document.createElement('div');
     card.className='shop-card';
     card.style.borderColor=it.color+'55';
     card.innerHTML=`<div class="sc-head"><span class="sc-icon" style="color:${it.color}">${SLOT_ICONS[it.slot]}</span>
       <div><div class="sc-name" style="color:${it.color}">${it.name}</div>
-      <div class="sc-sub">${SLOT_NAMES[it.slot]} · ${RARITIES[it.rarity].name}</div></div></div>
-      <div class="sc-stats">${stats.join('<br>')}</div>
-      <button class="sc-buy"${afford?'':' disabled'}>${afford?'BUY — '+it.value+'g':'NEED '+it.value+'g'}</button>`;
+      <div class="sc-sub">${SLOT_NAMES[it.slot]} · ${RARITIES[it.rarity].name}${it.reqLevel?' · Lv '+it.reqLevel:''}</div></div></div>
+      <div class="sc-stats"><b style="color:#f0c14b">⚔ Power ${itemPower(it)}</b><br>${stats.join('<br>')}</div>
+      <button class="sc-buy"${afford&&!locked?'':' disabled'}>${locked?'🔒 REQUIRES LV '+it.reqLevel:afford?'BUY — '+it.value+'g':'NEED '+it.value+'g'}</button>`;
     card.querySelector('.sc-buy').addEventListener('click',()=>buyShopItem(i));
     grid.appendChild(card);
   });
@@ -3983,6 +3994,7 @@ document.getElementById('shopReroll').addEventListener('click',()=>{
 });
 
 function equipFromInventory(i){const p=G.player,it=p.inventory[i];if(!it)return;
+  if(it.reqLevel&&p.level<it.reqLevel){sfx.ui();addToast('Level too low','#ff9f43','Requires Level '+it.reqLevel+' (you: Lv '+p.level+')');return}
   const prev=p.equipment[it.slot]||null;p.equipment[it.slot]=it;p.inventory.splice(i,1);if(prev)p.inventory.push(prev);
   recalcStats(p);refreshInventory();addToast('Equipped',it.color,it.name)}
 function onEquipSlotClick(slot){const p=G.player,it=p.equipment[slot];if(!it)return;
@@ -3996,11 +4008,31 @@ function sellFromInventory(i){const p=G.player,it=p.inventory[i];if(!it)return;
   refreshInventory();
   if(G)updateHUD(G)}
 function itemTooltipHTML(item,compareWith){
+  const st=itemStats(item);
+  const cst=compareWith?itemStats(compareWith):null;
+  const better=(k)=>cst?(st[k]>cst[k]?'#7aff9a':st[k]<cst[k]?'#ff6b6b':null):null;
+  const arrow=(k)=>cst?(st[k]>cst[k]?' ▲':st[k]<cst[k]?' ▼':''):'';
   let h=`<div class="tt-name" style="color:${item.color}">${item.name}</div>`;
   h+=`<div class="tt-sub">${SLOT_NAMES[item.slot]} · ${RARITIES[item.rarity].name}</div>`;
-  if(item.baseDmg)h+=`<div class="tt-base">${item.baseDmg} Weapon Damage</div>`;
-  if(item.baseArmor)h+=`<div class="tt-base">${item.baseArmor} Armor</div>`;
-  for(const a of item.affixes)h+=`<div class="tt-affix">${AFFIX_DEFS[a.k].fmt(a.v)} ${AFFIX_DEFS[a.k].label}</div>`;
+  const bc=better('dmg'),ba=better('armor');
+  if(item.baseDmg)h+=`<div class="tt-base"${bc?` style="color:${bc}"`:''}>${item.baseDmg} Weapon Damage${bc?arrow('dmg'):''}</div>`;
+  if(item.baseArmor)h+=`<div class="tt-base"${ba?` style="color:${ba}"`:''}>${item.baseArmor} Armor${ba?arrow('armor'):''}</div>`;
+  for(const a of item.affixes){
+    const def=AFFIX_DEFS[a.k];
+    const c=better(a.k);
+    h+=`<div class="tt-affix"${c?` style="color:${c}"`:''}>${def.fmt(a.v)} ${def.label}${c?arrow(a.k):''}</div>`;
+  }
+  h+=`<div class="tt-power">⚔ Power: ${itemPower(item)}</div>`;
+  if(cst){
+    const dp=itemPower(item)-itemPower(compareWith);
+    const col=dp>=0?'#7aff9a':'#ff6b6b';
+    h+=`<div class="tt-cmp" style="color:${col}">vs Equipped: ${dp>=0?'+':''}${dp}</div>`;
+  }
+  if(item.reqLevel&&G&&G.player){
+    const lvl=G.player.level;
+    const met=lvl>=item.reqLevel;
+    h+=`<div class="tt-req" style="color:${met?'#8c7a63':'#ff9f43'}">Requires Level ${item.reqLevel}${met?'':' (you: Lv '+lvl+')'}</div>`;
+  }
   h+=`<div class="tt-sub" style="margin-top:8px;margin-bottom:0;border-bottom:none;padding-bottom:0">Sell value: ${sellValue(item)}g</div>`;
   return h;
 }

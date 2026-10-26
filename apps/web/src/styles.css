@@ -123,10 +123,11 @@
   .inv-grid-wrap{flex:1;overflow-y:auto;padding-right:4px}
   .inv-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
   .inv-cell{height:62px;border-radius:8px;border:2px dashed #2e2621;background:#0d0907;
-    display:flex;align-items:center;justify-content:center;transition:.1s}
+    display:flex;align-items:center;justify-content:center;transition:.1s;position:relative}
   .inv-cell.filled{border-style:solid;cursor:pointer;background:linear-gradient(180deg,#1e1712,#0f0b08)}
   .inv-cell.filled:hover{filter:brightness(1.4)}
   .cell-icon{font-size:22px;line-height:1}
+  .cell-power{position:absolute;bottom:2px;right:5px;font-size:9px;font-weight:bold;color:#f0c14b;pointer-events:none;text-shadow:0 1px 3px #000}
   .inv-hint{font-size:11.5px;color:#6b5d4e;text-align:center}
   .inv-tabs{display:flex;gap:6px}
   .inv-tab{padding:8px 16px;font-size:12px;letter-spacing:2px;font-weight:bold;color:#8c7a63;
@@ -169,6 +170,9 @@
     margin-bottom:8px;border-bottom:1px solid #2e2621;padding-bottom:8px}
   .tt-base{color:#e8e2d5;margin-bottom:4px;font-weight:bold}
   .tt-affix{color:#7fd4ff;margin-bottom:2px}
+  .tt-power{color:#f0c14b;font-weight:bold;margin-top:8px;padding-top:8px;border-top:1px solid #2e2621;font-size:13px}
+  .tt-cmp{font-weight:bold;font-size:12px;margin-top:3px}
+  .tt-req{font-size:11.5px;margin-top:3px}
   #skillTooltip{position:fixed;z-index:110;min-width:250px;max-width:320px;padding:12px 14px;
     background:linear-gradient(180deg,#1e1710,#0a0604);border:2px solid #c9a24a;border-radius:10px;
     box-shadow:0 10px 40px rgba(0,0,0,.95);pointer-events:none;font-size:13px;color:#ddd}
