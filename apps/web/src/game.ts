@@ -3106,6 +3106,7 @@ function openUpgradePanel(g){
   }
   syncPause();
   if(autoPlay.enabled){
+    // min 7s for the user to pick before auto-pick kicks in
     setTimeout(()=>{
       if(!upgState.open||upgState.token!==token||!G||!G.running)return;
       const order=['dmg','atk','shots','range','hp','cd','crit','spd'];
@@ -3114,7 +3115,7 @@ function openUpgradePanel(g){
         if(order.indexOf(upgState.opts[i].id)<order.indexOf(upgState.opts[best].id))best=i;
       }
       chooseUpgrade(best);
-    },1200);
+    },7000);
   }
 }
 function chooseUpgrade(i){
