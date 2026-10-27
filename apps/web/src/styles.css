@@ -415,3 +415,29 @@ body.touch #touchUI{display:block}
   .upg-card{width:min(320px,86vw);padding:12px 10px}
   .upg-ico{font-size:30px}
 }
+
+/* ── Title HUD chip ── */
+.titleChip{margin-top:4px;display:inline-block;padding:2px 10px;font-size:11px;letter-spacing:.5px;background:rgba(20,16,13,.72);border:1px solid #3a302a;border-radius:6px;color:#c8b89a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
+.titleChip.on{border-color:#8a6d3a;color:#ffd54f;background:linear-gradient(180deg,rgba(58,45,20,.85),rgba(30,24,14,.85));box-shadow:0 0 10px rgba(232,192,122,.35)}
+/* ── Titles menu button + panel ── */
+.titlesBtn{padding:7px 12px;font-size:10px;letter-spacing:1px;background:linear-gradient(180deg,#241c16,#14100d);color:#c8b89a;border:2px solid #3a302a;border-radius:6px;cursor:pointer;transition:.15s}
+.titlesBtn:hover{border-color:#e8c07a;color:#e8c07a}
+.titlesBtn span{color:#ffd54f}
+#titlesOverlay{background:rgba(5,3,2,.86);backdrop-filter:blur(4px);z-index:35}
+#titlesOverlay .panel{width:min(560px,92vw);max-height:78vh;display:flex;flex-direction:column;overflow:hidden;
+  background:linear-gradient(180deg,#1e1712,#0c0907);border:2px solid #4a3d34;border-radius:14px;box-shadow:0 12px 50px rgba(0,0,0,.7)}
+#titlesOverlay h2{color:#e8c07a;text-shadow:0 0 18px rgba(232,192,122,.4)}
+#titlesList{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:6px;padding-bottom:4px}
+#titlesList::-webkit-scrollbar{width:8px}
+#titlesList::-webkit-scrollbar-thumb{background:#4a3d34;border-radius:4px}
+.tRow{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(20,16,13,.85);border:2px solid #2a221c;border-radius:8px}
+.tRow.on{border-color:#8a6d3a;background:linear-gradient(180deg,rgba(48,38,20,.92),rgba(26,21,13,.92));box-shadow:0 0 12px rgba(232,192,122,.15)}
+.tRow.locked .tIcon{filter:grayscale(1);opacity:.55}
+.tRow .tIcon{font-size:20px;width:26px;text-align:center;flex:none}
+.tRow .tBody{flex:1;min-width:0}
+.tRow .tName{font-size:13px;letter-spacing:1px;color:#e8dcc8}
+.tRow.on .tName{color:#ffd54f}
+.tRow .tCond{font-size:11px;color:#a89886;margin-top:1px}
+.tRow .tFx{font-size:10px;color:#7fd4ff;margin-top:1px}
+.tRow .tState{font-size:11px;color:#8a8070;white-space:nowrap;letter-spacing:1px}
+.tRow.on .tState{color:#ffd54f}

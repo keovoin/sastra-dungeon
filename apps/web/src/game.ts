@@ -799,6 +799,25 @@ function checkTitleUnlocks(p:any,g:any){
   addToast(T.icon+' TITLE UNLOCKED: '+T.name,'#ffd54f',T.cond+' · '+fxLabel(T.fx)+' — permanent');
   g.texts.push({x:p.x,y:p.y-42,vy:-40,life:1.8,max:1.8,spawn:1.8,text:T.icon+' '+T.name,color:T.color,size:18});
 }
+function titleProgress(p:any,g:any){
+  const T=TITLES[p.cls];
+  if(!T)return null;
+  const s0=p.tstats||{};
+  let cur=0,target=1;
+  switch(p.cls){
+    case 'ironclad':cur=g.wave||1;target=30;break;
+    case 'berserker':cur=s0.kills||0;target=100;break;
+    case 'assassin':cur=s0.critKills||0;target=25;break;
+    case 'sniper':cur=s0.rangeKills||0;target=20;break;
+    case 'beastmaster':cur=s0.petKills||0;target=30;break;
+    case 'pyromancer':cur=s0.skillKills||0;target=35;break;
+    case 'cryomancer':cur=s0.slows||0;target=30;break;
+    case 'bonelord':cur=s0.summons||0;target=15;break;
+    case 'cleric':cur=s0.heals||0;target=1500;break;
+    case 'dragonknight':cur=s0.bossKills||0;target=2;break;
+  }
+  return {T,cur:Math.min(cur,target),target,unlocked:!!(TITLES_UNLOCKED[p.cls]||p.titleBonus)};
+}
 
 /* Ultimate */
 const ULT_NAMES = {
@@ -2592,7 +2611,7 @@ export function startGame(clsKey){
         dashT:0,dashSpeed:0,dashAng:0,dashDamage:0,dashHits:new Set(),
         spinT:0,spinTick:0,walkPhase:0,isMoving:false,
         autoAttack:true,_autoTarget:null,
-        potions:0,_potionCd:0,_tmove:null,
+        potions:1,_potionCd:0,_tmove:null,
         _healingT:0,_healingRate:0,_frenzyT:0,_markT:0,
         _whirlT:0,_whirlMult:0,_whirlR:0,_whirlTick:0,_whirlColor:'#fff',
         _shieldT:0,_shieldAmt:0,_shieldColor:'#fff',
@@ -3289,7 +3308,7 @@ function startWave(g){
     saveGame();
   }
   const isBoss=isBossWave(g.wave), isElite=isEliteWave(g.wave);
-  const n=Math.min(5+g.wave*2,38);
+  const n=Math.min(3+g.wave*2,38); // early waves lighter (wave1: 5 mobs) so melee tanks can wall the open
   g.spawnQueue=[];
   for(let i=0;i<n;i++){
     let type=pick(biome.enemies);
@@ -4020,6 +4039,20 @@ function updateHUD(g){
   document.getElementById('lvl').textContent='Lv '+p.level;
   document.getElementById('waveTxt').textContent=tr('Wave')+' '+g.wave+(g.endless?' ∞':'');
   document.getElementById('killTxt').textContent=g.kills+' '+tr('kills');
+  const chipEl=document.getElementById('titleChip');
+  if(chipEl){
+    const tp=titleProgress(p,g);
+    if(tp){
+      const s=tp.unlocked?tp.T.icon+' '+tp.T.name:tp.T.icon+' '+tp.cur+'/'+tp.target;
+      if(chipEl.dataset.s!==s){
+        chipEl.dataset.s=s;
+        chipEl.textContent=s;
+        chipEl.title=tp.unlocked?tp.T.cond+' — UNLOCKED · '+fxLabel(tp.T.fx):tp.T.name+' — '+tp.T.cond+' · '+fxLabel(tp.T.fx);
+        chipEl.classList.toggle('on',tp.unlocked);
+        chipEl.classList.remove('hidden');
+      }
+    }
+  }
   const goldEl=document.getElementById('goldTxt');
   if(goldEl)goldEl.textContent=Math.floor(p.gold||0);
   const potBtn=document.getElementById('potionBtn');
@@ -4357,6 +4390,38 @@ document.getElementById('menuBtn2').addEventListener('click',()=>{
   sfx.click();
   backToMenu();
 });
+
+/* Titles panel (main menu) */
+function renderTitlesPanel(){
+  const list=document.getElementById('titlesList');
+  if(!list)return;
+  const keys=Object.keys(TITLES);
+  const unlocked=keys.filter(k=>TITLES_UNLOCKED[k]).length;
+  const cnt=document.getElementById('titlesCount');
+  if(cnt)cnt.textContent=unlocked+'/'+keys.length;
+  list.innerHTML=keys.map(k=>{
+    const T=TITLES[k];
+    const on=!!TITLES_UNLOCKED[k];
+    const C=CLASSES[k];
+    const sub=C?(C.icon+' '+C.name):'';
+    return '<div class="tRow '+(on?'on':'locked')+'">'
+      +'<div class="tIcon">'+(on?T.icon:'🔒')+'</div>'
+      +'<div class="tBody">'
+      +'<div class="tName">'+T.name+' <span style="opacity:.5;font-size:10px">'+sub+'</span></div>'
+      +'<div class="tCond">'+(on?'✓ ':'')+T.cond+'</div>'
+      +'<div class="tFx">'+fxLabel(T.fx)+'</div>'
+      +'</div>'
+      +'<div class="tState">'+(on?'UNLOCKED':'LOCKED')+'</div>'
+      +'</div>';
+  }).join('');
+}
+{
+  const tb=document.getElementById('titlesBtn');
+  if(tb)tb.addEventListener('click',()=>{sfx.ui();renderTitlesPanel();document.getElementById('titlesOverlay').classList.remove('hidden')});
+  const tc=document.getElementById('titlesClose');
+  if(tc)tc.addEventListener('click',()=>{sfx.ui();document.getElementById('titlesOverlay').classList.add('hidden')});
+}
+renderTitlesPanel();
 
 /* Menu */
 let currentArch='Warrior';

@@ -27,6 +27,7 @@
       <span><span id="lvl">Lv 1</span> <span id="treePtsBadge" style="display:none">+0 🌳</span></span>
       <span id="killTxt" data-i18n="0 kills">0 kills</span>
     </div>
+    <div id="titleChip" class="titleChip hidden"></div>
   </div>
   <div id="biomeLabel"></div>
   <div id="loreCard"></div>
@@ -53,6 +54,7 @@
     <div class="sub">71 Classes · 9 Archetypes · Unique Skills · Cutscenes</div>
     <div id="menuRow">
       <button id="langBtn" title="Switch language">EN · ខ្មែរ</button>
+      <button id="titlesBtn" title="Unlockable titles" class="titlesBtn">🏆 TITLES <span id="titlesCount">0/10</span></button>
       <div id="diffSel" title="Difficulty">
         <button class="diff-opt" data-diff="easy">EASY</button>
         <button class="diff-opt active" data-diff="normal">NORMAL</button>
@@ -86,6 +88,16 @@
     <div class="hint">
       <b>Left click</b> move &nbsp;•&nbsp; <b>Right click</b> auto-attack &nbsp;•&nbsp; <b>WASD</b> move &nbsp;•&nbsp; <b>1/2/3</b> skills &nbsp;•&nbsp; <b>4</b> hold ult &nbsp;•&nbsp; <b>T</b> tree &nbsp;•&nbsp; <b>C</b> character &nbsp;•&nbsp; <b>B</b> shop &nbsp;•&nbsp; <b>Q</b> potion &nbsp;•&nbsp; <b>O</b> auto-play &nbsp;•&nbsp; <b>Esc</b> pause
     </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="titlesOverlay">
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h2 style="margin:0;letter-spacing:2px">🏆 TITLES</h2>
+      <button id="titlesClose" title="Close" class="btn ghost">✕</button>
+    </div>
+    <div id="titlesList"></div>
   </div>
 </div>
 
