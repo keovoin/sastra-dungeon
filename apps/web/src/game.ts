@@ -10,6 +10,7 @@ window.addEventListener('error', e => {
 });
 
 import * as px from './pixel';
+import * as hpix from './heropix';
 import {PIXFAM,hasPx,drawPxSprite} from './pixelfam';
 import {FXI,FX1,preloadFx} from './fxassets';
 import {sfx} from './sfx';
@@ -4883,12 +4884,9 @@ function drawPlayer(p){
   const bob=moving?Math.abs(Math.sin(walk))*2.2:Math.sin(t*2.5)*0.9;
   const stealthAlpha = p._stealthT>0 ? 0.35 : 1;
   ctx.globalAlpha = stealthAlpha;
-  const sg=ctx.createRadialGradient(p.x,p.y+17,2,p.x,p.y+17,18);
-  sg.addColorStop(0,'rgba(0,0,0,0.55)');sg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=sg;ctx.beginPath();ctx.ellipse(p.x,p.y+17,18,8,0,0,TAU);ctx.fill();
   drawTitleAura(p,t);
-  if(hasPx('hero'))drawPxSprite(ctx,'hero',p.color,p.accent,'',p.x,p.y-bob,3.6,0,Math.floor((walk||0)*1.1)%2);
-  else px.drawPixelHero(ctx,p.x,p.y-bob,p.color,p.accent,walk,t);
+  hpix.shadow(ctx,p.x,p.y+17,18,7,0.4);
+  hpix.hero(ctx,p.cls,p.x,p.y,{face:p.facing,moving,phase:walk/14,t,swing:p.swing>0?Math.min(1,p.swing/0.18):0,alpha:stealthAlpha,flash:p.hitFlash||0});
   ctx.globalAlpha=1;
   if(p._shieldT>0&&p._shieldAmt>0){
     ctx.save();ctx.globalAlpha=0.35+Math.sin(t*8)*0.1;
