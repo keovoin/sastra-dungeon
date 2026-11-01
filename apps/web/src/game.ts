@@ -15,6 +15,18 @@ import {PIXFAM,hasPx,drawPxSprite} from './pixelfam';
 import {FXI,FX1,preloadFx} from './fxassets';
 import {sfx} from './sfx';
 import {tr,applyLang,toggleLang} from './i18n';
+import {
+  auth,
+  loginWithGoogle,
+  logoutGoogle,
+  onUserChange,
+  syncSaveToCloud,
+  loadSaveFromCloud,
+  submitScoreToLeaderboard,
+  subscribeLeaderboard,
+  computeHeroScore,
+  LeaderboardRecord
+} from './firebase';
 preloadFx();
 
 export const TAU = Math.PI * 2;
@@ -57,217 +69,291 @@ function roundRect(x,y,w,h,r){
   ctx.closePath();
 }
 
-/* Skill helpers */
+/* Angkor & Character Skill VFX Helper */
+function spawnSkillVfx(g, p, kind, x, y, r, color, ang = 0, arc = 1.8) {
+  const lvl = (p && p._castSkillLvl) || 1;
+  const role = (p && p.cls && CLASSES[p.cls] && CLASSES[p.cls].roleTag) || 'Warrior';
+  const accent = (p && p.accent) || color || '#ffd54f';
+  const sc = 1 + (lvl - 1) * 0.14;
+  // Archetype-specific signature Angkor motif
+  if (role === 'Healer' || role === 'Druid') {
+    g.fx.push({ type: 'lotus', x, y, r: r * 0.85 * sc, life: 0.55, max: 0.55, color: accent, petals: 8 + lvl * 2 });
+  } else if (role === 'Mage' || role === 'Necromancer') {
+    g.fx.push({ type: 'runes', x, y, r: r * 0.9 * sc, life: 0.6, max: 0.6, color: accent, count: 6 + lvl });
+  } else if (role === 'Warrior' || role === 'Demon') {
+    g.fx.push({ type: 'garuda', x, y, r: r * 0.9 * sc, ang, life: 0.42, max: 0.42, color });
+  } else if (role === 'Rogue' || role === 'Ranger') {
+    g.fx.push({ type: 'chakram', x, y, r: r * 0.75 * sc, ang, life: 0.45, max: 0.45, color: accent, blades: 5 + lvl });
+  } else if (role === 'Summoner') {
+    g.fx.push({ type: 'naga', x, y, r: r * 0.9 * sc, ang, life: 0.55, max: 0.55, color: accent });
+  }
+  if (kind === 'pillar' || lvl >= 3) {
+    g.fx.push({ type: 'pillar', x, y, r: Math.max(28, r * 0.35), life: 0.48, max: 0.48, color });
+  }
+  const pCount = Math.min(28, Math.round((8 + lvl * 4) * (kind === 'nova' ? 1.4 : 1)));
+  for (let i = 0; i < pCount; i++) {
+    const a = kind === 'slash' ? ang + rand(-arc * 0.55, arc * 0.55) : rand(0, TAU);
+    const sp = rand(55, 190 + lvl * 30);
+    g.particles.push({
+      x: x + Math.cos(a) * rand(4, Math.min(35, r * 0.3)),
+      y: y + Math.sin(a) * rand(4, Math.min(35, r * 0.3)),
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - rand(10, 40),
+      life: rand(0.28, 0.62),
+      max: 0.62,
+      size: rand(2.2, 4.5 + lvl * 0.6),
+      color: i % 2 === 0 ? color : accent,
+      glow: true
+    });
+  }
+}
+
+/* Skill helpers — scale with skill level (s.lvl 1..5) and emit custom VFX */
+const skLvlMult = (p) => 1 + (((p && p._castSkillLvl) || 1) - 1) * 0.22;
+const skRadMult = (p) => 1 + (((p && p._castSkillLvl) || 1) - 1) * 0.10;
+
 const M = (name, icon, mult, arc, cost, cd, color, effect) => ({
-  name, icon, key:'1', cost, cd,
-  info: { desc: name + ' — a fierce melee strike.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Arc', value: Math.round(arc*57.3)+'°'}] },
+  name, icon, key:'1', cost, cd, color, kindTag:'Melee Arts',
+  info: { desc: name + ' — fierce Angkor martial strike that cleaves enemies in an arc.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Arc', value: Math.round(arc*57.3)+'°'},{label:'Skill Lv', value: 'Lv '+sl+'/5', kind:'util'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p);
+    const reach = (p.range + 14) * rm;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < p.range + e.r + 14) {
+      if (dist(p, e) < reach + e.r) {
         const a = Math.atan2(e.y-p.y, e.x-p.x);
-        if (Math.abs(angDiff(a, p.facing)) < arc/2) {
-          damageEnemy(e, p.dmg*mult, g, p);
+        if (Math.abs(angDiff(a, p.facing)) < (arc * rm)/2) {
+          damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
           if (effect) effect(e, g, p);
         }
       }
     }
-    g.fx.push({type:'slash', x:p.x, y:p.y, r:p.range+18, ang:p.facing, arc, life:.2, max:.2, color});
-    g.shake = Math.max(g.shake, 4);
+    g.fx.push({type:'slash', x:p.x, y:p.y, r:(p.range+20)*rm, ang:p.facing, arc:arc*rm, life:.24, max:.24, color, lvl:p._castSkillLvl||1});
+    spawnSkillVfx(g, p, 'slash', p.x + Math.cos(p.facing)*28, p.y + Math.sin(p.facing)*28, (p.range+20)*rm, color, p.facing, arc);
+    g.shake = Math.max(g.shake, 4 + (p._castSkillLvl||1));
   }
 });
 
 const P = (name, icon, mult, speed, cost, cd, color, opts) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — a ranged attack.',
-    calc: p => [
-      {label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},
-      ...(opts && opts.pierce ? [{label:'Pierce', value: opts.pierce+1}] : []),
-      ...(opts && opts.explode ? [{label:'Explosion', value: Math.round(p.dmg*opts.explode.mult), kind:'dmg'}] : [])
+  name, icon, key:'2', cost, cd, color, kindTag:'Projectile',
+  info: { desc: name + ' — imbued ranged projectile thatchannels ancient prana.',
+    calc: (p, sl=1) => [
+      {label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},
+      ...(opts && opts.pierce ? [{label:'Pierce', value: opts.pierce+sl}] : []),
+      ...(opts && opts.explode ? [{label:'Explosion', value: Math.round(p.dmg*opts.explode.mult*(1+(sl-1)*0.22)), kind:'dmg'}] : []),
+      {label:'Skill Lv', value: 'Lv '+sl+'/5', kind:'util'}
     ] },
   cast(p, g) {
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
     const a = p.facing;
     const o = {
       x:p.x+Math.cos(a)*20, y:p.y+Math.sin(a)*20,
       vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
-      r: (opts && opts.radius) || 7, dmg: p.dmg*mult,
+      r: ((opts && opts.radius) || 7) + (lvl - 1), dmg: p.dmg*mult*sm,
       life: 1.5, color, from:'player'
     };
-    if (opts && opts.pierce) o.pierce = opts.pierce;
-    if (opts && opts.explode) o.explode = {r:opts.explode.r, dmg:p.dmg*opts.explode.mult, color};
+    if (opts && opts.pierce) o.pierce = opts.pierce + Math.floor((lvl-1)/2);
+    if (opts && opts.explode) o.explode = {r:opts.explode.r * skRadMult(p), dmg:p.dmg*opts.explode.mult*sm, color};
     if (opts && opts.effect) o.enemyEffect = opts.effect;
     spawnProj(g, o);
+    spawnSkillVfx(g, p, 'proj', p.x+Math.cos(a)*22, p.y+Math.sin(a)*22, 42, color, a, 0.9);
   }
 });
 
 const N = (name, icon, mult, radius, cost, cd, color, effect) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — an area burst around you.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult)+' in radius '+radius, kind:'dmg'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Sacred Nova',
+  info: { desc: name + ' — radial mandala shockwave around your hero.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22))+' in radius '+Math.round(radius*(1+(sl-1)*0.1)), kind:'dmg'},{label:'Skill Lv', value: 'Lv '+sl+'/5', kind:'util'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rad = radius * skRadMult(p);
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < radius + e.r) {
-        damageEnemy(e, p.dmg*mult, g, p);
+      if (dist(p, e) < rad + e.r) {
+        damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
         if (effect) effect(e, g, p);
       }
     }
-    g.fx.push({type:'nova', x:p.x, y:p.y, r:radius, life:.5, max:.5, color});
-    g.shake = Math.max(g.shake, 5);
+    g.fx.push({type:'nova', x:p.x, y:p.y, r:rad, life:.52, max:.52, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, rad, color);
+    g.shake = Math.max(g.shake, 5 + (p._castSkillLvl||1));
   }
 });
 
 const D = (name, icon, mult, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — dash forward dealing damage.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult)+' per enemy', kind:'dmg'},{label:'Invuln', value:'0.3 s', kind:'util'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Tempo Dash',
+  info: { desc: name + ' — lightning dash forward, slicing through foes.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22))+' per enemy', kind:'dmg'},{label:'Invuln', value:(0.3+(sl-1)*0.05).toFixed(2)+' s', kind:'util'}] },
   cast(p, g) {
-    p.dashT = 0.22; p.dashSpeed = 1100; p.dashAng = p.facing;
-    p.dashDamage = p.dmg*mult; p.dashHits = new Set();
-    p.invuln = Math.max(p.invuln, 0.3);
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:60, life:.3, max:.3, color});
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
+    p.dashT = 0.22 + (lvl-1)*0.02; p.dashSpeed = 1100 + (lvl-1)*50; p.dashAng = p.facing;
+    p.dashDamage = p.dmg*mult*sm; p.dashHits = new Set();
+    p.invuln = Math.max(p.invuln, 0.3 + (lvl-1)*0.05);
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:65, life:.35, max:.35, color});
+    spawnSkillVfx(g, p, 'slash', p.x, p.y, 75, color, p.facing, 1.4);
   }
 });
 
 const K = (name, icon, cost, cd, color) => ({
-  name, icon, key:'3', cost, cd,
-  info: { desc: name + ' — teleport to cursor.',
-    calc: () => [{label:'Range', value:'420'}, {label:'Invuln', value:'0.25 s', kind:'util'}] },
+  name, icon, key:'3', cost, cd, color, kindTag:'Apsara Blink',
+  info: { desc: name + ' — phase-shift instantly toward the cursor.',
+    calc: (p, sl=1) => [{label:'Range', value:420+(sl-1)*35}, {label:'Invuln', value:(0.25+(sl-1)*0.06).toFixed(2)+' s', kind:'util'}] },
   cast(p, g) {
+    const lvl = p._castSkillLvl || 1;
     const w = screenToWorld(mouse.x, mouse.y);
-    const a = Math.atan2(w.y-p.y, w.x-p.x), d = Math.min(dist(p, w), 420);
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:50, life:.3, max:.3, color});
+    const a = Math.atan2(w.y-p.y, w.x-p.x), d = Math.min(dist(p, w), 420 + (lvl-1)*35);
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:55, life:.32, max:.32, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 65, color);
     p.x = clamp(p.x+Math.cos(a)*d, 30, WORLD.w-30);
     p.y = clamp(p.y+Math.sin(a)*d, 30, WORLD.h-30);
-    p.moveTarget = null; p.invuln = Math.max(p.invuln, 0.25);
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:60, life:.35, max:.35, color});
+    p.moveTarget = null; p.invuln = Math.max(p.invuln, 0.25 + (lvl-1)*0.06);
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:70, life:.38, max:.38, color});
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, 75, color);
   }
 });
 
 const S = (name, icon, cost, cd, color, count, dmgMult, hpMult) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — summon ' + (count||1) + ' ally.',
-    calc: p => [
-      {label:'Allies', value: count || 1},
-      {label:'Ally HP', value: Math.round((55+p.level*12)*(hpMult||1)), kind:'heal'},
-      {label:'Ally Damage', value: Math.round(p.dmg*(dmgMult||0.55)), kind:'dmg'}
+  name, icon, key:'2', cost, cd, color, kindTag:'Summon Guardian',
+  info: { desc: name + ' — summon temple guardians to fight beside you.',
+    calc: (p, sl=1) => [
+      {label:'Allies', value: (count || 1) + Math.floor((sl-1)/2)},
+      {label:'Ally HP', value: Math.round((55+p.level*12)*(hpMult||1)*(1+(sl-1)*0.22)), kind:'heal'},
+      {label:'Ally Damage', value: Math.round(p.dmg*(dmgMult||0.55)*(1+(sl-1)*0.22)), kind:'dmg'}
     ] },
   cast(p, g) {
-    const n = count || 1;
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
+    const n = (count || 1) + Math.floor((lvl - 1) / 2);
     for (let i = 0; i < n; i++) {
       const a = rand(0, TAU), d = rand(35, 55) + i*10;
-      const hpMax = Math.round((55+p.level*12)*(hpMult||1));
+      const hpMax = Math.round((55+p.level*12)*(hpMult||1)*sm);
       tcount(p,'summons');
+      const mx = p.x+Math.cos(a)*d, my = p.y+Math.sin(a)*d;
       g.minions.push({
-        x: p.x+Math.cos(a)*d, y: p.y+Math.sin(a)*d, r: 11,
-        hp: hpMax, maxHp: hpMax, dmg: p.dmg*(dmgMult||0.55),
-        speed: 205, life: 20, maxLife: 20, atkTimer: rand(0.2, 0.8),
+        x: mx, y: my, r: 11 + Math.min(3, lvl-1),
+        hp: hpMax, maxHp: hpMax, dmg: p.dmg*(dmgMult||0.55)*sm,
+        speed: 205 + lvl*6, life: 20 + lvl*2, maxLife: 20 + lvl*2, atkTimer: rand(0.2, 0.8),
         facing: a, hitFlash: 0, wobble: rand(0, TAU)
       });
+      g.fx.push({type:'summon', x:mx, y:my, s:0.9, life:0.75, max:0.75});
     }
-    { const sk = g.minions.filter(x => !x.ally); if (sk.length > 8) { const rm = sk.slice(0, sk.length - 8); g.minions = g.minions.filter(x => !rm.includes(x)); } }
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:90, life:.5, max:.5, color});
+    { const sk = g.minions.filter(x => !x.ally); if (sk.length > 10) { const rm = sk.slice(0, sk.length - 10); g.minions = g.minions.filter(x => !rm.includes(x)); } }
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:95, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 95, color);
   }
 });
 
 const HEAL = (name, icon, pct, cost, cd, color, extra) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — restore health.',
-    calc: p => [
-      {label:'Heal', value: Math.round(p.maxHp*pct)+' HP', kind:'heal'},
+  name, icon, key:'2', cost, cd, color, kindTag:'Lotus Blessing',
+  info: { desc: name + ' — restore health with sacred lotus nectar.',
+    calc: (p, sl=1) => [
+      {label:'Heal', value: Math.round(p.maxHp*Math.min(0.95, pct*(1+(sl-1)*0.15)))+' HP', kind:'heal'},
       ...(extra && extra.energy ? [{label:'Energy', value:'+'+extra.energy, kind:'heal'}] : []),
       ...(extra && extra.invuln ? [{label:'Invulnerable', value: extra.invuln+' s', kind:'util'}] : [])
     ] },
   cast(p, g) {
-    const _healAmt=Math.round(p.maxHp*pct);
+    const lvl = p._castSkillLvl || 1;
+    const _healAmt=Math.round(p.maxHp*Math.min(0.95, pct*(1+(lvl-1)*0.15)));
     p.hp = Math.min(p.maxHp, p.hp + _healAmt);
     tcount(p,'heals',_healAmt);
     if (extra && extra.energy) p.energy = Math.min(p.maxEnergy, p.energy + extra.energy);
     if (extra && extra.invuln) p.invuln = Math.max(p.invuln, extra.invuln);
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:80, life:.5, max:.5, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:85, life:.5, max:.5, color});
+    g.fx.push({type:'healbeam', x:p.x, y:p.y, life:0.9, max:0.9});
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, 90, color);
   }
 });
 
 const B = (name, icon, kind, dur, cost, cd, color, amt) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — ' + kind + ' boost.',
-    calc: p => [
-      {label:'Duration', value: dur+' s', kind:'util'},
+  name, icon, key:'2', cost, cd, color, kindTag:'Mantra Buff',
+  info: { desc: name + ' — empower yourself with an ancient Khmer war mantra.',
+    calc: (p, sl=1) => [
+      {label:'Duration', value: (dur+(sl-1)*0.6).toFixed(1)+' s', kind:'util'},
       ...(kind === 'frenzy' ? [{label:'Attack Speed', value:'+60%', kind:'util'}] : []),
       ...(kind === 'armor' ? [{label:'Damage Reduction', value:'+40%', kind:'util'}] : []),
       ...(kind === 'damage' ? [{label:'Damage Boost', value:'+'+(amt||40)+'%', kind:'dmg'}] : [])
     ] },
   cast(p, g) {
-    if (kind === 'frenzy') p._frenzyT = dur;
-    if (kind === 'armor') p.invuln = Math.max(p.invuln, dur);
-    if (kind === 'damage') { p._frenzyT = dur; p._markT = dur; }
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:90, life:.5, max:.5, color});
-    g.texts.push({x:p.x, y:p.y-30, vy:-50, life:1, max:1, spawn:1, text:name.toUpperCase(), color, size:16});
+    const lvl = p._castSkillLvl || 1;
+    const d2 = dur + (lvl - 1) * 0.6;
+    if (kind === 'frenzy') p._frenzyT = d2;
+    if (kind === 'armor') p.invuln = Math.max(p.invuln, d2);
+    if (kind === 'damage') { p._frenzyT = d2; p._markT = d2; }
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:95, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, 95, color);
+    g.texts.push({x:p.x, y:p.y-30, vy:-50, life:1, max:1, spawn:1, text:name.toUpperCase()+' LV.'+lvl, color, size:16});
   }
 });
 
 const C = (name, icon, mult, count, cost, cd, color) => ({
-  name, icon, key:'3', cost, cd,
-  info: { desc: name + ' — chain lightning.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult)+' per enemy', kind:'dmg'},{label:'Chains', value: count}] },
+  name, icon, key:'3', cost, cd, color, kindTag:'Indra Lightning',
+  info: { desc: name + ' — arc celestial lightning across multiple foes.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22))+' per enemy', kind:'dmg'},{label:'Chains', value: count + Math.floor((sl-1)/2)}] },
   cast(p, g) {
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
     let cur = p;
     const hit = new Set();
-    for (let i = 0; i < count; i++) {
-      let best = null, bd = 280;
+    const n = count + Math.floor((lvl - 1) / 2);
+    for (let i = 0; i < n; i++) {
+      let best = null, bd = 290 + lvl * 15;
       for (const e of g.enemies) {
         if (e.dead || hit.has(e)) continue;
         const d = dist(cur, e); if (d < bd) { bd = d; best = e; }
       }
       if (!best) break;
       hit.add(best);
-      damageEnemy(best, p.dmg*mult, g, p);
-      g.fx.push({type:'lightning', x1:cur.x, y1:cur.y, x2:best.x, y2:best.y, life:.25, max:.25, color});
+      damageEnemy(best, p.dmg*mult*sm, g, p, {skill:true});
+      g.fx.push({type:'lightning', x1:cur.x, y1:cur.y, x2:best.x, y2:best.y, life:.28, max:.28, color});
+      spawnSkillVfx(g, p, 'pillar', best.x, best.y, 50, color);
       cur = best;
     }
   }
 });
 
 const R = (name, icon, mult, radius, cost, cd, color) => ({
-  name, icon, key:'3', cost, cd,
-  info: { desc: name + ' — rain destruction at cursor.',
-    calc: p => [{label:'Damage/sec', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Duration', value:'2 s'},{label:'Radius', value: radius}] },
+  name, icon, key:'3', cost, cd, color, kindTag:'Celestial Rain',
+  info: { desc: name + ' — call down celestial devastation at the cursor.',
+    calc: (p, sl=1) => [{label:'Damage/sec', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Duration', value:(2+(sl-1)*0.3).toFixed(1)+' s'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p), lvl = p._castSkillLvl || 1;
     const w = screenToWorld(mouse.x, mouse.y);
-    g.rains.push({x:clamp(w.x,40,WORLD.w-40), y:clamp(w.y,40,WORLD.h-40),
-      r:radius, life:2, tick:0, dmg:p.dmg*mult, color});
+    const rx = clamp(w.x,40,WORLD.w-40), ry = clamp(w.y,40,WORLD.h-40);
+    g.rains.push({x:rx, y:ry, r:radius*rm, life:2+(lvl-1)*0.3, tick:0, dmg:p.dmg*mult*sm, color});
+    spawnSkillVfx(g, p, 'nova', rx, ry, radius*rm, color);
   }
 });
 
 const BEAM = (name, icon, mult, length, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — pierce all enemies in a line.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult)+' per enemy', kind:'dmg'},{label:'Range', value: length}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Prana Beam',
+  info: { desc: name + ' — pierce all enemies in a blazing line of energy.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22))+' per enemy', kind:'dmg'},{label:'Range', value: Math.round(length*(1+(sl-1)*0.1))}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p);
+    const len = length * rm;
     const a = p.facing;
-    const ex = p.x + Math.cos(a)*length;
-    const ey = p.y + Math.sin(a)*length;
+    const ex = p.x + Math.cos(a)*len;
+    const ey = p.y + Math.sin(a)*len;
     for (const e of g.enemies) {
       if (e.dead) continue;
       const dx = e.x - p.x, dy = e.y - p.y;
       const d = Math.hypot(dx, dy);
-      if (d > length + e.r) continue;
+      if (d > len + e.r) continue;
       const proj = (dx*Math.cos(a) + dy*Math.sin(a)) / d;
       if (proj < 0) continue;
       const perp = Math.abs(-dx*Math.sin(a) + dy*Math.cos(a));
-      if (perp < e.r + 16) damageEnemy(e, p.dmg*mult, g, p);
+      if (perp < e.r + 18) damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
     }
-    g.fx.push({type:'beam', x1:p.x, y1:p.y, x2:ex, y2:ey, life:.4, max:.4, color});
-    g.shake = Math.max(g.shake, 3);
+    g.fx.push({type:'beam', x1:p.x, y1:p.y, x2:ex, y2:ey, life:.44, max:.44, color});
+    spawnSkillVfx(g, p, 'slash', p.x + Math.cos(a)*len*0.5, p.y + Math.sin(a)*len*0.5, 90, color, a, 0.8);
+    g.shake = Math.max(g.shake, 4);
   }
 });
 
 const LEAP = (name, icon, mult, radius, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — leap to cursor, damage on landing.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult)+' in '+radius, kind:'dmg'},{label:'Range', value: 400}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Garuda Leap',
+  info: { desc: name + ' — soar like Garuda to the cursor and shatter the stone on impact.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22))+' in '+Math.round(radius*(1+(sl-1)*0.1)), kind:'dmg'},{label:'Range', value: 400}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rad = radius * skRadMult(p);
     const w = screenToWorld(mouse.x, mouse.y);
     const d = Math.min(dist(p, w), 400);
     const a = Math.atan2(w.y-p.y, w.x-p.x);
@@ -276,70 +362,81 @@ const LEAP = (name, icon, mult, radius, cost, cd, color) => ({
     p.moveTarget = null;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < radius + e.r) damageEnemy(e, p.dmg*mult, g, p);
+      if (dist(p, e) < rad + e.r) damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
     }
-    g.fx.push({type:'nova', x:p.x, y:p.y, r:radius, life:.4, max:.4, color});
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:radius*1.2, life:.5, max:.5, color});
-    g.shake = Math.max(g.shake, 7);
+    g.fx.push({type:'nova', x:p.x, y:p.y, r:rad, life:.45, max:.45, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:rad*1.2, life:.55, max:.55, color});
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, rad, color, a);
+    g.shake = Math.max(g.shake, 8);
   }
 });
 
 const WHIRL = (name, icon, mult, dur, radius, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — spin, damaging nearby enemies.',
-    calc: p => [{label:'Damage/tick', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Duration', value: dur+' s'},{label:'Radius', value: radius}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Chakram Vortex',
+  info: { desc: name + ' — spin in a bladed tempest, damaging nearby enemies.',
+    calc: (p, sl=1) => [{label:'Damage/tick', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Duration', value: (dur+(sl-1)*0.4).toFixed(1)+' s'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))}] },
   cast(p, g) {
-    p._whirlT = dur; p._whirlMult = mult; p._whirlR = radius;
+    const sm = skLvlMult(p), rm = skRadMult(p), lvl = p._castSkillLvl || 1;
+    p._whirlT = dur + (lvl-1)*0.4; p._whirlMult = mult*sm; p._whirlR = radius*rm;
     p._whirlTick = 0; p._whirlColor = color;
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:radius, life:.4, max:.4, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:radius*rm, life:.45, max:.45, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, radius*rm, color);
   }
 });
 
 const SHIELD = (name, icon, pct, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — absorb incoming damage.',
-    calc: p => [{label:'Absorb', value: Math.round(p.maxHp*pct)+' HP', kind:'util'},{label:'Duration', value: dur+' s'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Bayon Aegis',
+  info: { desc: name + ' — summon a Bayon stone ward to absorb incoming damage.',
+    calc: (p, sl=1) => [{label:'Absorb', value: Math.round(p.maxHp*pct*(1+(sl-1)*0.2))+' HP', kind:'util'},{label:'Duration', value: (dur+(sl-1)*0.5).toFixed(1)+' s'}] },
   cast(p, g) {
-    p._shieldT = dur;
-    p._shieldAmt = Math.round(p.maxHp*pct);
+    const lvl = p._castSkillLvl || 1;
+    p._shieldT = dur + (lvl-1)*0.5;
+    p._shieldAmt = Math.round(p.maxHp*pct*(1+(lvl-1)*0.2));
     p._shieldColor = color;
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:80, life:.5, max:.5, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:85, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, 85, color);
   }
 });
 
 const TRAP = (name, icon, mult, radius, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — place a trap at cursor.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Radius', value: radius},{label:'Duration', value: dur+' s'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Yantra Trap',
+  info: { desc: name + ' — inscribe an explosive yantra rune trap at cursor.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))},{label:'Duration', value: dur+' s'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p);
     const w = screenToWorld(mouse.x, mouse.y);
-    g.traps.push({x:clamp(w.x,40,WORLD.w-40), y:clamp(w.y,40,WORLD.h-40),
-      r:radius, dmg:p.dmg*mult, life:dur, max:dur, color, armed:true});
+    const tx = clamp(w.x,40,WORLD.w-40), ty = clamp(w.y,40,WORLD.h-40);
+    g.traps.push({x:tx, y:ty, r:radius*rm, dmg:p.dmg*mult*sm, life:dur, max:dur, color, armed:true});
+    spawnSkillVfx(g, p, 'nova', tx, ty, radius*0.7, color);
   }
 });
 
 const MULTI = (name, icon, mult, count, spread, speed, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — fire a spread of projectiles.',
-    calc: p => [{label:'Damage each', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Projectiles', value: count}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Volley Fan',
+  info: { desc: name + ' — unleash a fan of enchanted projectiles.',
+    calc: (p, sl=1) => [{label:'Damage each', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Projectiles', value: count + Math.floor((sl-1)/2)}] },
   cast(p, g) {
-    for (let i = 0; i < count; i++) {
-      const off = (i - (count-1)/2) * spread;
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
+    const n = count + Math.floor((lvl - 1) / 2);
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n-1)/2) * spread;
       const a = p.facing + off;
       spawnProj(g, {
         x:p.x+Math.cos(a)*20, y:p.y+Math.sin(a)*20,
         vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
-        r:6, dmg:p.dmg*mult, life:1.2, color, from:'player'
+        r:6 + Math.min(2, lvl-1), dmg:p.dmg*mult*sm, life:1.25, color, from:'player'
       });
     }
+    spawnSkillVfx(g, p, 'slash', p.x+Math.cos(p.facing)*24, p.y+Math.sin(p.facing)*24, 65, color, p.facing, spread*n);
   }
 });
 
 const HOMING = (name, icon, mult, speed, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — fire a homing projectile.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Homing', value:'Yes', kind:'util'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Naga Seeker',
+  info: { desc: name + ' — launch a seeking spirit projectile.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Seekers', value: 1 + Math.floor((sl-1)/3), kind:'util'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
     let target = null, bd = Infinity;
     for (const e of g.enemies) {
       if (e.dead) continue;
@@ -347,165 +444,191 @@ const HOMING = (name, icon, mult, speed, cost, cd, color) => ({
       if (d < bd) { bd = d; target = e; }
     }
     if (!target) return;
-    const a = Math.atan2(target.y-p.y, target.x-p.x);
-    spawnProj(g, {
-      x:p.x, y:p.y,
-      vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
-      r:8, dmg:p.dmg*mult, life:2.5, color, from:'player',
-      homing:true, homingTarget:target
-    });
+    const count = 1 + Math.floor((lvl - 1) / 3);
+    for (let i = 0; i < count; i++) {
+      const a = Math.atan2(target.y-p.y, target.x-p.x) + (i - (count-1)/2)*0.25;
+      spawnProj(g, {
+        x:p.x, y:p.y,
+        vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
+        r:8 + Math.min(3, lvl-1), dmg:p.dmg*mult*sm, life:2.5, color, from:'player',
+        homing:true, homingTarget:target
+      });
+    }
+    spawnSkillVfx(g, p, 'proj', p.x, p.y, 55, color, p.facing);
   }
 });
 
 const MARK = (name, icon, mult, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — mark nearby enemies. They take +40% damage.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Mark Duration', value: dur+' s', kind:'util'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Bayon Gaze',
+  info: { desc: name + ' — mark nearby enemies under the gaze of Bayon (+40% damage taken).',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Mark Duration', value: (dur+(sl-1)*0.8).toFixed(1)+' s', kind:'util'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < 340) {
-        damageEnemy(e, p.dmg*mult, g, p);
-        e.markT = dur;
+      if (dist(p, e) < 340 * skRadMult(p)) {
+        damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
+        e.markT = dur + (lvl-1)*0.8;
       }
     }
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:340, life:.6, max:.6, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:340*skRadMult(p), life:.6, max:.6, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 200, color);
   }
 });
 
 const STEALTH = (name, icon, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — become invisible and fast.',
-    calc: p => [{label:'Duration', value: dur+' s', kind:'util'},{label:'Speed', value:'+80%', kind:'util'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Shadow Veil',
+  info: { desc: name + ' — vanish into temple mist and gain +80% move speed.',
+    calc: (p, sl=1) => [{label:'Duration', value: (dur+(sl-1)*0.6).toFixed(1)+' s', kind:'util'},{label:'Speed', value:'+80%', kind:'util'}] },
   cast(p, g) {
-    p._stealthT = dur;
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:60, life:.5, max:.5, color});
+    const lvl = p._castSkillLvl || 1;
+    p._stealthT = dur + (lvl-1)*0.6;
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:65, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 65, color);
   }
 });
 
 const TOTEM = (name, icon, mult, radius, dur, cost, cd, color, healing) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — place a ' + (healing?'healing ':'damaging ') + 'totem.',
-    calc: p => [
-      {label: healing?'Heal/tick':'Damage/tick', value: Math.round((healing?p.maxHp:p.dmg)*mult), kind:healing?'heal':'dmg'},
-      {label:'Radius', value: radius},
-      {label:'Duration', value: dur+' s'}
+  name, icon, key:'2', cost, cd, color, kindTag:'Linga Totem',
+  info: { desc: name + ' — consecrate a sacred ' + (healing?'healing ':'wrath ') + 'stele at the cursor.',
+    calc: (p, sl=1) => [
+      {label: healing?'Heal/tick':'Damage/tick', value: Math.round((healing?p.maxHp:p.dmg)*mult*(1+(sl-1)*0.22)), kind:healing?'heal':'dmg'},
+      {label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))},
+      {label:'Duration', value: (dur+(sl-1)*0.8).toFixed(1)+' s'}
     ] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p), lvl = p._castSkillLvl || 1;
     const w = screenToWorld(mouse.x, mouse.y);
-    g.totems.push({x:clamp(w.x,40,WORLD.w-40), y:clamp(w.y,40,WORLD.h-40),
-      r:radius, dmg:p.dmg*mult, healAmt: p.maxHp*mult, life:dur, max:dur, color, tick:0, healing:!!healing});
+    const tx = clamp(w.x,40,WORLD.w-40), ty = clamp(w.y,40,WORLD.h-40);
+    g.totems.push({x:tx, y:ty, r:radius*rm, dmg:p.dmg*mult*sm, healAmt: p.maxHp*mult*sm, life:dur+(lvl-1)*0.8, max:dur+(lvl-1)*0.8, color, tick:0, healing:!!healing});
+    spawnSkillVfx(g, p, 'pillar', tx, ty, radius*rm*0.6, color);
   }
 });
 
 const PULL = (name, icon, mult, radius, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — pull enemies toward you.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Radius', value: radius},{label:'Slow', value:'1 s'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Gravity Vortex',
+  info: { desc: name + ' — pull enemies inward with crushing temple gravity.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))},{label:'Slow', value:'1.4 s'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rad = radius * skRadMult(p);
     for (const e of g.enemies) {
       if (e.dead) continue;
       const d = dist(p, e);
-      if (d < radius) {
+      if (d < rad) {
         const a = Math.atan2(p.y-e.y, p.x-e.x);
         const pullDist = Math.min(d - p.r - e.r - 8, 220);
         if (pullDist > 0) {
           e.x += Math.cos(a)*pullDist;
           e.y += Math.sin(a)*pullDist;
         }
-        damageEnemy(e, p.dmg*mult, g, p);
-        e.slowT = Math.max(e.slowT, 1);
+        damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
+        e.slowT = Math.max(e.slowT, 1.4);
       }
     }
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:radius, life:.5, max:.5, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:rad, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, rad*0.8, color);
   }
 });
 
 const FEAR = (name, icon, dur, radius, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — stun enemies in a radius.',
-    calc: p => [{label:'Stun', value: dur+' s (bosses ×0.25)', kind:'util'},{label:'Radius', value: radius}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Asura Dread',
+  info: { desc: name + ' — petrify and stun enemies in a radius.',
+    calc: (p, sl=1) => [{label:'Stun', value: (dur+(sl-1)*0.35).toFixed(2)+' s (bosses ×0.25)', kind:'util'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))}] },
   cast(p, g) {
+    const lvl = p._castSkillLvl || 1, rad = radius * skRadMult(p);
+    const d0 = dur + (lvl-1)*0.35;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < radius) {
-        const d2 = e.boss ? dur*0.25 : dur;
+      if (dist(p, e) < rad) {
+        const d2 = e.boss ? d0*0.25 : d0;
         e.stunT = Math.max(e.stunT||0, d2);
       }
     }
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:radius, life:.6, max:.6, color});
-    g.fx.push({type:'nova', x:p.x, y:p.y, r:radius, life:.6, max:.6, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:rad, life:.6, max:.6, color});
+    g.fx.push({type:'nova', x:p.x, y:p.y, r:rad, life:.6, max:.6, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, rad*0.85, color);
   }
 });
 
 const DOT = (name, icon, mult, dur, radius, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — poison nearby enemies.',
-    calc: p => [{label:'Damage/tick', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Duration', value: dur+' s'},{label:'Radius', value: radius}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Naga Venom',
+  info: { desc: name + ' — afflict nearby enemies with searing Naga venom.',
+    calc: (p, sl=1) => [{label:'Damage/tick', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Duration', value: (dur+(sl-1)*0.5).toFixed(1)+' s'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rad = radius * skRadMult(p), lvl = p._castSkillLvl || 1;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < radius) {
-        e.dotT = Math.max(e.dotT||0, dur);
-        e.dotDmg = p.dmg*mult;
+      if (dist(p, e) < rad) {
+        e.dotT = Math.max(e.dotT||0, dur + (lvl-1)*0.5);
+        e.dotDmg = p.dmg*mult*sm;
         e.dotTick = 0;
         e.dotColor = color;
       }
     }
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:radius, life:.5, max:.5, color});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:rad, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, rad*0.8, color);
   }
 });
 
 const LIFESTEAL = (name, icon, mult, healPct, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — strike and heal for damage dealt.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Heal', value: Math.round(p.dmg*mult*healPct)+' HP', kind:'heal'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Soul Siphon',
+  info: { desc: name + ' — strike enemies and siphon their life essence.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Heal', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)*healPct)+' HP', kind:'heal'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p);
     let total = 0;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist(p, e) < p.range + e.r + 14) {
+      if (dist(p, e) < (p.range + 14)*rm + e.r) {
         const a = Math.atan2(e.y-p.y, e.x-p.x);
-        if (Math.abs(angDiff(a, p.facing)) < 1.2) {
-          damageEnemy(e, p.dmg*mult, g, p);
-          total += p.dmg*mult;
+        if (Math.abs(angDiff(a, p.facing)) < 1.25) {
+          damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
+          total += p.dmg*mult*sm;
         }
       }
     }
-    p.hp = Math.min(p.maxHp, p.hp + Math.round(total*healPct));
-    g.fx.push({type:'slash', x:p.x, y:p.y, r:p.range+18, ang:p.facing, arc:2.4, life:.2, max:.2, color});
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:80, life:.4, max:.4, color:'#7aff9a'});
+    const healed = Math.round(total*healPct);
+    p.hp = Math.min(p.maxHp, p.hp + healed);
+    if (healed > 0) tcount(p, 'heals', healed);
+    g.fx.push({type:'slash', x:p.x, y:p.y, r:(p.range+20)*rm, ang:p.facing, arc:2.4, life:.22, max:.22, color, lvl:p._castSkillLvl||1});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:85, life:.42, max:.42, color:'#7aff9a'});
+    spawnSkillVfx(g, p, 'slash', p.x, p.y, (p.range+20)*rm, color, p.facing, 2.2);
   }
 });
 
 const GROUND = (name, icon, mult, radius, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — leave a damaging pool.',
-    calc: p => [{label:'Damage/tick', value: Math.round(p.dmg*mult), kind:'dmg'},{label:'Duration', value: dur+' s'},{label:'Radius', value: radius}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Consecrated Ground',
+  info: { desc: name + ' — sanctify or corrupt the ground at the cursor.',
+    calc: (p, sl=1) => [{label:'Damage/tick', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Duration', value: (dur+(sl-1)*0.6).toFixed(1)+' s'},{label:'Radius', value: Math.round(radius*(1+(sl-1)*0.1))}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rm = skRadMult(p), lvl = p._castSkillLvl || 1;
     const w = screenToWorld(mouse.x, mouse.y);
-    g.grounds.push({x:clamp(w.x,40,WORLD.w-40), y:clamp(w.y,40,WORLD.h-40),
-      r:radius, dmg:p.dmg*mult, life:dur, max:dur, color, tick:0});
+    const gx = clamp(w.x,40,WORLD.w-40), gy = clamp(w.y,40,WORLD.h-40);
+    g.grounds.push({x:gx, y:gy, r:radius*rm, dmg:p.dmg*mult*sm, life:dur+(lvl-1)*0.6, max:dur+(lvl-1)*0.6, color, tick:0});
+    spawnSkillVfx(g, p, 'nova', gx, gy, radius*rm*0.75, color);
   }
 });
 
 const CHAINHEAL = (name, icon, pct, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — heal over time.',
-    calc: p => [{label:'Heal total', value: Math.round(p.maxHp*pct)+' HP', kind:'heal'},{label:'Duration', value: dur+' s'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Amrita Regen',
+  info: { desc: name + ' — channel celestial Amrita to regenerate health over time.',
+    calc: (p, sl=1) => [{label:'Heal total', value: Math.round(p.maxHp*pct*(1+(sl-1)*0.18))+' HP', kind:'heal'},{label:'Duration', value: dur+' s'}] },
   cast(p, g) {
+    const lvl = p._castSkillLvl || 1;
     p._healingT = dur;
-    p._healingRate = (p.maxHp * pct) / dur;
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:80, life:.5, max:.5, color});
+    p._healingRate = (p.maxHp * pct * (1+(lvl-1)*0.18)) / dur;
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:85, life:.5, max:.5, color});
     g.fx.push({type:'healbeam', x:p.x, y:p.y, life:1.15, max:1.15});
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, 85, color);
   }
 });
 
 const SACRIFICE = (name, icon, mult, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — sacrifice nearest minion, explode it.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult)+' in 120', kind:'dmg'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Ritual Detonation',
+  info: { desc: name + ' — detonate a summoned guardian in a cataclysmic blast.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.24))+' in '+Math.round(125*(1+(sl-1)*0.1)), kind:'dmg'}] },
   cast(p, g) {
+    const sm = skLvlMult(p), rad = 125 * skRadMult(p);
     const sac = g.minions.filter(x => !x.ally);
     if (sac.length === 0) { addToast('No minions to sacrifice', '#ef4444', ''); return; }
     const m = sac[0];
@@ -514,20 +637,22 @@ const SACRIFICE = (name, icon, mult, cost, cd, color) => ({
     const ty = target ? target.y : m.y;
     for (const e of g.enemies) {
       if (e.dead) continue;
-      if (dist({x:tx,y:ty}, e) < 120 + e.r) damageEnemy(e, p.dmg*mult, g, p);
+      if (dist({x:tx,y:ty}, e) < rad + e.r) damageEnemy(e, p.dmg*mult*sm, g, p, {skill:true});
     }
-    g.fx.push({type:'boom', x:tx, y:ty, r:120, life:.5, max:.5, color});
-    g.shake = Math.max(g.shake, 6);
+    g.fx.push({type:'boom', x:tx, y:ty, r:rad, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'pillar', tx, ty, rad, color);
+    g.shake = Math.max(g.shake, 7);
     g.minions.splice(g.minions.indexOf(m), 1);
   }
 });
 
 const SHADOWSTEP = (name, icon, mult, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — teleport behind nearest target and crit.',
-    calc: p => [{label:'Damage', value: Math.round(p.dmg*mult*2)+' (crit)', kind:'dmg'},{label:'Range', value: 420}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Phantom Ambush',
+  info: { desc: name + ' — teleport behind nearest target for a guaranteed critical strike.',
+    calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*2*(1+(sl-1)*0.22))+' (crit)', kind:'dmg'},{label:'Range', value: 420+(sl-1)*30}] },
   cast(p, g) {
-    let target = null, bd = 420;
+    const sm = skLvlMult(p), lvl = p._castSkillLvl || 1;
+    let target = null, bd = 420 + (lvl-1)*30;
     for (const e of g.enemies) {
       if (e.dead) continue;
       const d = dist(p, e);
@@ -537,20 +662,23 @@ const SHADOWSTEP = (name, icon, mult, cost, cd, color) => ({
     const a = Math.atan2(p.y-target.y, p.x-target.x);
     p.x = target.x + Math.cos(a)*(target.r+14);
     p.y = target.y + Math.sin(a)*(target.r+14);
-    p.moveTarget = null; p.invuln = Math.max(p.invuln, 0.15);
-    damageEnemy(target, p.dmg*mult*2, g, p);
-    g.fx.push({type:'slash', x:target.x, y:target.y, r:40, ang:a, arc:2, life:.25, max:.25, color});
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:60, life:.35, max:.35, color});
+    p.moveTarget = null; p.invuln = Math.max(p.invuln, 0.2);
+    damageEnemy(target, p.dmg*mult*2*sm, g, p, {forceCrit:true, skill:true});
+    g.fx.push({type:'slash', x:target.x, y:target.y, r:48, ang:a, arc:2.1, life:.28, max:.28, color, lvl});
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:65, life:.38, max:.38, color});
+    spawnSkillVfx(g, p, 'slash', target.x, target.y, 65, color, a, 2.1);
   }
 });
 
 const REFLECT = (name, icon, dur, cost, cd, color) => ({
-  name, icon, key:'2', cost, cd,
-  info: { desc: name + ' — reflect damage to nearby enemies.',
-    calc: p => [{label:'Duration', value: dur+' s', kind:'util'},{label:'Retaliate', value:'50% nearby', kind:'util'}] },
+  name, icon, key:'2', cost, cd, color, kindTag:'Mirror Counter',
+  info: { desc: name + ' — reflect incoming damage back onto nearby enemies.',
+    calc: (p, sl=1) => [{label:'Duration', value: (dur+(sl-1)*0.6).toFixed(1)+' s', kind:'util'},{label:'Retaliate', value:'50% nearby', kind:'util'}] },
   cast(p, g) {
-    p._reflectT = dur;
-    g.fx.push({type:'ring', x:p.x, y:p.y, r:70, life:.5, max:.5, color});
+    const lvl = p._castSkillLvl || 1;
+    p._reflectT = dur + (lvl-1)*0.6;
+    g.fx.push({type:'ring', x:p.x, y:p.y, r:75, life:.5, max:.5, color});
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 75, color);
   }
 });
 
@@ -729,20 +857,9 @@ CLASSES.chaosfiend  = mkCls('Chaos Fiend','🌀','#6b3a7a','#c8a0e0',195,145,14,
    these 10. Old saves that reference a cut class are handled gracefully:
    loadSaveData() returns null when CLASSES[cls] is missing, so they simply
    show as "no save" (no crash). */
-const ROSTER = [
-  'ironclad',      // 🛡 Warrior tank   — Shield Wall / Shield Slam / Rallying War Cry
-  'berserker',     // 🪓 Warrior AoE    — Blood Rage / Whirlwind / Death Strike
-  'assassin',      // 🗡 Rogue crit     — Shadow Dance / Fan of Knives / Execution
-  'sniper',        // 🔭 Ranger burst   — Headshot / Rapid Volley / Kill Zone
-  'beastmaster',   // 🐺 Ranger pet     — Summon Wolf / Wild Hunt / Pack Leader
-  'pyromancer',    // 🔥 Mage nuke      — Fireball / Flame Wave / Inferno
-  'cryomancer',    // ❄ Mage slow      — Ice Bolt / Frost Nova / Blizzard
-  'bonelord',      // 💀 Necro minion   — Bone Spear / Raise Skeleton / Bone Storm
-  'cleric',        // ✝ Healer         — Holy Bolt / Smite / Holy Nova
-  'dragonknight',  // 🐉 Summoner       — Dragon Breath / Summon Dragon / Flame Guard
-];
-for (const _k of Object.keys(CLASSES)) if (!ROSTER.includes(_k)) delete CLASSES[_k];
-console.log('📊 ROSTER active:', ROSTER.length, 'playable classes (full library: 71)');
+/* All 71 classes across 9 Archetypes are active and playable! */
+const ROSTER = Object.keys(CLASSES);
+console.log('📊 ROSTER active:', ROSTER.length, 'playable classes across 9 archetypes');
 
 /* ===== Class titles: one permanent unlock per class — stat effect + unique visual aura ===== */
 const TITLES: Record<string, {name:string; icon:string; cond:string; fx:Record<string,number>; aura:string; color:string}> = {
@@ -757,6 +874,32 @@ const TITLES: Record<string, {name:string; icon:string; cond:string; fx:Record<s
   cleric:      {name:'Hand of Light',   icon:'✨', cond:'heal 1500 HP',             fx:{dmg:0.15},       aura:'halo',   color:'#ffe9a8'},
   dragonknight:{name:'Dragon Lord',     icon:'🐉', cond:'defeat 2 bosses',          fx:{dmg:0.1,spd:0.10},aura:'dragon', color:'#ff7a45'},
 };
+// Ensure all 71 classes have a unique Angkor-themed unlockable title
+const AURA_POOL = ['shield','blood','mist','tracer','spirit','ember','frost','bone','halo','dragon'];
+for (const k of Object.keys(CLASSES)) {
+  if (!TITLES[k]) {
+    const c = CLASSES[k];
+    const roleFx: Record<string, Record<string, number>> = {
+      Warrior: { hp: 0.12, dmg: 0.08 },
+      Ranger: { atk: 0.14, crit: 0.04 },
+      Mage: { skill: 0.22, regen: 15 },
+      Rogue: { crit: 0.06, spd: 0.10 },
+      Necromancer: { dmg: 0.12, regen: 18 },
+      Healer: { hp: 0.15, regen: 18 },
+      Summoner: { dmg: 0.12, spd: 0.08 },
+      Druid: { hp: 0.12, skill: 0.15 },
+      Demon: { dmg: 0.15, critDmg: 0.3 }
+    };
+    TITLES[k] = {
+      name: 'Angkor ' + c.name,
+      icon: c.icon || '🏛️',
+      cond: 'slay 80 monsters in one run',
+      fx: roleFx[c.roleTag] || { dmg: 0.12 },
+      aura: AURA_POOL[Math.abs(k.charCodeAt(0) + k.length) % AURA_POOL.length],
+      color: c.accent || '#ffd54f'
+    };
+  }
+}
 let TITLES_UNLOCKED: Record<string,boolean> = {};
 try{ TITLES_UNLOCKED = JSON.parse(localStorage.getItem('sastra_titles_v1')||'{}') }catch{ TITLES_UNLOCKED = {} }
 function saveTitles(){ try{ localStorage.setItem('sastra_titles_v1',JSON.stringify(TITLES_UNLOCKED)) }catch{} }
@@ -792,6 +935,7 @@ function checkTitleUnlocks(p:any,g:any){
   else if(p.cls==='bonelord')met=(s0.summons||0)>=15;
   else if(p.cls==='cleric')met=(s0.heals||0)>=1500;
   else if(p.cls==='dragonknight')met=(s0.bossKills||0)>=2;
+  else met=(s0.kills||0)>=80;
   if(!met)return;
   TITLES_UNLOCKED[p.cls]=true;saveTitles();
   p.titleBonus=T.fx;p.titleName=T.name;p.titleIcon=T.icon;
@@ -804,7 +948,7 @@ function titleProgress(p:any,g:any){
   const T=TITLES[p.cls];
   if(!T)return null;
   const s0=p.tstats||{};
-  let cur=0,target=1;
+  let cur=0,target=80;
   switch(p.cls){
     case 'ironclad':cur=g.wave||1;target=30;break;
     case 'berserker':cur=s0.kills||0;target=100;break;
@@ -816,6 +960,7 @@ function titleProgress(p:any,g:any){
     case 'bonelord':cur=s0.summons||0;target=15;break;
     case 'cleric':cur=s0.heals||0;target=1500;break;
     case 'dragonknight':cur=s0.bossKills||0;target=2;break;
+    default:cur=s0.kills||0;target=80;break;
   }
   return {T,cur:Math.min(cur,target),target,unlocked:!!(TITLES_UNLOCKED[p.cls]||p.titleBonus)};
 }
@@ -1045,6 +1190,8 @@ function saveGamePayload(g) {
     potions: p.potions || 0,
     treePoints: p.treePoints, treeUnlocked: p.treeUnlocked.slice(), hasUltimate: p.hasUltimate,
     upg: { ...(p.upg||{}) },
+    attrs: { ...(p.attrs||{str:0,vit:0,agi:0,wis:0,lck:0}) },
+    skillLvls: (p.skills||[]).map(s => s.lvl || 1),
     itemIdCounter, savedAt: Date.now()
   };
   return save;
@@ -1053,7 +1200,15 @@ function saveGame() {
   if (!G || !G.player) return false;
   const save = saveGamePayload(G);
   if (!save) return false;
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); return true; }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    if (auth.currentUser) {
+      let best = null;
+      try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
+      syncSaveToCloud(save, TITLES_UNLOCKED, best).catch(() => {});
+    }
+    return true;
+  }
   catch (e) { return false; }
 }
 function loadSaveData() {
@@ -1081,6 +1236,10 @@ function resumeFromSave(data, silent) {
   else{p.titleBonus=null;p.titleName=data.titleName||'';p.titleIcon=data.titleIcon||'';}
   p.baseStats = { dmg:C.dmg, maxHp:C.hp, armor:0, speed:C.speed, crit:C.crit, energyRegen:C.energyRegen, maxEnergy:C.energy, atkSpeed:C.atkSpeed, range:C.range, ...(data.baseStats||{}) };
   p.upg = { ...UPG_EMPTY, ...(data.upg||{}) };
+  p.attrs = { str:0, vit:0, agi:0, wis:0, lck:0, ...(data.attrs||{}) };
+  if (Array.isArray(data.skillLvls) && p.skills) {
+    p.skills.forEach((s, idx) => { s.lvl = clamp(data.skillLvls[idx] || 1, 1, 5); });
+  }
   if (data.treeMods) {
     const m = data.treeMods;
     p._critDmg = m._critDmg||2; p._executioner = !!m._executioner;
@@ -1419,7 +1578,7 @@ window.addEventListener('keydown',e=>{
     return;
   }
   if(upgState.open){
-    const ui=['1','2','3'].indexOf(k);
+    const ui=['1','2','3','4'].indexOf(k);
     if(ui>=0&&ui<upgState.opts.length){e.preventDefault();chooseUpgrade(ui);return}
     if(k==='escape'){e.preventDefault();chooseUpgrade(0);return}
     return;
@@ -1623,16 +1782,21 @@ function addBloodDecal(x,y){
   floorCtx.beginPath();floorCtx.ellipse(x,y,r,r*0.7,rand(0,TAU),0,TAU);floorCtx.fill();
   floorCtx.restore();
 }
-/* ═══ LEVEL-UP UPGRADES — pick 1 of 3 (Vampire-Survivors style) ═══ */
+/* ═══ LEVEL-UP: ANGKOR ATTRIBUTE UPDATE OR ACTIVE SKILL UPDATE ═══ */
+const ATTR_DEFS = [
+  { id:'str', kind:'attr', icon:'⚔️', name:'Kshatriya Might (STR)', desc:'+14% Attack Damage · +6% Attack Range', cap:12 },
+  { id:'vit', kind:'attr', icon:'🪨', name:'Bayon Stoneheart (VIT)', desc:'+16% Max HP · +12 Armor · Heal 18% HP', cap:12 },
+  { id:'agi', kind:'attr', icon:'🌪️', name:'Garuda Windstep (AGI)', desc:'+12% Attack Speed · +8% Move Speed', cap:10 },
+  { id:'wis', kind:'attr', icon:'🔮', name:'Sastra Prana (WIS)', desc:'-9% Skill Cooldowns · +2.5 Energy Regen', cap:10 },
+  { id:'lck', kind:'attr', icon:'🐍', name:'Naga Fortune (LCK)', desc:'+5% Critical Chance · +18% Crit Damage', cap:10 },
+];
 const UPG_DEFS=[
-  {id:'dmg',  icon:'⚔️', name:'Sharpened Edge', desc:'+12% damage',              cap:10, ranged:false},
-  {id:'atk',  icon:'💥', name:'Faster Attacks', desc:'+10% attack speed',        cap:8,  ranged:false},
-  {id:'shots',icon:'🏹', name:'Multi-Strike',   desc:'+1 bolt per attack',       cap:3,  ranged:true},
-  {id:'range',icon:'🎯', name:'Long Reach',     desc:'+12% attack range',        cap:5,  ranged:false},
-  {id:'spd',  icon:'👟', name:'Swift Steps',    desc:'+8% move speed',           cap:6,  ranged:false},
-  {id:'hp',   icon:'❤️', name:'Vitality',       desc:'+12% max HP · heals 12%',  cap:8,  ranged:false},
-  {id:'crit', icon:'💢', name:'Deadly Aim',     desc:'+4% critical chance',      cap:5,  ranged:false},
-  {id:'cd',   icon:'⚡', name:'Quick Cast',     desc:'-8% skill cooldowns',      cap:6,  ranged:false},
+  {id:'dmg',  kind:'attr', attrKey:'str', icon:'⚔️', name:'Kshatriya Might (STR)', desc:'+14% Damage · +6% Attack Range', cap:12, ranged:false},
+  {id:'hp',   kind:'attr', attrKey:'vit', icon:'🪨', name:'Bayon Stoneheart (VIT)', desc:'+16% Max HP · +12 Armor · Heals 18%', cap:12, ranged:false},
+  {id:'atk',  kind:'attr', attrKey:'agi', icon:'🌪️', name:'Garuda Windstep (AGI)', desc:'+12% Attack Speed · +8% Move Speed', cap:10, ranged:false},
+  {id:'cd',   kind:'attr', attrKey:'wis', icon:'🔮', name:'Sastra Prana (WIS)', desc:'-9% Skill Cooldowns · +2.5 Energy Regen', cap:10, ranged:false},
+  {id:'crit', kind:'attr', attrKey:'lck', icon:'🐍', name:'Naga Fortune (LCK)', desc:'+5% Crit Chance · +18% Crit Damage', cap:10, ranged:false},
+  {id:'shots',kind:'attr', attrKey:'agi', icon:'🏹', name:'Apsara Volley', desc:'+1 Projectile per basic attack', cap:3, ranged:true},
 ];
 const UPG_EMPTY={dmg:0,atk:0,shots:0,spd:0,hp:0,crit:0,cd:0,range:0};
 const upgState={pending:0,open:false,opts:[] as any[],token:0,openAt:0};
@@ -1646,19 +1810,25 @@ function recalcStats(p){
     for(const k in tot)tot[k]+=s[k];
   }
   const up=p.upg||UPG_EMPTY;
+  const at=p.attrs||{str:0,vit:0,agi:0,wis:0,lck:0};
   const CL=CLASSES[p.cls]||{};
   const oldMax=p.maxHp||0;
   const tb=p.titleBonus||{};
-  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+up.dmg*0.12)*(1+(tb.dmg||0));
-  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+up.hp*0.12)*(1+(tb.hp||0)));
-  p.armor=p.baseStats.armor+tot.armor;
-  p.speed=(p.baseStats.speed+tot.speed)*(1+up.spd*0.08)*(1+(tb.spd||0));
-  p.crit=Math.min(0.75,(p.baseStats.crit+tot.crit)+up.crit*0.04+(tb.crit||0));
-  p.energyRegen=p.baseStats.energyRegen+tot.regen+(tb.regen||0);
-  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+up.atk*0.10)*(1+(tb.atk||0));
-  p.range=(p.baseStats.range||CL.range||100)*(1+up.range*0.12);
+  const strPts = (at.str||0) + (up.dmg||0);
+  const vitPts = (at.vit||0) + (up.hp||0);
+  const agiPts = (at.agi||0) + (up.atk||0) + (up.spd||0);
+  const wisPts = (at.wis||0) + (up.cd||0);
+  const lckPts = (at.lck||0) + (up.crit||0);
+  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+strPts*0.14)*(1+(tb.dmg||0));
+  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+vitPts*0.16)*(1+(tb.hp||0)));
+  p.armor=p.baseStats.armor+tot.armor+vitPts*12;
+  p.speed=(p.baseStats.speed+tot.speed)*(1+agiPts*0.08)*(1+(tb.spd||0));
+  p.crit=Math.min(0.80,(p.baseStats.crit+tot.crit)+lckPts*0.05+(tb.crit||0));
+  p.energyRegen=p.baseStats.energyRegen+tot.regen+wisPts*2.5+(tb.regen||0);
+  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(tb.atk||0));
+  p.range=(p.baseStats.range||CL.range||100)*(1+strPts*0.06+(up.range||0)*0.12);
   if(p.baseStats.maxEnergy){
-    p.maxEnergy=p.baseStats.maxEnergy;
+    p.maxEnergy=p.baseStats.maxEnergy + wisPts*8;
     p.energy=Math.min(p.energy||p.maxEnergy,p.maxEnergy);
   }
   const diff=p.maxHp-oldMax;
@@ -2448,21 +2618,21 @@ function startCryptDefeatCutscene(g, boss) {
   });
 }
 
-/* Biomes */
+/* Biomes — Angkor Khmer Era Temple Realms */
 const BIOMES = [
-  { key:'crypt', name:'The Crypt', floorTint:'rgba(130,100,90,0.20)', tint:'rgba(40,20,10,0.10)',
-    torchColor:'#ff9040', edge:'rgba(5,3,15,0.42)',
+  { key:'crypt', name:'Angkor Sankranti Crypt', floorTint:'rgba(145,112,82,0.20)', tint:'rgba(55,34,14,0.12)',
+    torchColor:'#ff9838', edge:'rgba(8,5,15,0.42)',
     enemies:['fallen','skeleton','archer','spider','shaman'], boss:'cryptLord' },
-  { key:'caverns', name:'The Deep Caverns', floorTint:'rgba(110,140,120,0.20)', tint:'rgba(20,35,25,0.14)',
-    torchColor:'#ffb040', edge:'rgba(3,10,8,0.48)',
+  { key:'caverns', name:'Ta Prohm Root Caverns', floorTint:'rgba(105,145,115,0.20)', tint:'rgba(20,42,28,0.14)',
+    torchColor:'#ffb040', edge:'rgba(3,12,8,0.48)',
     enemies:['brute','golem','bomber','spider','skeleton'], boss:'cavernTitan' },
-  { key:'frost', name:'Frozen Peaks', floorTint:'rgba(150,175,210,0.22)', tint:'rgba(30,45,70,0.16)',
+  { key:'frost', name:'Preah Vihear Sky Peak', floorTint:'rgba(150,185,220,0.22)', tint:'rgba(30,50,80,0.16)',
     torchColor:'#7fd4ff', edge:'rgba(5,10,25,0.48)',
     enemies:['iceElemental','skeleton','sniper','mage','wraith'], boss:'frostWyrm' },
-  { key:'volcano', name:'The Ember Depths', floorTint:'rgba(190,120,85,0.20)', tint:'rgba(60,20,10,0.18)',
+  { key:'volcano', name:'Banteay Srei Sacred Forge', floorTint:'rgba(200,115,80,0.20)', tint:'rgba(65,22,12,0.18)',
     torchColor:'#ff5020', edge:'rgba(20,3,0,0.50)',
     enemies:['fireImp','brute','bomber','charger','shaman'], boss:'volcanoBehemoth' },
-  { key:'shadow', name:'The Shadow Realm', floorTint:'rgba(150,115,190,0.20)', tint:'rgba(30,10,50,0.20)',
+  { key:'shadow', name:'Bayon Shadow Sanctum', floorTint:'rgba(150,115,195,0.20)', tint:'rgba(32,12,55,0.20)',
     torchColor:'#a060ff', edge:'rgba(8,2,15,0.55)',
     enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' }
 ];
@@ -2609,6 +2779,7 @@ export function startGame(clsKey){
         facing:0,atkTimer:0,moveTarget:null,swing:0,
         level:1,xp:0,xpNext:100,invuln:0,gold:50,
         upg:{dmg:0,atk:0,shots:0,spd:0,hp:0,crit:0,cd:0,range:0},
+        attrs:{str:0,vit:0,agi:0,wis:0,lck:0},
         dashT:0,dashSpeed:0,dashAng:0,dashDamage:0,dashHits:new Set(),
         spinT:0,spinTick:0,walkPhase:0,isMoving:false,
         autoAttack:true,_autoTarget:null,
@@ -2626,7 +2797,7 @@ export function startGame(clsKey){
         slowT:0,
         treePoints:0,treeUnlocked:[],hasUltimate:false,
         ultimate:makeUltimateSkill(C),chargingUlt:false,chargeTime:0,ultCooldown:0,
-        skills:C.skills.map(s=>({...s,baseCd:s.cd,cd:0})),
+        skills:C.skills.map(s=>({...s,baseCd:s.cd,cd:0,lvl:1})),
         titleBonus:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].fx:null,
         titleName:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].name:'',
         titleIcon:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].icon:''
@@ -2678,9 +2849,10 @@ function buildSkillbar(p){
   p.skills.forEach((s,i)=>{
     const d=document.createElement('div');
     d.className='skill';
-    d.innerHTML=`<div class="cd"></div><div class="sname">${s.name}</div><div class="icon">${s.icon}</div><div class="key">${i+1}</div>`;
+    const sl = s.lvl || 1;
+    d.innerHTML=`<div class="cd"></div><div class="sname">${s.name}</div><div class="icon">${s.icon}</div><div class="key">${i+1}</div><div class="slvl">Lv.${sl}</div>`;
     bar.appendChild(d);
-    s.el=d;s.cdEl=d.querySelector('.cd');s._slotKey=i+1;
+    s.el=d;s.cdEl=d.querySelector('.cd');s.lvlEl=d.querySelector('.slvl');s._slotKey=i+1;
     d.addEventListener('mouseenter',ev=>showSkillTooltip(s,ev));
     d.addEventListener('mousemove',ev=>positionSkillTooltip(ev));
     d.addEventListener('mouseleave',hideSkillTooltip);
@@ -2710,10 +2882,12 @@ const skillTipEl=document.getElementById('skillTooltip');
 function showSkillTooltip(skill,e){
   if(!G||!G.player)return;
   const p=G.player;
+  const sl=skill.lvl||1;
   const info=skill.info||{desc:'',calc:()=>[]};
-  const cdText=skill.baseCd<1?skill.baseCd.toFixed(2)+'s':skill.baseCd.toFixed(1)+'s';
-  const stats=info.calc(p);
-  let h=`<div class="st-header"><div class="st-icon">${skill.icon}</div><div class="st-title"><div class="st-name">${skill.name}</div><div class="st-meta"><span>Cost <b>${skill.cost}</b></span><span>CD <b>${cdText}</b></span><span>Key <b>${skill._slotKey||skill.key}</b></span></div></div></div><div class="st-desc">${info.desc}</div>`;
+  const effCd = skill.baseCd * Math.max(0.4, 1 - (sl - 1) * 0.06);
+  const cdText=effCd<1?effCd.toFixed(2)+'s':effCd.toFixed(1)+'s';
+  const stats=info.calc(p, sl);
+  let h=`<div class="st-header"><div class="st-icon">${skill.icon}</div><div class="st-title"><div class="st-name">${skill.name} <span style="color:#ffd54f;font-size:11px">Lv.${sl}</span></div><div class="st-meta"><span>Cost <b>${skill.cost}</b></span><span>CD <b>${cdText}</b></span><span>Key <b>${skill._slotKey||skill.key}</b></span></div></div></div><div class="st-desc">${info.desc}</div>`;
   for(const row of stats){
     const cls=row.kind==='dmg'?'st-stat dmg':row.kind==='heal'?'st-stat heal':row.kind==='util'?'st-stat util':'st-stat';
     h+=`<div class="${cls}"><span class="k">${row.label}</span><span class="v">${row.value}</span></div>`;
@@ -2739,11 +2913,14 @@ function tryCast(i){
   const p=G.player,s=p.skills[i];
   if(!s||s.cd>0||p.energy<s.cost)return;
   const origDmg=p.dmg;
+  const sl = s.lvl || 1;
+  p._castSkillLvl = sl;
   if(p._skillPower)p.dmg=Math.round(p.dmg*(1+p._skillPower));
   if(p.titleBonus&&p.titleBonus.skill)p.dmg=Math.round(p.dmg*(1+p.titleBonus.skill));
   s.cast(p,G);
   p.dmg=origDmg;
-  const cdMult=Math.max(0.3,1-((p._cdr||0)+(p.upg&&p.upg.cd?p.upg.cd*0.08:0)));
+  const wisPts = ((p.attrs&&p.attrs.wis)||0) + ((p.upg&&p.upg.cd)||0);
+  const cdMult=Math.max(0.28,(1-((p._cdr||0)+wisPts*0.09)) * (1-(sl-1)*0.06));
   s.cd=s.baseCd*cdMult;
   p.energy-=s.cost;
   if(p._refund&&Math.random()<p._refund){s.cd=0;p.energy=Math.min(p.maxEnergy,p.energy+s.cost);G.fx.push({type:'ring',x:p.x,y:p.y,r:50,life:.35,max:.35,color:'#7fb4ff'})}
@@ -2751,6 +2928,7 @@ function tryCast(i){
     setTimeout(()=>{
       if(!G||!G.running||!G.player||G.player!==p)return;
       const od=p.dmg;
+      p._castSkillLvl = sl;
       if(p._skillPower)p.dmg=Math.round(p.dmg*(1+p._skillPower));
       try{s.cast(p,G);}catch(e){console.error(e);}
       p.dmg=od;
@@ -3190,53 +3368,93 @@ function gainXP(amount,g){
     refreshShopStock(g); // shop gear re-anchored to the new level
   }
 }
-/* ── Level-up upgrade pick (Vampire-Survivors style) ── */
+/* ── Level-up upgrade pick: Attribute Update OR Active Skill Update ── */
 function openUpgradePanel(g){
   const p=g.player;
   if(!p)return;
   if(!p.upg)p.upg={...UPG_EMPTY};
+  if(!p.attrs)p.attrs={str:0,vit:0,agi:0,wis:0,lck:0};
   const isMelee=(CLASSES[p.cls]||{}).basic==='melee';
-  const avail=UPG_DEFS.filter(d=>(!d.ranged||!isMelee)&&((p.upg[d.id]||0)<d.cap));
-  if(avail.length===0){
+  const availAttrs=ATTR_DEFS.filter(d => (p.attrs[d.id]||0) < d.cap).map(d => ({
+    ...d,
+    curLvl: p.attrs[d.id] || 0,
+    badge: 'ATTRIBUTE'
+  }));
+  if(!isMelee && (p.upg.shots||0) < 3) {
+    availAttrs.push({
+      id:'shots', kind:'upg', icon:'🏹', name:'Apsara Volley',
+      desc:'+1 Projectile per basic attack', cap:3,
+      curLvl: p.upg.shots||0, badge: 'ATTRIBUTE'
+    });
+  }
+  const availSkills = (p.skills||[]).map((s, idx) => ({
+    id: 'skill_' + idx,
+    kind: 'skill',
+    skillIdx: idx,
+    icon: s.icon || '✦',
+    name: `[${idx+1}] ${s.name}`,
+    desc: `+22% Skill Power & Area · -6% Cooldown · Enhanced Angkor VFX`,
+    curLvl: s.lvl || 1,
+    cap: 5,
+    badge: `SKILL ${idx+1} UPGRADE`
+  })).filter(s => s.curLvl < s.cap);
+
+  if(availAttrs.length===0 && availSkills.length===0){
     upgState.pending=0;
-    p.hp=Math.min(p.maxHp,p.hp+Math.round(p.maxHp*0.1));
-    addToast('ALL UPGRADES MAXED — +10% HP','#ffd54f','');
+    p.hp=Math.min(p.maxHp,p.hp+Math.round(p.maxHp*0.15));
+    addToast('ALL BLESSINGS MAXED — +15% HP','#ffd54f','');
     return;
   }
-  upgState.opts=avail.slice().sort(()=>Math.random()-0.5).slice(0,Math.min(3,avail.length));
+
+  const pickedAttrs = availAttrs.slice().sort(()=>Math.random()-0.5).slice(0, 2);
+  const pickedSkills = availSkills.slice().sort(()=>Math.random()-0.5).slice(0, 2);
+  let combined = [...pickedAttrs, ...pickedSkills];
+  if (combined.length < 4) {
+    const rest = [...availAttrs, ...availSkills].filter(x => !combined.includes(x)).sort(()=>Math.random()-0.5);
+    combined = combined.concat(rest.slice(0, 4 - combined.length));
+  }
+  upgState.opts = combined.slice(0, 4);
   upgState.open=true;upgState.token++;upgState.openAt=performance.now();
   const token=upgState.token;
   const el=document.getElementById('upgScreen');
   if(el){
     el.classList.remove('hidden');
     const sub=document.getElementById('upgSub');
-    if(sub)sub.textContent='Level '+p.level+' — choose a power'+(upgState.pending>1?'  ·  '+(upgState.pending-1)+' more to come':'');
+    if(sub)sub.textContent='Level '+p.level+' — Choose an Attribute Blessing or Active Skill Upgrade'+(upgState.pending>1?'  ·  '+(upgState.pending-1)+' more to come':'');
+    const attrBar=document.getElementById('upgAttrBar');
+    if(attrBar){
+      const at=p.attrs||{str:0,vit:0,agi:0,wis:0,lck:0};
+      attrBar.innerHTML =
+        `<span class="upg-attr-pill">⚔️ STR <b>${at.str||0}</b></span>`+
+        `<span class="upg-attr-pill">🪨 VIT <b>${at.vit||0}</b></span>`+
+        `<span class="upg-attr-pill">🌪️ AGI <b>${at.agi||0}</b></span>`+
+        `<span class="upg-attr-pill">🔮 WIS <b>${at.wis||0}</b></span>`+
+        `<span class="upg-attr-pill">🐍 LCK <b>${at.lck||0}</b></span>`+
+        p.skills.map((s,idx)=>`<span class="upg-attr-pill">${s.icon} [${idx+1}] <b>Lv.${s.lvl||1}</b></span>`).join('');
+    }
     const wrap=document.getElementById('upgCards');
     wrap.innerHTML='';
     upgState.opts.forEach((d,i)=>{
       const c=document.createElement('div');
-      c.className='upg-card';
-      c.innerHTML='<div class="upg-key">'+(i+1)+'</div>'
+      const isSkill = d.kind === 'skill';
+      c.className='upg-card ' + (isSkill ? 'skill-upg' : 'attr-upg');
+      c.innerHTML='<div class="upg-type-badge '+(isSkill?'skill':'attr')+'">'+d.badge+'</div>'
+        +'<div class="upg-key">'+(i+1)+'</div>'
         +'<div class="upg-ico">'+d.icon+'</div>'
         +'<div class="upg-name">'+tr(d.name)+'</div>'
         +'<div class="upg-desc">'+tr(d.desc)+'</div>'
-        +'<div class="upg-lvl">'+(p.upg[d.id]||0)+' → '+((p.upg[d.id]||0)+1)+'</div>';
+        +'<div class="upg-lvl">Lv '+d.curLvl+' → Lv '+(d.curLvl+1)+'</div>';
       c.addEventListener('click',()=>chooseUpgrade(i));
       wrap.appendChild(c);
     });
   }
   syncPause();
   if(autoPlay.enabled){
-    // min 7s for the user to pick before auto-pick kicks in
     setTimeout(()=>{
       if(!upgState.open||upgState.token!==token||!G||!G.running)return;
-      const order=['dmg','atk','shots','range','hp','cd','crit','spd'];
-      let best=0;
-      for(let i=1;i<upgState.opts.length;i++){
-        if(order.indexOf(upgState.opts[i].id)<order.indexOf(upgState.opts[best].id))best=i;
-      }
-      chooseUpgrade(best);
-    },7000);
+      const skillIdx = upgState.opts.findIndex(o => o.kind === 'skill');
+      chooseUpgrade(skillIdx >= 0 ? skillIdx : 0);
+    },5500);
   }
 }
 function chooseUpgrade(i){
@@ -3245,12 +3463,27 @@ function chooseUpgrade(i){
   const g=G,p=g.player;
   upgState.open=false;
   if(!p.upg)p.upg={...UPG_EMPTY};
-  p.upg[d.id]=(p.upg[d.id]||0)+1;
-  if(d.id==='hp')p.hp+=p.maxHp*0.12;
+  if(!p.attrs)p.attrs={str:0,vit:0,agi:0,wis:0,lck:0};
+  if (d.kind === 'skill') {
+    const sk = p.skills[d.skillIdx];
+    if (sk) {
+      sk.lvl = Math.min(5, (sk.lvl || 1) + 1);
+      if (sk.lvlEl) sk.lvlEl.textContent = 'Lv.' + sk.lvl;
+      spawnSkillVfx(g, p, 'pillar', p.x, p.y, 115, sk.color || p.accent || '#7fd4ff');
+    }
+  } else if (d.kind === 'attr') {
+    p.attrs[d.id] = (p.attrs[d.id] || 0) + 1;
+    if (d.id === 'vit') p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.18));
+    if (d.id === 'lck') p._critDmg = (p._critDmg || 2) + 0.18;
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 95, '#ffd54f');
+  } else {
+    p.upg[d.id]=(p.upg[d.id]||0)+1;
+  }
   recalcStats(p);
-  addToast(tr(d.name),'#ffd54f',tr(d.desc));
-  g.texts.push({x:p.x,y:p.y-46,vy:-40,life:1.2,max:1.2,spawn:1,text:d.icon+' '+tr(d.name),color:'#ffd54f',size:15});
-  g.fx.push({type:'ring',x:p.x,y:p.y,r:80,life:.5,max:.5,color:'#ffd54f'});
+  buildSkillbar(p);
+  addToast(tr(d.name), d.kind==='skill'?'#7fd4ff':'#ffd54f', tr(d.desc));
+  g.texts.push({x:p.x,y:p.y-46,vy:-40,life:1.3,max:1.3,spawn:1,text:d.icon+' '+tr(d.name),color:d.kind==='skill'?'#7fd4ff':'#ffd54f',size:16});
+  g.fx.push({type:'ring',x:p.x,y:p.y,r:90,life:.55,max:.55,color:d.kind==='skill'?'#7fd4ff':'#ffd54f'});
   const el=document.getElementById('upgScreen');
   if(el)el.classList.add('hidden');
   syncPause();
@@ -3287,10 +3520,10 @@ function addToast(title,color,sub){
 
 /* Waves */
 const BIOME_LORE={
-  caverns:{n:'II',c:'#e8b060',t:'The Rift has cracked the old foundations. Far below, the Titan stirs, and nothing survives the deep.',r:'RULER: CAVERN TITAN'},
-  frost:{n:'III',c:'#8fdcff',t:'The northern peaks lie frozen under a Wyrm\u2019s breath. Something has opened its eyes beneath the ice.',r:'RULER: FROST WYRM'},
-  volcano:{n:'IV',c:'#ff7030',t:'The mountain burns from within. The Behemoth rises through the lava to claim what remains.',r:'RULER: EMBER BEHEMOTH'},
-  shadow:{n:'V',c:'#c080ff',t:'This is the throne of the one who opened the Rift. Five realms. Five thrones. He has been waiting.',r:'RULER: SHADOW PRINCE'}};
+  caverns:{n:'II',c:'#e8b060',t:'Beneath the ancient banyan roots of Ta Prohm, the earth groans. Far below, the Stone Titan awakens.',r:'GUARDIAN: TA PROHM TITAN'},
+  frost:{n:'III',c:'#8fdcff',t:'Atop the sacred cliff sanctuary of Preah Vihear, celestial winds freeze under the Naga Wyrm\u2019s breath.',r:'GUARDIAN: CELESTIAL WYRM'},
+  volcano:{n:'IV',c:'#ff7030',t:'The pink sandstone citadel of Banteay Srei blazes with divine fire. The Behemoth rises from the molten forge.',r:'GUARDIAN: AGNI BEHEMOTH'},
+  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, the Shadow Prince sits upon the Five Thrones of Angkor.',r:'RULER: BAYON SHADOW PRINCE'}};
 function showLore(b){const L=BIOME_LORE[b.key];if(!L)return;const el=document.getElementById('loreCard');
   el.innerHTML='<div class="lr">REALM '+L.n+'</div><div class="ln" style="color:'+L.c+'">'+b.name.toUpperCase()+'</div><div class="lt">'+L.t+'</div><div class="lk" style="color:'+L.c+'">'+L.r+'</div>';
   el.classList.add('on');clearTimeout(showLore._t);showLore._t=setTimeout(()=>el.classList.remove('on'),7000)}
@@ -4425,29 +4658,32 @@ function renderTitlesPanel(){
 renderTitlesPanel();
 
 /* Menu */
-let currentArch='Warrior';
+let currentArch='All';
 function renderClassGrid(arch){
   try {
     const grid = document.getElementById('classesGrid');
     if (!grid) { console.error('❌ classesGrid element not found'); return; }
-    // Roster mode: show all 10 curated classes in ROSTER order (arch ignored —
-    // each card still shows its own roleTag, so archetype info is preserved).
-    const entries = (typeof ROSTER !== 'undefined' ? ROSTER : Object.keys(CLASSES))
-      .map(k => [k, CLASSES[k]]).filter((pair) => pair[1]);
+    const entries = Object.keys(CLASSES)
+      .map(k => [k, CLASSES[k]])
+      .filter((pair) => pair[1] && (!arch || arch === 'All' || pair[1].roleTag === arch));
     grid.innerHTML = '';
     for (const [key,C] of entries) {
       const card = document.createElement('div');
       card.className = 'card';
-      card.style.borderColor = (C.color || '#5a5a8a') + '55';
+      card.style.borderColor = (C.color || '#5a5a8a') + '66';
       try {
-        card.style.background = `linear-gradient(180deg, ${shadeColor(C.color || '#5a5a8a',-0.75)}, #0d0907)`;
+        card.style.background = `linear-gradient(180deg, ${shadeColor(C.color || '#5a5a8a',-0.72)}, #0d0907)`;
       } catch(e) {
         card.style.background = 'linear-gradient(180deg, #1c1612, #0d0907)';
       }
+      const skillsHtml = (C.skills || []).map((s, idx) =>
+        `<span style="display:inline-block;margin:2px 2px 0 0;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,0.45);border:1px solid ${(s.color||C.accent||'#ffd54f')}44;font-size:9px;color:#e8dcc4">${s.icon||''} ${s.name}</span>`
+      ).join('');
       card.innerHTML = `<div class="ico" style="color:${C.color || '#fff'}">${C.icon || '?'}</div>
         <h3 style="color:${C.accent || '#fff'}">${C.name || key}</h3>
         <div class="role">${C.roleTag || '?'}</div>
         <div class="cls-attrs">❤ ${Math.round(C.hp)} · ⚔ ${C.dmg} · 👟 ${C.speed} · 🎯 ${Math.round(C.crit*100)}%</div>
+        <div style="margin-top:5px;line-height:1.3">${skillsHtml}</div>
         ${(TITLES[key]&&TITLES_UNLOCKED[key])?`<div class="cls-title on">${TITLES[key].icon} ${TITLES[key].name} · ${fxLabel(TITLES[key].fx)}</div>`:(TITLES[key]?`<div class="cls-title">🔒 ${TITLES[key].icon} ${TITLES[key].name} — ${TITLES[key].cond}</div>`:'')}`;
       card.addEventListener('click', () => {
         try { sfx.ui(); (window as any).startGame(key); }
@@ -4758,12 +4994,103 @@ function drawFx(f){
     ctx.beginPath();ctx.ellipse(f.x,f.y+4,f.r*0.8,f.r*1.05,0,0,TAU);ctx.fill();
     ctx.beginPath();ctx.arc(f.x,f.y-f.r*0.9,f.r*0.55,0,TAU);ctx.fill();
   } else if(f.type==='slash'){
-    ctx.strokeStyle=f.color;ctx.lineWidth=9*(1-t)+2;ctx.lineCap='round';
-    ctx.beginPath();ctx.arc(f.x,f.y,f.r*(0.65+0.35*t),f.ang-f.arc/2,f.ang+f.arc/2);ctx.stroke();
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const lvl=f.lvl||1;
+    const rad=f.r*(0.65+0.35*t);
+    ctx.strokeStyle=f.color;ctx.lineWidth=(9+lvl*1.8)*(1-t)+2;ctx.lineCap='round';
+    ctx.beginPath();ctx.arc(f.x,f.y,rad,f.ang-f.arc/2,f.ang+f.arc/2);ctx.stroke();
+    ctx.strokeStyle='#ffffff';ctx.lineWidth=3*(1-t)+1;
+    ctx.beginPath();ctx.arc(f.x,f.y,rad*0.92,f.ang-f.arc*0.42,f.ang+f.arc*0.42);ctx.stroke();
+    if(lvl>=2){
+      ctx.strokeStyle='#ffd54f';ctx.lineWidth=2.5*(1-t);
+      ctx.beginPath();ctx.arc(f.x,f.y,rad*0.76,f.ang-f.arc*0.38,f.ang+f.arc*0.38);ctx.stroke();
+    }
+    ctx.restore();
   } else if(f.type==='ring'||f.type==='nova'){
     ctx.save();ctx.globalCompositeOperation='lighter';
     ctx.strokeStyle=f.color;ctx.lineWidth=8*(1-t)+1.5;
-    ctx.beginPath();ctx.arc(f.x,f.y,f.r*t,0,TAU);ctx.stroke();ctx.restore();
+    ctx.beginPath();ctx.arc(f.x,f.y,f.r*t,0,TAU);ctx.stroke();
+    if(f.type==='nova'){
+      ctx.globalAlpha=clamp((1-t)*0.45,0,1);
+      ctx.strokeStyle='#ffd54f';ctx.lineWidth=3*(1-t)+1;
+      ctx.beginPath();ctx.arc(f.x,f.y,f.r*t*0.72,0,TAU);ctx.stroke();
+    }
+    ctx.restore();
+  } else if(f.type==='lotus'){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.translate(f.x,f.y);ctx.rotate(t*1.6);
+    const petals=f.petals||8,rr=f.r*(0.35+0.65*t);
+    ctx.strokeStyle=f.color;ctx.fillStyle=f.color+'44';ctx.lineWidth=2;
+    for(let i=0;i<petals;i++){
+      const a=(i/petals)*TAU;
+      ctx.save();ctx.rotate(a);
+      ctx.beginPath();ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(rr*0.45,-rr*0.28,rr,0);
+      ctx.quadraticCurveTo(rr*0.45,rr*0.28,0,0);
+      ctx.fill();ctx.stroke();ctx.restore();
+    }
+    ctx.restore();
+  } else if(f.type==='runes'){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.translate(f.x,f.y);ctx.rotate(-t*2.2);
+    const n=f.count||6,rr=f.r*(0.4+0.6*t);
+    ctx.strokeStyle=f.color;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(0,0,rr,0,TAU);ctx.stroke();
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){
+      const a=(i/n)*TAU*2;
+      const px2=Math.cos(a)*rr*0.82,py2=Math.sin(a)*rr*0.82;
+      if(i===0)ctx.moveTo(px2,py2);else ctx.lineTo(px2,py2);
+    }
+    ctx.stroke();ctx.restore();
+  } else if(f.type==='garuda'){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.translate(f.x,f.y);ctx.rotate(f.ang||0);
+    const rr=f.r*(0.4+0.6*t);
+    ctx.strokeStyle=f.color;ctx.lineWidth=4*(1-t)+1;
+    for(const s of [-1,1]){
+      ctx.beginPath();ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(rr*0.4,s*rr*0.65,rr*0.95,s*rr*0.35);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if(f.type==='chakram'){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.translate(f.x,f.y);ctx.rotate(t*9);
+    const blades=f.blades||6,rr=f.r*(0.35+0.65*t);
+    ctx.strokeStyle=f.color;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(0,0,rr*0.7,0,TAU);ctx.stroke();
+    for(let i=0;i<blades;i++){
+      const a=(i/blades)*TAU;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*rr*0.5,Math.sin(a)*rr*0.5);
+      ctx.lineTo(Math.cos(a+0.25)*rr,Math.sin(a+0.25)*rr);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if(f.type==='naga'){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const rr=f.r*(0.3+0.7*t);
+    ctx.strokeStyle=f.color;ctx.lineWidth=3.5*(1-t)+1;
+    for(let k=0;k<3;k++){
+      ctx.beginPath();
+      for(let i=0;i<=12;i++){
+        const u=i/12,ang=(f.ang||0)+(k-1)*0.45+Math.sin(u*TAU*1.5+t*8)*0.22;
+        const px2=f.x+Math.cos(ang)*rr*u,py2=f.y+Math.sin(ang)*rr*u;
+        if(i===0)ctx.moveTo(px2,py2);else ctx.lineTo(px2,py2);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if(f.type==='pillar'){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const w=f.r*(1-t*0.55),h=140*(0.5+0.5*(1-t));
+    const gr=ctx.createLinearGradient(f.x,f.y,f.x,f.y-h);
+    gr.addColorStop(0,f.color);gr.addColorStop(0.5,f.color+'88');gr.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=gr;ctx.fillRect(f.x-w/2,f.y-h,w,h);
+    ctx.fillStyle='#ffffff';ctx.globalAlpha=(1-t)*0.65;
+    ctx.fillRect(f.x-w*0.2,f.y-h,w*0.4,h);
+    ctx.restore();
   } else if(f.type==='boom'){
     const rr=f.r*(0.35+0.65*t);
     const grd=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,rr);
@@ -4772,12 +5099,12 @@ function drawFx(f){
     ctx.fillStyle=grd;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,TAU);ctx.fill();ctx.restore();
   } else if(f.type==='lightning'){
     ctx.save();ctx.globalCompositeOperation='lighter';
-    ctx.strokeStyle=f.color;ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.strokeStyle=f.color;ctx.lineWidth=3.5;ctx.lineCap='round';
     ctx.beginPath();
     const dx=f.x2-f.x1,dy=f.y2-f.y1;
     ctx.moveTo(f.x1,f.y1);
     for(let i=1;i<=8;i++){const tt=i/8;
-      ctx.lineTo(f.x1+dx*tt+(i<8?rand(-8,8):0),f.y1+dy*tt+(i<8?rand(-8,8):0))}
+      ctx.lineTo(f.x1+dx*tt+(i<8?rand(-9,9):0),f.y1+dy*tt+(i<8?rand(-9,9):0))}
     ctx.stroke();ctx.restore();
   } else if(f.type==='beam'){
     ctx.save();ctx.globalCompositeOperation='lighter';
@@ -4787,10 +5114,10 @@ function drawFx(f){
     grad.addColorStop(0,f.color);
     grad.addColorStop(1,'rgba(255,255,255,0)');
     ctx.strokeStyle=grad;
-    ctx.lineWidth=(6+(1-t)*10)*(1-t*0.3);
+    ctx.lineWidth=(8+(1-t)*12)*(1-t*0.3);
     ctx.lineCap='round';
     ctx.beginPath();ctx.moveTo(f.x1,f.y1);ctx.lineTo(f.x2,f.y2);ctx.stroke();
-    ctx.strokeStyle=f.color;ctx.lineWidth=2;
+    ctx.strokeStyle='#ffffff';ctx.lineWidth=2.5;
     ctx.beginPath();ctx.moveTo(f.x1,f.y1);ctx.lineTo(f.x2,f.y2);ctx.stroke();
     ctx.restore();
   } else if(f.type==='smoke'){
@@ -5330,7 +5657,26 @@ function recordBestRun(g){
   try{
     const b=JSON.parse(localStorage.getItem('sd_best')||'null');
     if(!b||g.wave>b.wave||(g.wave===b.wave&&(g.kills||0)>(b.kills||0))){
-      localStorage.setItem('sd_best',JSON.stringify({wave:g.wave,kills:g.kills,level:g.player.level,cls:g.player.cls}));
+      const nextBest={wave:g.wave,kills:g.kills,level:g.player.level,cls:g.player.cls};
+      localStorage.setItem('sd_best',JSON.stringify(nextBest));
+      const _br=document.getElementById('bestRun');
+      if(_br)_br.textContent='🏆 BEST: Wave '+nextBest.wave+' · '+(nextBest.kills||0)+' kills'+(CLASSES[nextBest.cls]?(' · '+CLASSES[nextBest.cls].name):'');
+    }
+    if(auth.currentUser && g && g.player){
+      const C=CLASSES[g.player.cls]||{name:g.player.cls,roleTag:'Warrior'};
+      submitScoreToLeaderboard({
+        cls: g.player.cls,
+        clsName: C.name,
+        roleTag: C.roleTag || 'Warrior',
+        wave: g.wave || 1,
+        kills: g.kills || 0,
+        level: g.player.level || 1,
+        gold: Math.floor(g.player.gold || 0),
+        difficulty: diffKey || 'normal',
+        titleName: g.player.titleName || ''
+      }).then((updated)=>{
+        if(updated)addToast('🏛️ NEW GLOBAL RANKING RECORD!','#ffd54f','Submitted to Angkor Hall of Heroes');
+      }).catch(()=>{});
     }
   }catch(e){}
 }
@@ -5392,21 +5738,229 @@ function gameOver(){
   hideSkillTooltip();hideTreeTooltip();
   const p=G.player;
   const C=CLASSES[p.cls];
+  const score = computeHeroScore(G.wave||1, G.kills||0, p.level||1, diffKey||'normal');
   document.getElementById('deathStats').innerHTML=
-    `<div>Reached <b style="color:#f0c14b">Level ${p.level}</b></div>
+    `<div>Reached <b style="color:#f0c14b">Level ${p.level}</b> · Score <b style="color:#7aff9a">${score.toLocaleString()}</b></div>
      <div>Class: <b style="color:${C?C.color:'#fff'}">${C?C.name:'?'}</b></div>
-     <div>Died in <b style="color:#e8c07a">${getBiomeForWave(Math.max(1,G.wave)).name}</b> · Wave ${G.wave}</div>
+     <div>Fell in <b style="color:#e8c07a">${getBiomeForWave(Math.max(1,G.wave)).name}</b> · Wave ${G.wave}</div>
      <div><b style="color:#ff8f2e">${G.kills}</b> monsters slain · <b style="color:#ffd54f">${Math.floor(p.gold||0)}g</b> earned</div>`;
   document.getElementById('deathScreen').classList.remove('hidden');
   document.getElementById('autoBadge').style.display='none';
+}
+
+/* ═══ GOOGLE AUTH, CLOUD SYNC & GLOBAL LEADERBOARD ═══ */
+let lbAllEntries: LeaderboardRecord[] = [];
+let lbCurrentFilter = 'all';
+let lbUnsub: (() => void) | null = null;
+
+function renderLeaderboardRows() {
+  const listEl = document.getElementById('leaderboardList');
+  if (!listEl) return;
+  const filtered = lbCurrentFilter === 'all'
+    ? lbAllEntries
+    : lbAllEntries.filter(r => (r.difficulty || 'normal') === lbCurrentFilter);
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="lb-empty">No heroes recorded in this filter yet. Enter the Angkor sanctuary and claim the #1 throne!</div>`;
+    return;
+  }
+  const curUid = auth.currentUser?.uid;
+  listEl.innerHTML = filtered.map((r, idx) => {
+    const rank = idx + 1;
+    const rankCls = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '';
+    const isMe = curUid && r.uid === curUid;
+    const C = CLASSES[r.cls] || { icon: '🏛️', color: '#ffd54f', name: r.clsName || r.cls };
+    const avatar = r.photoURL
+      ? `<img class="lb-avatar" src="${r.photoURL}" alt="" referrerpolicy="no-referrer">`
+      : `<div class="lb-avatar" style="display:flex;align-items:center;justify-content:center;background:#2a1e14;font-size:15px">${C.icon||'⚔️'}</div>`;
+    return `<div class="lb-row ${rankCls} ${isMe ? 'me' : ''}">
+      <div class="lb-rank">${rank === 1 ? '👑 1' : rank === 2 ? '🥈 2' : rank === 3 ? '🥉 3' : '#' + rank}</div>
+      <div class="lb-player">
+        ${avatar}
+        <div class="lb-player-info">
+          <div class="lb-player-name">${r.displayName || 'Angkor Warrior'}${isMe ? ' (YOU)' : ''}</div>
+          <div class="lb-player-title">${r.titleName ? '✦ ' + r.titleName : (r.difficulty || 'normal').toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="lb-class" style="color:${C.color || '#ffd54f'}">${C.icon || '⚔'} ${r.clsName || C.name}</div>
+      <div class="lb-wave">Wave ${r.wave || 1} <span style="color:#a89886;font-size:10px">(Lv.${r.level || 1})</span></div>
+      <div class="lb-kills">${r.kills || 0} ⚔</div>
+      <div class="lb-score">${(r.score || 0).toLocaleString()}</div>
+    </div>`;
+  }).join('');
+}
+
+function openLeaderboard() {
+  const modal = document.getElementById('leaderboardOverlay');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  if (!lbUnsub) {
+    lbUnsub = subscribeLeaderboard((entries) => {
+      lbAllEntries = entries;
+      renderLeaderboardRows();
+    });
+  } else {
+    renderLeaderboardRows();
+  }
+}
+
+function closeLeaderboard() {
+  const modal = document.getElementById('leaderboardOverlay');
+  if (modal) modal.classList.add('hidden');
+}
+
+function initFirebaseUI() {
+  const outEl = document.getElementById('authLoggedOut');
+  const inEl = document.getElementById('authLoggedIn');
+  const nameEl = document.getElementById('userName');
+  const avatarEl = document.getElementById('userAvatar') as HTMLImageElement | null;
+  const syncStatusEl = document.getElementById('syncStatus');
+  const lbBannerEl = document.getElementById('lbAuthBanner');
+
+  onUserChange(async (user) => {
+    if (user) {
+      if (outEl) outEl.classList.add('hidden');
+      if (inEl) inEl.classList.remove('hidden');
+      if (lbBannerEl) lbBannerEl.classList.add('hidden');
+      if (nameEl) nameEl.textContent = user.displayName || user.email || 'Angkor Hero';
+      if (avatarEl) {
+        if (user.photoURL) {
+          avatarEl.src = user.photoURL;
+          avatarEl.style.display = 'block';
+        } else {
+          avatarEl.style.display = 'none';
+        }
+      }
+      if (syncStatusEl) syncStatusEl.textContent = '☁ Syncing with Angkor Cloud...';
+      try {
+        const cloud = await loadSaveFromCloud();
+        if (cloud) {
+          if (cloud.titlesJson) {
+            try {
+              const cloudTitles = JSON.parse(cloud.titlesJson);
+              TITLES_UNLOCKED = { ...TITLES_UNLOCKED, ...cloudTitles };
+              saveTitles();
+              renderTitlesPanel();
+              renderClassGrid(currentArch);
+            } catch {}
+          }
+          if (cloud.bestRunJson) {
+            try {
+              const cb = JSON.parse(cloud.bestRunJson);
+              const lb = JSON.parse(localStorage.getItem('sd_best') || 'null');
+              if (!lb || (cb && cb.wave > lb.wave)) {
+                localStorage.setItem('sd_best', JSON.stringify(cb));
+                const _br = document.getElementById('bestRun');
+                if (_br) _br.textContent = '🏆 BEST: Wave ' + cb.wave + ' · ' + (cb.kills || 0) + ' kills' + (CLASSES[cb.cls] ? (' · ' + CLASSES[cb.cls].name) : '');
+              }
+            } catch {}
+          }
+          if (cloud.saveDataJson) {
+            try {
+              const cloudSave = JSON.parse(cloud.saveDataJson);
+              const localSave = loadSaveData();
+              if (cloudSave && CLASSES[cloudSave.cls] && (!localSave || (cloudSave.savedAt || 0) > (localSave.savedAt || 0))) {
+                localStorage.setItem(SAVE_KEY, JSON.stringify(cloudSave));
+                refreshContinuePanel();
+                addToast('☁ CLOUD SAVE RESTORED', '#7aff9a', `Level ${cloudSave.level || 1} ${CLASSES[cloudSave.cls].name} · Wave ${cloudSave.wave || 1}`);
+              }
+            } catch {}
+          }
+        }
+        // Also push local save / best run to cloud if present
+        const curLocal = loadSaveData();
+        let best = null;
+        try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
+        if (curLocal) {
+          await syncSaveToCloud(curLocal, TITLES_UNLOCKED, best);
+        }
+        if (best && CLASSES[best.cls]) {
+          const C = CLASSES[best.cls];
+          await submitScoreToLeaderboard({
+            cls: best.cls,
+            clsName: C.name,
+            roleTag: C.roleTag || 'Warrior',
+            wave: best.wave || 1,
+            kills: best.kills || 0,
+            level: best.level || 1,
+            gold: 0,
+            difficulty: diffKey || 'normal',
+            titleName: TITLES_UNLOCKED[best.cls] && TITLES[best.cls] ? TITLES[best.cls].name : ''
+          });
+        }
+        if (syncStatusEl) syncStatusEl.textContent = '✓ Cloud Synced & Ranked';
+      } catch (e) {
+        if (syncStatusEl) syncStatusEl.textContent = '☁ Cloud Ready';
+      }
+    } else {
+      if (outEl) outEl.classList.remove('hidden');
+      if (inEl) inEl.classList.add('hidden');
+      if (lbBannerEl) lbBannerEl.classList.remove('hidden');
+    }
+    renderLeaderboardRows();
+  });
+
+  const handleLogin = async () => {
+    sfx.ui();
+    try {
+      const user = await loginWithGoogle();
+      if (user) addToast('WELCOME, ' + (user.displayName || 'HERO').toUpperCase(), '#ffd54f', 'Cloud Save & Global Rankings active');
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        addToast('Google Sign-In Failed', '#ef4444', err?.message || 'Check popup permissions');
+      }
+    }
+  };
+
+  document.getElementById('googleLoginBtn')?.addEventListener('click', handleLogin);
+  document.getElementById('lbLoginBtn')?.addEventListener('click', handleLogin);
+  document.getElementById('googleLogoutBtn')?.addEventListener('click', async () => {
+    sfx.ui();
+    await logoutGoogle();
+    addToast('Signed out', '#a89886', 'Local saves remain intact');
+  });
+  document.getElementById('syncNowBtn')?.addEventListener('click', async () => {
+    sfx.ui();
+    if (!auth.currentUser) return;
+    if (G && G.player) saveGame();
+    const curLocal = loadSaveData();
+    let best = null;
+    try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
+    if (curLocal) {
+      const ok = await syncSaveToCloud(curLocal, TITLES_UNLOCKED, best);
+      if (ok) addToast('☁ GAME SYNCED TO CLOUD', '#7aff9a', `Level ${curLocal.level || 1} · Wave ${curLocal.wave || 1}`);
+    } else {
+      addToast('☁ CLOUD CHECKED', '#ffd54f', 'Start a run to save progress to the cloud');
+    }
+    if (G && G.player) recordBestRun(G);
+  });
+
+  ['rankBtnOut', 'rankBtnIn', 'pauseRankBtn', 'deathRankBtn', 'vicRankBtn'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      sfx.ui();
+      openLeaderboard();
+    });
+  });
+  document.getElementById('lbClose')?.addEventListener('click', () => {
+    sfx.ui();
+    closeLeaderboard();
+  });
+  document.querySelectorAll('.lb-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sfx.ui();
+      document.querySelectorAll('.lb-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      lbCurrentFilter = (btn as HTMLElement).dataset.filter || 'all';
+      renderLeaderboardRows();
+    });
+  });
 }
 
 /* ═══ TUTORIAL (first-run coach) ═══ */
 const TUT_KEYS=[
   'MOVE — WASD or click / joystick to move',
   'ATTACK — your basic attack is automatic. Toggle with right-click / ⚔',
-  'SKILLS — press 1 · 2 · 3 to cast your spells',
-  'LEVEL UP — XP fills the bar. Press T to spend tree points',
+  'SKILLS — press 1 · 2 · 3 to cast your unique Angkor spells',
+  'LEVEL UP — pick an Attribute Blessing or Skill Upgrade every level + Tree [T]',
   'SHOP — press B to buy gear · Q drinks a potion · O toggles AUTO-PLAY',
 ];
 const tut={active:false,step:0,st:0,moved:0,p0:0,px:0,py:0,el:null};
@@ -5518,9 +6072,10 @@ function tutorialTick(dt){
 /* Boot */
 try { buildEquipUI(); } catch(e) { console.error('❌ buildEquipUI:', e); }
 try { refreshContinuePanel(); } catch(e) { console.error('❌ refreshContinuePanel:', e); }
-try { renderClassGrid('Warrior'); } catch(e) { console.error('❌ renderClassGrid:', e); }
+try { renderClassGrid('All'); } catch(e) { console.error('❌ renderClassGrid:', e); }
 try { applyLang(); } catch(e) { console.error('❌ applyLang:', e); }
 try { updateDiffUI(); } catch(e) { console.error('❌ updateDiffUI:', e); }
+try { initFirebaseUI(); } catch(e) { console.error('❌ initFirebaseUI:', e); }
 try {
   const _pb=document.getElementById('potionBtn');
   if(_pb)_pb.addEventListener('click',()=>{sfx.ui();drinkPotion()});
@@ -5542,7 +6097,7 @@ try {
     }catch(e){}
   }
 } catch(e) { console.error('❌ UI bindings:', e); }
-console.log('🎮 SASTRA DUNGEON booted. Total classes:', Object.keys(CLASSES).length);
+console.log('🎮 SASTRA DUNGEON: ANGKOR ERA booted. Total classes:', Object.keys(CLASSES).length);
 console.log('🤖 Smart auto-play ready. Press O in-game to toggle');
 
 /* expose for the story-intro wrapper (main.ts import order: game -> intro) */

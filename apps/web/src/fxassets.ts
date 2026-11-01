@@ -1,9 +1,7 @@
-/* Sastra Dungeon — user-supplied asset packs.
-   Sources (~/Downloads zips): Free Smoke Fx, Pixel Holy Spell, Magic Weapon
-   (129f shimmer), ring-wave strips, animal head sheets (panda/cat/bear),
-   isometric street town pack, RPG items tileset.
-   Processed into /assets via a PIL pipeline. Game falls back to vector
-   drawing if any asset is missing (all draw sites guard on FXI/FX1). */
+/* Sastra Dungeon — Angkor Khmer Era & Dungeon FX Assets.
+   Preloads pixel spell sheets (smoke, holycross, holybeam, aura, summon, pets, icons)
+   and composes a procedural pixel-art Angkor Wat / Bayon Temple Complex backdrop
+   for the main menu. */
 
 export const FXI: Record<string, HTMLImageElement[]> = {};
 export const FX1: Record<string, HTMLImageElement | HTMLCanvasElement> = {};
@@ -30,15 +28,6 @@ const ONES: Record<string, string> = {
   flame: 'assets/icons/flame.png',
   gem: 'assets/icons/gem.png',
   bolt: 'assets/icons/bolt.png',
-  t_grass: 'assets/town/Tile_Grass.png',
-  t_asfalt: 'assets/town/Tile_Asfalt.png',
-  t_house: 'assets/town/Building_House2.png',
-  t_resto: 'assets/town/Building_Restaurant.png',
-  t_tree1: 'assets/town/Tree1.png',
-  t_tree3: 'assets/town/Tree3.png',
-  t_lamp: 'assets/town/Decor_StreetLampGlow.png',
-  t_car: 'assets/town/CarType2_Front.png',
-  t_fence: 'assets/town/PicketFence4.png',
 };
 
 function mk(src: string): HTMLImageElement {
@@ -47,61 +36,188 @@ function mk(src: string): HTMLImageElement {
   return i;
 }
 
-/* Compose the menu backdrop: grass field, buildings on the horizon,
-   a street with trees/lamp/car, then darkened for UI contrast. */
-function composeTownBg(ones: Record<string, HTMLImageElement>): HTMLCanvasElement {
-  const Wb = 1920, Hb = 1080;
+/* Compose a crisp Pixel-Art Angkor Wat & Bayon Temple Dungeon Backdrop */
+function composeAngkorBg(): HTMLCanvasElement {
+  const Wb = 1920, Hb = 1080, PX = 4;
   const c = document.createElement('canvas');
-  c.width = Wb; c.height = Hb;
+  c.width = Wb;
+  c.height = Hb;
   const x = c.getContext('2d')!;
-  x.imageSmoothingEnabled = true;
-  x.filter = 'brightness(1.35) saturate(1.1)';
-  // grass field
-  const grass = ones.t_grass;
-  if (grass) {
-    for (let ty = 0; ty < Hb; ty += grass.height)
-      for (let tx = 0; tx < Wb; tx += grass.width)
-        x.drawImage(grass, tx, ty, grass.width, grass.height);
-  }
-  const horizonY = 640;
-  // buildings on the horizon line
-  const bld = (im: HTMLImageElement | undefined, bx: number, scale: number) => {
-    if (!im) return;
-    const w = im.width * scale, h = im.height * scale;
-    x.drawImage(im, bx, horizonY - h + 60, w, h);
+  x.imageSmoothingEnabled = false;
+
+  const rect = (rx: number, ry: number, rw: number, rh: number, col: string) => {
+    x.fillStyle = col;
+    x.fillRect(
+      Math.floor(rx / PX) * PX,
+      Math.floor(ry / PX) * PX,
+      Math.max(PX, Math.ceil(rw / PX) * PX),
+      Math.max(PX, Math.ceil(rh / PX) * PX)
+    );
   };
-  bld(ones.t_house, 180, 0.52);
-  bld(ones.t_resto, 560, 0.46);
-  bld(ones.t_house, 1050, 0.42);
-  bld(ones.t_resto, 1450, 0.5);
-  // street
-  const road = ones.t_asfalt;
-  if (road) {
-    for (let tx = 0; tx < Wb; tx += road.width)
-      x.drawImage(road, tx, horizonY + 160, road.width, road.width * 0.42);
-  }
-  // trees along the street
-  const trees = [ones.t_tree1, ones.t_tree3, ones.t_tree1, ones.t_tree3, ones.t_tree1];
-  const treeXs = [80, 460, 860, 1280, 1700];
-  trees.forEach((im, i) => {
-    if (!im) return;
-    const s = 1.15;
-    x.drawImage(im, treeXs[i], horizonY + 120 - im.height * s * 0.15, im.width * s, im.height * s);
+
+  // 1. Stepped Angkor Twilight Sky (Deep Indigo -> Royal Violet -> Crimson -> Temple Gold)
+  const skyBands = [
+    '#090514', '#0e071d', '#160b29', '#211038', '#2e1546',
+    '#3f1b52', '#542158', '#6b2958', '#843353', '#9d414b',
+    '#b55342', '#ca693b', '#dc8338', '#e89f42', '#f0ba58'
+  ];
+  const horizonY = 620;
+  const bandH = Math.ceil(horizonY / skyBands.length);
+  skyBands.forEach((col, i) => {
+    rect(0, i * bandH, Wb, bandH + PX, col);
   });
-  // fence + lamp + car
-  if (ones.t_fence) x.drawImage(ones.t_fence, 700, horizonY + 96, 262, 255 * 0.55);
-  if (ones.t_lamp) {
-    x.drawImage(ones.t_lamp, 620, horizonY - 90, 162, 263 * 0.9);
-    x.drawImage(ones.t_lamp, 1560, horizonY - 90, 162, 263 * 0.9);
+
+  // Pixel stars & sacred constellations in upper sky
+  let seed = 1337;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let i = 0; i < 160; i++) {
+    const sx = rnd() * Wb;
+    const sy = rnd() * (horizonY * 0.65);
+    const bright = rnd() > 0.75;
+    rect(sx, sy, bright ? PX * 1.5 : PX, bright ? PX * 1.5 : PX, bright ? '#fff4cc' : '#b89cd8');
   }
-  if (ones.t_car) x.drawImage(ones.t_car, 980, horizonY + 200, 374 * 0.9, 374 * 0.9 * 0.72);
-  // dark grade for menu contrast
-  x.filter = 'none';
-  x.fillStyle = 'rgba(7,5,18,0.3)';
+
+  // Sacred Golden Sun / Mandala Halo behind the central Prasat spire
+  const sunX = Wb / 2, sunY = horizonY - 190;
+  const sunRings = [
+    [220, 'rgba(255, 168, 60, 0.10)'],
+    [170, 'rgba(255, 190, 75, 0.16)'],
+    [125, 'rgba(255, 215, 100, 0.24)'],
+    [85, 'rgba(255, 238, 155, 0.42)'],
+    [54, 'rgba(255, 250, 210, 0.75)'],
+  ];
+  for (const [r, col] of sunRings) {
+    const rad = r as number;
+    for (let dy = -rad; dy <= rad; dy += PX) {
+      const hw = Math.sqrt(Math.max(0, rad * rad - dy * dy));
+      rect(sunX - hw, sunY + dy, hw * 2, PX, col as string);
+    }
+  }
+
+  // Distant Jungle Canopy Silhouettes
+  for (let tx = 0; tx < Wb; tx += PX * 3) {
+    const jh = 28 + Math.sin(tx * 0.012) * 18 + Math.cos(tx * 0.037) * 12;
+    rect(tx, horizonY - jh, PX * 3, jh + 8, '#140c1c');
+  }
+
+  // Helper to draw a stepped Angkor Lotus-Bud Prasat Tower
+  const drawPrasatTower = (cx: number, baseY: number, baseW: number, height: number, isMain: boolean) => {
+    const tiers = 7;
+    for (let t = 0; t < tiers; t++) {
+      const frac = t / tiers;
+      const nextFrac = (t + 1) / tiers;
+      // Lotus-bud curve profile
+      const wFactor = Math.pow(1 - frac * 0.78, 1.25);
+      const tw = Math.max(PX * 3, baseW * wFactor);
+      const y0 = baseY - height * nextFrac;
+      const y1 = baseY - height * frac;
+      const th = y1 - y0 + PX;
+      // Main sandstone shadow & warm gold rim light
+      rect(cx - tw / 2, y0, tw, th, '#1b1218');
+      rect(cx - tw / 2, y0, PX * 2, th, '#523828'); // left warm rim
+      rect(cx + tw / 2 - PX * 2, y0, PX * 2, th, '#36221c'); // right rim
+      // Stepped Khmer antefix ridges on each tier
+      rect(cx - tw / 2 - PX, y1 - PX * 2, tw + PX * 2, PX * 2, '#2d1e22');
+      rect(cx - tw / 2 - PX, y0, tw + PX * 2, PX, '#7a5230');
+      // Central carved niche / false door on lower tiers
+      if (t < 3) {
+        const nw = Math.max(PX * 2, tw * 0.28);
+        rect(cx - nw / 2, y0 + PX * 2, nw, th - PX * 2, '#0d070c');
+        if (t === 0 && isMain) {
+          // Glowing inner sanctum portal
+          rect(cx - nw / 2 + PX, y0 + PX * 4, nw - PX * 2, th - PX * 4, '#ff9233');
+          rect(cx - nw / 4, y0 + PX * 6, nw / 2, th - PX * 6, '#ffe484');
+        }
+      }
+    }
+    // Spire pinnacle (Kalasa lotus finial)
+    rect(cx - PX, baseY - height - PX * 7, PX * 2, PX * 7, '#d49b3b');
+    rect(cx - PX * 2, baseY - height - PX * 3, PX * 4, PX * 2, '#f4c862');
+  };
+
+  // Gallery wall connecting the 5 Angkor towers
+  rect(260, horizonY - 88, Wb - 520, 88, '#170f16');
+  rect(260, horizonY - 92, Wb - 520, PX * 2, '#5c3e26');
+  // Colonnade pillars along gallery
+  for (let px = 290; px < Wb - 290; px += 28) {
+    rect(px, horizonY - 76, PX * 2, 72, '#0c070c');
+    rect(px - PX, horizonY - 76, PX, 72, '#3d281e');
+  }
+
+  // Five Prasat Towers of Angkor Wat
+  drawPrasatTower(Wb / 2 - 520, horizonY - 60, 128, 190, false);
+  drawPrasatTower(Wb / 2 - 270, horizonY - 72, 156, 250, false);
+  drawPrasatTower(Wb / 2 + 270, horizonY - 72, 156, 250, false);
+  drawPrasatTower(Wb / 2 + 520, horizonY - 60, 128, 190, false);
+  drawPrasatTower(Wb / 2, horizonY - 80, 210, 350, true);
+
+  // 2. Sacred Baray Water Moat (horizonY to Hb)
+  for (let wy = horizonY; wy < Hb; wy += PX) {
+    const t = (wy - horizonY) / (Hb - horizonY);
+    const r = Math.round(28 - t * 16);
+    const g = Math.round(20 - t * 12);
+    const b = Math.round(38 - t * 20);
+    rect(0, wy, Wb, PX, `rgb(${r},${g},${b})`);
+    // Water shimmer ripples reflecting sunset gold
+    const rippleCount = Math.floor(6 * (1 - t * 0.5));
+    for (let k = 0; k < rippleCount; k++) {
+      const rx = ((wy * 73 + k * 389) % (Wb - 200)) + 100;
+      const distCenter = Math.abs(rx - Wb / 2);
+      const isGold = distCenter < 380;
+      rect(rx, wy, PX * (isGold ? 6 : 3), PX, isGold ? 'rgba(240,175,75,0.22)' : 'rgba(140,90,150,0.16)');
+    }
+  }
+
+  // Lotus pads & blossoms floating on the Baray moat
+  for (let i = 0; i < 42; i++) {
+    const lx = rnd() * Wb;
+    const ly = horizonY + 40 + rnd() * (Hb - horizonY - 80);
+    if (Math.abs(lx - Wb / 2) < 190) continue; // keep causeway clear
+    rect(lx - PX * 2, ly, PX * 5, PX * 2, '#1f4a32');
+    if (rnd() > 0.35) {
+      rect(lx - PX, ly - PX, PX * 3, PX * 2, '#e878a0');
+      rect(lx, ly - PX * 2, PX, PX, '#ffd9ec');
+    }
+  }
+
+  // 3. Central Sandstone Naga Causeway leading from bottom to the Temple Gate
+  for (let cy = horizonY; cy < Hb; cy += PX * 2) {
+    const t = (cy - horizonY) / (Hb - horizonY);
+    const halfW = 90 + t * 210;
+    // Causeway stone slabs
+    rect(Wb / 2 - halfW, cy, halfW * 2, PX * 2, ((cy / (PX * 2)) % 2 === 0) ? '#3a2d27' : '#312520');
+    // Gold/sandstone curb
+    rect(Wb / 2 - halfW - PX * 3, cy, PX * 3, PX * 2, '#6e5239');
+    rect(Wb / 2 + halfW, cy, PX * 3, PX * 2, '#6e5239');
+  }
+
+  // 7-Headed Naga Fan Balustrades & Bronze Torch Braziers along the Causeway
+  for (const side of [-1, 1]) {
+    const nagaX = Wb / 2 + side * 245;
+    const nagaY = Hb - 140;
+    // Naga hood fan
+    rect(nagaX - PX * 7, nagaY - PX * 12, PX * 14, PX * 12, '#5c4328');
+    rect(nagaX - PX * 5, nagaY - PX * 14, PX * 10, PX * 12, '#8c683a');
+    for (let h = -3; h <= 3; h++) {
+      rect(nagaX + h * PX * 2 - PX / 2, nagaY - PX * 17 + Math.abs(h) * PX, PX, PX * 4, '#e0b252');
+    }
+    // Glowing temple brazier
+    const bx = Wb / 2 + side * 165, by = horizonY + 140;
+    rect(bx - PX * 2, by, PX * 4, PX * 8, '#4a3525');
+    rect(bx - PX * 3, by - PX * 2, PX * 6, PX * 2, '#d49b3b');
+    rect(bx - PX * 2, by - PX * 6, PX * 4, PX * 4, '#ff7820');
+    rect(bx - PX, by - PX * 8, PX * 2, PX * 4, '#ffe070');
+  }
+
+  // Dark atmospheric vignette so the menu UI pops with crisp contrast
+  x.fillStyle = 'rgba(8, 5, 14, 0.38)';
   x.fillRect(0, 0, Wb, Hb);
-  const vg = x.createRadialGradient(Wb / 2, Hb / 2, Hb * 0.3, Wb / 2, Hb / 2, Wb * 0.72);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.25)');
+  const vg = x.createRadialGradient(Wb / 2, Hb / 2, Hb * 0.25, Wb / 2, Hb / 2, Wb * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0.05)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.68)');
   x.fillStyle = vg;
   x.fillRect(0, 0, Wb, Hb);
   return c;
@@ -109,13 +225,9 @@ function composeTownBg(ones: Record<string, HTMLImageElement>): HTMLCanvasElemen
 
 export function preloadFx(): Promise<void> {
   return new Promise(resolve => {
+    FX1.townbg = composeAngkorBg();
     let left = 0;
     const done = () => { if (--left <= 0) resolve(); };
-    let townLeft = 0;
-    const townDone = () => {
-      if (townLeft === 0 && !FX1.townbg) FX1.townbg = composeTownBg(onesRef);
-    };
-    const onesRef: Record<string, HTMLImageElement> = {};
     for (const [key, pat, n] of LISTS) {
       const arr: HTMLImageElement[] = new Array(n);
       for (let i = 1; i <= n; i++) {
@@ -128,17 +240,13 @@ export function preloadFx(): Promise<void> {
     }
     for (const [name, src] of Object.entries(ONES)) {
       const im = mk(src);
-      left++; townLeft++;
+      left++;
       im.onload = () => {
         FX1[name] = im;
-        onesRef[name] = im;
-        townLeft--;
-        townDone();
         done();
       };
-      im.onerror = () => { townLeft--; townDone(); done(); };
+      im.onerror = () => { done(); };
     }
-    // if every town img already failed synchronously, leave bg absent
-    if (townLeft === 0) townDone();
+    if (left === 0) resolve();
   });
 }

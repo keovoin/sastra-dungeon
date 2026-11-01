@@ -1,0 +1,234 @@
+{
+  "entities": {
+    "UserSave": {
+      "title": "UserSave",
+      "description": "Authenticated player cloud save state, progression, and unlocked Angkor titles.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the player",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Player display name",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Player avatar URL",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "cls": {
+          "type": "string",
+          "description": "Current saved hero class key",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "level": {
+          "type": "number",
+          "description": "Current hero level"
+        },
+        "wave": {
+          "type": "number",
+          "description": "Current dungeon wave"
+        },
+        "kills": {
+          "type": "number",
+          "description": "Total kills in active run"
+        },
+        "gold": {
+          "type": "number",
+          "description": "Current gold carried"
+        },
+        "bestWave": {
+          "type": "number",
+          "description": "Highest wave reached across all runs"
+        },
+        "bestKills": {
+          "type": "number",
+          "description": "Most kills in best run"
+        },
+        "bestLevel": {
+          "type": "number",
+          "description": "Highest level reached in best run"
+        },
+        "bestClass": {
+          "type": "string",
+          "description": "Class key used in best run",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "savePayload": {
+          "type": "object",
+          "description": "Structured active run state map"
+        },
+        "titlesUnlocked": {
+          "type": "object",
+          "description": "Map of unlocked class titles"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Document creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last sync server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "photoURL",
+        "cls",
+        "level",
+        "wave",
+        "kills",
+        "gold",
+        "bestWave",
+        "bestKills",
+        "bestLevel",
+        "bestClass",
+        "savePayload",
+        "titlesUnlocked",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public ranking record in the Angkor Hall of Heroes.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Player UID matching document ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Player display name",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Player avatar URL",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "cls": {
+          "type": "string",
+          "description": "Hero class key",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "className": {
+          "type": "string",
+          "description": "Hero class display name",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "archetype": {
+          "type": "string",
+          "description": "Hero archetype category",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "wave": {
+          "type": "number",
+          "description": "Highest wave reached"
+        },
+        "kills": {
+          "type": "number",
+          "description": "Total monsters slain"
+        },
+        "level": {
+          "type": "number",
+          "description": "Hero level achieved"
+        },
+        "gold": {
+          "type": "number",
+          "description": "Gold accumulated"
+        },
+        "score": {
+          "type": "number",
+          "description": "Computed ranking score"
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Game difficulty mode",
+          "enum": ["easy", "normal", "hard"],
+          "minLength": 4,
+          "maxLength": 16
+        },
+        "titleName": {
+          "type": "string",
+          "description": "Equipped hero title",
+          "minLength": 0,
+          "maxLength": 60
+        },
+        "realmName": {
+          "type": "string",
+          "description": "Angkor temple realm reached",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Whether entry is visible in public leaderboard queries"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "First submission server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last score update server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "photoURL",
+        "cls",
+        "className",
+        "archetype",
+        "wave",
+        "kills",
+        "level",
+        "gold",
+        "score",
+        "difficulty",
+        "titleName",
+        "realmName",
+        "isPublic",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserSave",
+      "description": "Private cloud save and progression state for each authenticated player."
+    },
+    "/leaderboard/{entryId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Global Angkor Hall of Heroes ranking entries, keyed by player UID."
+    }
+  }
+}

@@ -1,8 +1,8 @@
 // @ts-nocheck
-/* Sastra Dungeon — pixel-art layer (8/16-bit dungeon look).
-   Stone-brick floors + perimeter brick walls, animated torch flames,
-   pixel hero sprite, pixel slimes. All drawing is rect-based so it
-   stays crisp when the main render passes through the downscale buffer. */
+/* Sastra Dungeon — Angkor Khmer Era Pixel-Art Layer (8/16-bit Temple Dungeon).
+   Carved Khmer sandstone & laterite floors, central Sacred Lotus Mandala,
+   Ta Prohm banyan roots, ancient Khmer stele tablets, Bayon four-faced corner
+   towers, and Naga-flanked Gopura temple gates. */
 
 const TAU = Math.PI * 2;
 
@@ -13,7 +13,6 @@ const hash = (x, y, s = 0) => {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
 };
 const hrand = (x, y, s, a, b) => a + hash(x, y, s) * (b - a);
-const ri = (n) => (Math.random() * n) | 0;
 const shade = (hex, p) => {
   const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
   const f = p > 0 ? (x) => Math.round(x + (255 - x) * p) : (x) => Math.round(x * (1 + p));
@@ -21,25 +20,80 @@ const shade = (hex, p) => {
 };
 const rgb = (a, d = 0) => `rgb(${a[0] + d},${a[1] + d},${a[2] + d})`;
 
-/* per-biome palettes (floor bricks / worn patches / wall bricks) */
+/* Angkor Khmer Temple Biome Palettes */
 const PIX = {
-  crypt:   { brick: [124,116,108], brickVar: 8, worn: [160,138,100], wall: [120,114,108], wallVar: 10, mortar: [56,52,50],  accent: '#e8e2d0' },
-  caverns: { brick: [96,118,104],  brickVar: 8, worn: [128,140,104], wall: [108,128,116], wallVar: 10, mortar: [36,52,44],  accent: '#a8e8c8' },
-  frost:   { brick: [128,140,158], brickVar: 9, worn: [158,172,188], wall: [144,156,176], wallVar: 11, mortar: [64,76,96],  accent: '#eaf6ff' },
-  volcano: { brick: [118,84,66],   brickVar: 9, worn: [150,104,74],  wall: [142,98,76],  wallVar: 11, mortar: [48,30,22],  accent: '#ffb060' },
-  shadow:  { brick: [104,96,124],  brickVar: 8, worn: [132,118,152], wall: [120,110,144], wallVar: 10, mortar: [38,32,54],  accent: '#c8b0ff' },
+  crypt:   { brick: [122,108,90],  brickVar: 10, worn: [164,136,94],  wall: [132,114,94],  wallVar: 12, mortar: [52,44,36],  accent: '#f0c868', trim: '#c9983e' },
+  caverns: { brick: [86,114,94],   brickVar: 9,  worn: [124,142,96],  wall: [98,126,104],  wallVar: 11, mortar: [32,48,38],  accent: '#88f0b8', trim: '#56b882' },
+  frost:   { brick: [118,136,160], brickVar: 10, worn: [154,174,196], wall: [136,154,178], wallVar: 11, mortar: [54,68,90],  accent: '#d8f4ff', trim: '#7cc8f8' },
+  volcano: { brick: [132,78,62],   brickVar: 11, worn: [168,102,72],  wall: [150,92,70],   wallVar: 12, mortar: [48,26,20],  accent: '#ffb85c', trim: '#e86830' },
+  shadow:  { brick: [98,86,122],   brickVar: 9,  worn: [130,112,154], wall: [114,100,140], wallVar: 11, mortar: [36,28,52],  accent: '#d4a8ff', trim: '#9c64e8' },
 };
 
-/* ===== floor: stone bricks + worn patches + props ===== */
+/* Helper: Draw pixel-stepped circle outline */
+function drawPixelRing(x, cx, cy, r, thickness, color) {
+  x.fillStyle = color;
+  const step = 4;
+  for (let dy = -r - thickness; dy <= r + thickness; dy += step) {
+    for (let dx = -r - thickness; dx <= r + thickness; dx += step) {
+      const d = Math.hypot(dx, dy);
+      if (d >= r - thickness / 2 && d <= r + thickness / 2) {
+        x.fillRect(Math.round((cx + dx) / step) * step, Math.round((cy + dy) / step) * step, step, step);
+      }
+    }
+  }
+}
+
+/* Helper: Draw Angkor Sacred Lotus Mandala at (cx, cy) */
+function drawAngkorMandala(x, cx, cy, radius, P) {
+  x.save();
+  // Outer octagonal Khmer sandstone border
+  drawPixelRing(x, cx, cy, radius, 6, 'rgba(0,0,0,0.45)');
+  drawPixelRing(x, cx, cy, radius - 4, 4, P.trim);
+  drawPixelRing(x, cx, cy, radius * 0.72, 4, P.trim);
+  drawPixelRing(x, cx, cy, radius * 0.38, 4, P.accent);
+
+  // 8 Sacred Lotus Petals radiating from center
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * TAU;
+    x.save();
+    x.translate(cx, cy);
+    x.rotate(a);
+    x.fillStyle = 'rgba(240, 195, 90, 0.16)';
+    x.beginPath();
+    x.moveTo(radius * 0.36, -16);
+    x.lineTo(radius * 0.68, 0);
+    x.lineTo(radius * 0.36, 16);
+    x.closePath();
+    x.fill();
+    x.strokeStyle = P.trim;
+    x.lineWidth = 2.5;
+    x.stroke();
+    // Outer directional spire tip
+    x.fillStyle = P.accent;
+    x.fillRect(radius * 0.76, -4, 14, 8);
+    x.restore();
+  }
+
+  // Inner Angkor Yantra square with corner finials
+  const sq = radius * 0.24;
+  x.strokeStyle = P.accent;
+  x.lineWidth = 3;
+  x.strokeRect(cx - sq, cy - sq, sq * 2, sq * 2);
+  x.fillStyle = P.trim;
+  x.fillRect(cx - 8, cy - 8, 16, 16);
+  x.restore();
+}
+
+/* ===== floor: Angkor sandstone blocks + lotus mandala + banyan roots + Khmer relics ===== */
 export function buildPixelFloor(x, w, h, biomeKey) {
   const P = PIX[biomeKey] || PIX.crypt;
-  const BW = 16, BH = 8; // brick size (chunky 16-bit grid)
+  const BW = 24, BH = 12; // Angkor sandstone block dimensions
 
   // mortar base
   x.fillStyle = rgb(P.mortar);
   x.fillRect(0, 0, w, h);
 
-  // brick courses (running bond, 2px mortar gaps)
+  // Carved sandstone block courses (running bond)
   for (let by = 0; by < h; by += BH) {
     const row = by / BH;
     const off = (row % 2) * (BW / 2);
@@ -47,34 +101,63 @@ export function buildPixelFloor(x, w, h, biomeKey) {
       const v = hrand(bx + off, by, 7, -P.brickVar, P.brickVar);
       x.fillStyle = rgb([P.brick[0] + v, P.brick[1] + v, P.brick[2] + v]);
       x.fillRect(bx + off + 1, by + 1, BW - 2, BH - 2);
-      // top highlight / bottom shade for chunky relief
-      x.fillStyle = 'rgba(255,255,255,0.07)';
+      // Warm sandstone top bevel & bottom shadow
+      x.fillStyle = 'rgba(255,235,190,0.08)';
       x.fillRect(bx + off + 1, by + 1, BW - 2, 2);
-      x.fillStyle = 'rgba(0,0,0,0.16)';
+      x.fillStyle = 'rgba(0,0,0,0.18)';
       x.fillRect(bx + off + 1, by + BH - 3, BW - 2, 2);
+
+      // Occasional carved lotus tile motif inside stone blocks
+      if (hash(bx + off, by, 99) > 0.94) {
+        x.fillStyle = 'rgba(240, 195, 100, 0.14)';
+        x.fillRect(bx + off + BW / 2 - 3, by + BH / 2 - 2, 6, 4);
+      }
     }
   }
 
-  // worn tan patches (well-trodden areas like the reference)
+  // Worn golden-sandstone temple courtyard patches
   const cx0 = w / 2, cy0 = h / 2;
-  for (let i = 0; i < 24; i++) {
-    const px = (i < 3) ? cx0 + hrand(i, 1, 11, -350, 350) : hrand(i, 2, 13, 500, w - 500);
-    const py = (i < 3) ? cy0 + hrand(i, 3, 11, -350, 350) : hrand(i, 4, 13, 500, h - 500);
-    const rw = hrand(i, 5, 13, 120, 340), rh = rw * 0.7;
-    const a = hrand(i, 6, 13, 0.10, 0.22);
+  for (let i = 0; i < 26; i++) {
+    const px = (i < 4) ? cx0 + hrand(i, 1, 11, -380, 380) : hrand(i, 2, 13, 450, w - 450);
+    const py = (i < 4) ? cy0 + hrand(i, 3, 11, -380, 380) : hrand(i, 4, 13, 450, h - 450);
+    const rw = hrand(i, 5, 13, 130, 340), rh = rw * 0.72;
+    const a = hrand(i, 6, 13, 0.11, 0.24);
     x.fillStyle = `rgba(${P.worn[0]},${P.worn[1]},${P.worn[2]},${a})`;
     x.beginPath(); x.ellipse(px, py, rw, rh, hrand(i, 7, 13, 0, TAU), 0, TAU); x.fill();
-    // scuff marks inside the patch
-    for (let s = 0; s < 14; s++) {
-      const sx = px + hrand(i * 31 + s, 8, 13, -rw, rw) * 0.8;
-      const sy = py + hrand(i * 31 + s, 9, 13, -rh, rh) * 0.8;
-      x.fillStyle = `rgba(${P.worn[0] + 14},${P.worn[1] + 14},${P.worn[2] + 10},${a * 0.9})`;
-      x.fillRect(sx, sy, hrand(s, i, 13, 3, 9), 2);
-    }
   }
 
-  // cracks
-  for (let i = 0; i < 400; i++) {
+  // Grand Central Angkor Sacred Lotus Mandala & 4 Cardinal Sub-Mandalas
+  x.save();
+  x.globalAlpha = 0.55;
+  drawAngkorMandala(x, cx0, cy0, 210, P);
+  for (const [mx, my] of [[cx0 - 560, cy0], [cx0 + 560, cy0], [cx0, cy0 - 440], [cx0, cy0 + 440]]) {
+    drawAngkorMandala(x, mx, my, 95, P);
+  }
+  x.restore();
+
+  // Creeping Ta Prohm Banyan / Fig Tree Roots across the sandstone floor
+  for (let i = 0; i < 48; i++) {
+    const rx = hrand(i, 40, 31, 90, w - 90);
+    const ry = hrand(i, 41, 31, 90, h - 90);
+    x.strokeStyle = biomeKey === 'frost' ? 'rgba(150,195,225,0.38)' : 'rgba(68, 48, 30, 0.55)';
+    x.lineWidth = hrand(i, 42, 31, 3, 6);
+    x.lineCap = 'round';
+    x.beginPath();
+    let qx = rx, qy = ry;
+    x.moveTo(qx, qy);
+    const segs = 4;
+    const baseAng = hrand(i, 43, 31, 0, TAU);
+    for (let s = 1; s <= segs; s++) {
+      const a = baseAng + hrand(i * 7 + s, 44, 31, -0.65, 0.65);
+      qx += Math.cos(a) * 26;
+      qy += Math.sin(a) * 26;
+      x.lineTo(qx, qy);
+    }
+    x.stroke();
+  }
+
+  // Cracks in ancient stone
+  for (let i = 0; i < 360; i++) {
     const cx = hrand(i, 10, 15, 80, w - 80), cy = hrand(i, 11, 15, 80, h - 80);
     x.strokeStyle = `rgba(0,0,0,${hrand(i, 12, 15, 0.25, 0.5)})`;
     x.lineWidth = 2; x.lineCap = 'round';
@@ -87,35 +170,46 @@ export function buildPixelFloor(x, w, h, biomeKey) {
     x.stroke();
   }
 
-  // pebbles
-  for (let i = 0; i < 420; i++) {
-    const px = hrand(i, 16, 17, 100, w - 100), py = hrand(i, 17, 17, 100, h - 100);
-    x.fillStyle = `rgba(0,0,0,${hrand(i, 18, 17, 0.2, 0.45)})`;
-    x.fillRect(px, py, hrand(i, 19, 17, 2, 5), hrand(i, 20, 17, 2, 4));
-  }
-
-  // bone props
-  for (let i = 0; i < 220; i++) {
+  // Scattered Khmer Sandstone Relics: Carved Lotus Medallions & Sastra Stele Fragments
+  for (let i = 0; i < 160; i++) {
     const px = hrand(i, 21, 19, 150, w - 150), py = hrand(i, 22, 19, 150, h - 150);
-    const rot = hrand(i, 23, 19, 0, TAU);
-    x.save(); x.translate(px, py); x.rotate(rot);
-    x.globalAlpha = hrand(i, 24, 19, 0.35, 0.7);
-    x.fillStyle = P.accent;
-    x.fillRect(-6, -1, 12, 2);            // femur
-    x.fillRect(-7, -4, 4, 3);             // knob
-    x.fillRect(3, -4, 4, 3);              // knob
-    x.beginPath(); x.arc(0, -5, 3.5, 0, TAU); x.fill(); // skull
-    x.fillStyle = 'rgba(0,0,0,0.6)';
-    x.fillRect(-2, -6, 1.5, 1.5); x.fillRect(0.5, -6, 1.5, 1.5); // eye sockets
+    const kind = i % 3;
+    x.save();
+    x.translate(px, py);
+    x.globalAlpha = hrand(i, 24, 19, 0.35, 0.68);
+    if (kind === 0) {
+      // Carved Gold/Sandstone Lotus Rosette
+      x.fillStyle = P.trim;
+      x.fillRect(-7, -3, 14, 6);
+      x.fillRect(-3, -7, 6, 14);
+      x.fillStyle = P.accent;
+      x.fillRect(-3, -3, 6, 6);
+    } else if (kind === 1) {
+      // Ancient Khmer Sastra Inscription Tablet fragment
+      x.fillStyle = '#5c4e40';
+      x.fillRect(-6, -8, 12, 16);
+      x.fillStyle = P.accent;
+      x.fillRect(-4, -5, 8, 2);
+      x.fillRect(-4, -1, 6, 2);
+      x.fillRect(-4, 3, 8, 2);
+    } else {
+      // Fallen Naga Crest / Bone Relic
+      x.rotate(hrand(i, 23, 19, 0, TAU));
+      x.fillStyle = P.accent;
+      x.fillRect(-6, -1, 12, 2);
+      x.fillRect(-7, -4, 4, 3);
+      x.fillRect(3, -4, 4, 3);
+      x.beginPath(); x.arc(0, -5, 3.5, 0, TAU); x.fill();
+    }
     x.restore();
   }
   x.globalAlpha = 1;
 
-  // biome flavor specks
+  // Biome elemental flavor details
   if (biomeKey === 'volcano') {
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 65; i++) {
       const px = hrand(i, 25, 21, 100, w - 100), py = hrand(i, 26, 21, 100, h - 100);
-      x.strokeStyle = 'rgba(255,120,40,0.5)'; x.lineWidth = 2;
+      x.strokeStyle = 'rgba(255,130,40,0.55)'; x.lineWidth = 2.2;
       x.beginPath();
       let qx = px, qy = py; x.moveTo(qx, qy);
       for (let s = 0; s < 3; s++) { qx += hrand(qx, s, i, -20, 20); qy += hrand(qy, s, i, -20, 20); x.lineTo(qx, qy); }
@@ -124,25 +218,25 @@ export function buildPixelFloor(x, w, h, biomeKey) {
   } else if (biomeKey === 'frost') {
     for (let i = 0; i < 120; i++) {
       const px = hrand(i, 27, 23, 100, w - 100), py = hrand(i, 28, 23, 100, h - 100);
-      x.fillStyle = 'rgba(220,244,255,0.5)';
+      x.fillStyle = 'rgba(220,244,255,0.55)';
       x.fillRect(px, py, 3, 3);
     }
   } else if (biomeKey === 'caverns') {
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 110; i++) {
       const px = hrand(i, 29, 25, 100, w - 100), py = hrand(i, 30, 25, 100, h - 100);
-      x.fillStyle = 'rgba(80,200,140,0.4)';
-      x.fillRect(px, py, hrand(i, 31, 25, 3, 8), 3);
+      x.fillStyle = 'rgba(70,185,115,0.42)';
+      x.fillRect(px, py, hrand(i, 31, 25, 4, 10), 4);
     }
   } else if (biomeKey === 'shadow') {
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 95; i++) {
       const px = hrand(i, 32, 27, 100, w - 100), py = hrand(i, 33, 27, 100, h - 100);
-      x.fillStyle = 'rgba(160,110,255,0.35)';
-      x.fillRect(px, py, hrand(i, 34, 27, 2, 6), 2);
+      x.fillStyle = 'rgba(175,120,255,0.38)';
+      x.fillRect(px, py, hrand(i, 34, 27, 3, 7), 3);
     }
   }
 }
 
-/* ===== perimeter brick walls (60px rim, matches old border width) ===== */
+/* ===== Perimeter Angkor Temple Walls, Bayon Face Towers & Naga Gopura Gates ===== */
 export function drawPixelWalls(x, w, h, biomeKey) {
   const P = PIX[biomeKey] || PIX.crypt;
   const rim = 60, BW = 24, BH = 12;
@@ -160,89 +254,114 @@ export function drawPixelWalls(x, w, h, biomeKey) {
     }
   };
 
-  // top wall
+  // Top, Bottom, Left, Right Laterite Temple Walls
   x.fillStyle = rgb(P.mortar); x.fillRect(0, 0, w, rim);
   bricks(0, 0, w, rim, 'h');
-  // bottom wall
   x.fillStyle = rgb(P.mortar); x.fillRect(0, h - rim, w, rim);
   bricks(0, h - rim, w, rim, 'h');
-  // left wall
   x.fillStyle = rgb(P.mortar); x.fillRect(0, 0, rim, h);
   bricks(0, 0, rim, h, 'v');
-  // right wall
   x.fillStyle = rgb(P.mortar); x.fillRect(w - rim, 0, rim, h);
   bricks(w - rim, 0, rim, h, 'v');
 
-  // inner edge: dark line + lighter face (suggests wall height)
-  x.strokeStyle = 'rgba(0,0,0,0.55)'; x.lineWidth = 5;
+  // Golden Angkor Apsara & Lotus Frieze Trim along inner wall molding
+  x.strokeStyle = 'rgba(0,0,0,0.65)'; x.lineWidth = 6;
   x.strokeRect(rim / 2, rim / 2, w - rim, h - rim);
-  x.strokeStyle = 'rgba(255,255,255,0.10)'; x.lineWidth = 2;
-  x.strokeRect(rim, rim, w - rim * 2, h - rim * 2);
-  // outer edge dark
-  x.strokeStyle = 'rgba(0,0,0,0.7)'; x.lineWidth = 6;
+  x.strokeStyle = P.trim; x.lineWidth = 3;
+  x.strokeRect(rim - 2, rim - 2, w - (rim - 2) * 2, h - (rim - 2) * 2);
+
+  // Outer shadow border
+  x.strokeStyle = 'rgba(0,0,0,0.75)'; x.lineWidth = 6;
   x.strokeRect(3, 3, w - 6, h - 6);
 
-  // corner pillars
-  for (const [cx, cy] of [[0, 0], [w - 84, 0], [0, h - 84], [w - 84, h - 84]]) {
-    x.fillStyle = rgb([P.wall[0] + 12, P.wall[1] + 12, P.wall[2] + 12]);
-    x.fillRect(cx, cy, 84, 84);
-    x.fillStyle = 'rgba(255,255,255,0.12)';
-    x.fillRect(cx, cy, 84, 5); x.fillRect(cx, cy, 5, 84);
-    x.fillStyle = 'rgba(0,0,0,0.3)';
-    x.fillRect(cx, cy + 78, 84, 6); x.fillRect(cx + 78, cy, 6, 84);
-    x.strokeStyle = 'rgba(0,0,0,0.5)'; x.lineWidth = 2;
-    x.strokeRect(cx + 1, cy + 1, 82, 82);
+  // 4 Corner Bayon Smiling Stone Face Towers (Prasat Mukh)
+  for (const [cx, cy] of [[0, 0], [w - 88, 0], [0, h - 88], [w - 88, h - 88]]) {
+    x.fillStyle = rgb([P.wall[0] + 14, P.wall[1] + 10, P.wall[2] + 6]);
+    x.fillRect(cx, cy, 88, 88);
+    // Stepped Khmer Crown / Diadem on the Bayon Pillar
+    x.fillStyle = P.trim;
+    x.fillRect(cx + 12, cy + 10, 64, 10);
+    x.fillStyle = P.accent;
+    for (let k = 0; k < 5; k++) {
+      x.fillRect(cx + 16 + k * 12, cy + 4, 6, 8);
+    }
+    // Carved Bayon Stone Face (serene eyes, nose bridge, enigmatic Khmer smile)
+    x.fillStyle = rgb([P.wall[0] + 24, P.wall[1] + 20, P.wall[2] + 14]);
+    x.fillRect(cx + 18, cy + 20, 52, 50);
+    x.fillStyle = 'rgba(0,0,0,0.55)';
+    x.fillRect(cx + 24, cy + 32, 12, 4); // left eye
+    x.fillRect(cx + 52, cy + 32, 12, 4); // right eye
+    x.fillRect(cx + 41, cy + 32, 6, 18); // nose bridge
+    x.fillRect(cx + 30, cy + 54, 28, 4); // serene smile
+    x.fillStyle = P.accent;
+    x.fillRect(cx + 42, cy + 24, 4, 4);  // third-eye urna gem
+    x.strokeStyle = P.trim; x.lineWidth = 2;
+    x.strokeRect(cx + 2, cy + 2, 84, 84);
   }
 
-  // barred grate (top wall, centered) — like the reference
-  const gx = w / 2 - 34, gy = 6;
-  x.fillStyle = 'rgba(8,6,10,0.95)'; x.fillRect(gx, gy, 68, 48);
-  x.fillStyle = '#8a8296';
-  for (let i = 0; i < 5; i++) x.fillRect(gx + 6 + i * 13, gy, 4, 48);
-  x.fillRect(gx, gy + 20, 68, 4);
-  x.strokeStyle = '#3a3442'; x.lineWidth = 3; x.strokeRect(gx, gy, 68, 48);
+  // North Gopura Sanctum Gate (Top Wall Center) with 7-Headed Naga Arch
+  const gx = w / 2 - 48, gy = 4;
+  x.fillStyle = '#2a1f18'; x.fillRect(gx, gy, 96, 54);
+  x.fillStyle = P.trim; x.fillRect(gx - 6, gy, 108, 8);
+  x.fillStyle = P.accent;
+  for (let i = 0; i < 7; i++) {
+    x.fillRect(gx + 4 + i * 13, gy - 4, 6, 8); // 7-headed Naga crest
+  }
+  x.fillStyle = '#0a060c'; x.fillRect(gx + 12, gy + 12, 72, 42);
+  // Golden Khmer bars & lotus lintel
+  x.fillStyle = P.trim;
+  for (let i = 0; i < 5; i++) x.fillRect(gx + 18 + i * 14, gy + 12, 4, 42);
+  x.fillRect(gx + 12, gy + 28, 72, 4);
 
-  // wooden door with padlock (bottom wall, centered)
-  const dx = w / 2 - 40, dy = h - 58;
-  x.fillStyle = '#6b4a2a'; x.fillRect(dx, dy, 80, 52);
-  x.fillStyle = '#5a3c20';
-  for (let i = 1; i < 4; i++) x.fillRect(dx + i * 20, dy, 2, 52);
-  x.fillStyle = '#7d5834'; x.fillRect(dx, dy, 80, 5);
-  x.strokeStyle = '#2a1a0c'; x.lineWidth = 3; x.strokeRect(dx, dy, 80, 52);
-  // padlock
-  x.fillStyle = '#f0c14b'; x.fillRect(w / 2 - 7, dy + 20, 14, 16);
-  x.fillStyle = '#c9992f'; x.fillRect(w / 2 - 7, dy + 20, 14, 4);
-  x.fillStyle = '#1a1006'; x.fillRect(w / 2 - 2, dy + 26, 4, 7);
+  // South Gopura Sealed Temple Door (Bottom Wall Center) flanked by Naga Statues
+  const dx = w / 2 - 46, dy = h - 58;
+  x.fillStyle = '#5a3a22'; x.fillRect(dx, dy, 92, 54);
+  x.fillStyle = P.trim; x.fillRect(dx, dy, 92, 6);
+  x.fillStyle = '#3d2514';
+  for (let i = 1; i < 4; i++) x.fillRect(dx + i * 23, dy, 3, 54);
+  x.strokeStyle = '#221208'; x.lineWidth = 3; x.strokeRect(dx, dy, 92, 54);
+  // Sacred Golden Garuda Emblem Lock on South Gate
+  x.fillStyle = P.accent;
+  x.fillRect(w / 2 - 10, dy + 18, 20, 18);
+  x.fillStyle = '#b84020';
+  x.fillRect(w / 2 - 4, dy + 22, 8, 10);
 
-  // a couple of crates by the door
-  for (const [kx, ky] of [[w / 2 + 56, h - 56], [w / 2 - 88, h - 52]]) {
-    x.fillStyle = '#7d5c34'; x.fillRect(kx, ky, 26, 26);
-    x.fillStyle = '#5f4426';
-    x.fillRect(kx, ky, 26, 3); x.fillRect(kx, ky + 23, 26, 3);
-    x.fillRect(kx + 11, ky, 4, 26);
-    x.strokeStyle = '#2a1a0c'; x.lineWidth = 2; x.strokeRect(kx, ky, 26, 26);
+  // Flanking Golden Singha / Naga Pedestals by the South Gate
+  for (const [kx, ky] of [[w / 2 + 64, h - 56], [w / 2 - 92, h - 56]]) {
+    x.fillStyle = '#6e5236'; x.fillRect(kx, ky, 28, 28);
+    x.fillStyle = P.trim; x.fillRect(kx + 2, ky + 2, 24, 6);
+    x.fillStyle = P.accent; x.fillRect(kx + 8, ky + 10, 12, 12);
+    x.strokeStyle = '#24160a'; x.lineWidth = 2; x.strokeRect(kx, ky, 28, 28);
   }
 }
 
-/* ===== animated pixel torch flame (2-3 frame flicker) ===== */
+/* ===== Animated Khmer Bronze Brazier Flame (with Lotus Sparks) ===== */
 export function drawTorchFlame(c, x, y, time, phase) {
-  const fr = Math.floor(time * 9 + phase) % 3;
+  const fr = Math.floor(time * 10 + phase) % 3;
   c.save();
   c.translate(Math.round(x), Math.round(y - 12));
-  c.fillStyle = '#ff7820';
-  if (fr === 0) { c.fillRect(-4, -10, 8, 10); c.fillRect(-2, -13, 4, 3); }
-  if (fr === 1) { c.fillRect(-3, -9, 6, 9); c.fillRect(-1, -13, 2, 4); }
-  if (fr === 2) { c.fillRect(-4, -11, 8, 11); c.fillRect(-3, -14, 3, 3); c.fillRect(1, -13, 2, 3); }
+  // Golden Khmer Lotus Brazier Rim
+  c.fillStyle = '#d49b3b';
+  c.fillRect(-9, -1, 18, 3);
+  c.fillRect(-11, -3, 3, 3);
+  c.fillRect(8, -3, 3, 3);
+
+  // Outer Sacred Flame
+  c.fillStyle = '#ff6a18';
+  if (fr === 0) { c.fillRect(-5, -11, 10, 10); c.fillRect(-3, -15, 6, 4); }
+  if (fr === 1) { c.fillRect(-4, -10, 8, 9); c.fillRect(-2, -15, 4, 5); }
+  if (fr === 2) { c.fillRect(-5, -12, 10, 11); c.fillRect(-3, -16, 4, 4); c.fillRect(1, -14, 3, 3); }
+  // Inner Golden Core
   c.fillStyle = '#ffc840';
-  if (fr === 0) { c.fillRect(-2, -7, 4, 7); c.fillRect(-1, -10, 2, 3); }
-  if (fr === 1) { c.fillRect(-2, -6, 4, 6); c.fillRect(-2, -10, 2, 4); }
-  if (fr === 2) { c.fillRect(-1, -8, 3, 8); c.fillRect(0, -12, 2, 4); }
-  c.fillStyle = '#fff2b0';
-  c.fillRect(-1, -4, 2, 4);
-  // rising ember
-  const ey = (time * 34 + phase * 9) % 18;
-  c.fillStyle = `rgba(255,200,90,${0.85 - ey / 22})`;
-  c.fillRect(fr % 2 ? 3 : -5, -14 - ey * 0.7, 2, 2);
+  if (fr === 0) { c.fillRect(-3, -8, 6, 7); c.fillRect(-1, -12, 2, 4); }
+  if (fr === 1) { c.fillRect(-2, -7, 4, 6); c.fillRect(-2, -11, 3, 4); }
+  if (fr === 2) { c.fillRect(-2, -9, 5, 8); c.fillRect(0, -13, 2, 4); }
+  c.fillStyle = '#fff6c0';
+  c.fillRect(-1, -5, 3, 4);
+  // Rising Sacred Prana Sparks
+  const ey = (time * 36 + phase * 9) % 20;
+  c.fillStyle = `rgba(255,215,100,${0.9 - ey / 24})`;
+  c.fillRect(fr % 2 ? 3 : -5, -15 - ey * 0.75, 2, 2);
   c.restore();
 }
 
@@ -265,13 +384,13 @@ export function drawPixelHero(c, x, y, color, accent, walk, t) {
   c.fillStyle = color;
   c.fillRect(-3 * u, -10 * u, 6 * u, 6 * u);
   c.fillStyle = shade(color.startsWith('#') ? color : '#4a3d34', -0.4);
-  c.fillRect(-3 * u, -5 * u, 6 * u, 1 * u);           // dark hem
+  c.fillRect(-3 * u, -5 * u, 6 * u, 1 * u);
   c.fillStyle = accent;
-  c.fillRect(-3 * u, -6 * u, 6 * u, 1 * u);           // belt
-  c.fillRect(-4 * u, -10 * u, 1 * u, 2 * u);          // pauldrons
+  c.fillRect(-3 * u, -6 * u, 6 * u, 1 * u);
+  c.fillRect(-4 * u, -10 * u, 1 * u, 2 * u);
   c.fillRect(3 * u, -10 * u, 1 * u, 2 * u);
   c.fillStyle = shade(color.startsWith('#') ? color : '#4a3d34', 0.25);
-  c.fillRect(-3 * u, -10 * u, 6 * u, 1 * u);          // shoulder highlight
+  c.fillRect(-3 * u, -10 * u, 6 * u, 1 * u);
 
   // head
   c.fillStyle = '#d8b090';
@@ -304,25 +423,28 @@ export function drawPixelHero(c, x, y, color, accent, walk, t) {
   c.restore();
 }
 
-/* ===== pixel slime (grey body, pink tail, squash wobble) ===== */
+/* ===== pixel slime / guardian spirit minion ===== */
 export function drawPixelSlime(c, x, y, wobble, color) {
   const s = 1 + Math.sin(wobble) * 0.14;
   c.save();
   c.translate(Math.round(x), Math.round(y));
-  // pink tail
-  c.fillStyle = '#e878a8';
+  // Golden Naga crest tail
+  c.fillStyle = '#f0c14b';
   c.fillRect(5, -5, 5, 3);
-  c.fillRect(8, -7, 3, 3);
+  c.fillRect(8, -8, 3, 4);
   // body tiers (squash)
-  const col = color || '#c8d0d0';
-  c.fillStyle = shade(col.startsWith('#') ? col : '#c8d0d0', -0.25);
+  const col = color || '#7affc0';
+  c.fillStyle = shade(col.startsWith('#') ? col : '#7affc0', -0.25);
   c.fillRect(Math.round(-6 * s), -3, Math.round(12 * s), 3);
   c.fillStyle = col;
   c.fillRect(Math.round(-5 * s), -8, Math.round(10 * s), 5);
-  c.fillStyle = shade(col.startsWith('#') ? col : '#c8d0d0', 0.12);
+  c.fillStyle = shade(col.startsWith('#') ? col : '#7affc0', 0.15);
   c.fillRect(Math.round(-3 * s), -11, Math.round(6 * s), 3);
+  // Crown jewel
+  c.fillStyle = '#ffd54f';
+  c.fillRect(-1, -13, 2, 2);
   // highlight
-  c.fillStyle = 'rgba(255,255,255,0.55)';
+  c.fillStyle = 'rgba(255,255,255,0.6)';
   c.fillRect(Math.round(-4 * s), -9, 2, 2);
   // eyes
   c.fillStyle = '#1a1420';

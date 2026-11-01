@@ -7,5 +7,12 @@
     "dev": "npm run dev -w @sastra-dungeon/web",
     "build": "npm run build -w @sastra-dungeon/web",
     "preview": "npm run preview -w @sastra-dungeon/web"
+  },
+  "dependencies": {
+    "firebase": "^13.1.0"
+  },
+  "devDependencies": {
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
+    "eslint": "^10.14.0"
   }
 }

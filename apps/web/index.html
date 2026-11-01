@@ -50,8 +50,25 @@
 
 <div class="overlay" id="menu">
   <div class="panel">
+    <div class="angkor-crest">🏛 នគរសាស្ត្រា · ANGKOR SASTRA CHRONICLES 🏛</div>
     <h1>SASTRA DUNGEON</h1>
-    <div class="sub">71 Classes · 9 Archetypes · Unique Skills · Cutscenes</div>
+    <div class="sub">71 Classes · 9 Archetypes · Unique Khmer &amp; Arcane Skill VFX · Cloud Rankings</div>
+    <div id="authBar">
+      <div id="authLoggedOut" class="auth-row">
+        <button id="googleLoginBtn" class="google-btn">🔑 Sign in with Google · Cloud Sync &amp; Rankings</button>
+        <button id="rankBtnOut" class="titlesBtn">🏛 RANKINGS</button>
+      </div>
+      <div id="authLoggedIn" class="auth-row hidden">
+        <img id="userAvatar" class="user-avatar" src="/favicon.png" alt="Hero Avatar" referrerPolicy="no-referrer">
+        <div class="user-meta">
+          <div id="userName" class="user-name">Angkor Hero</div>
+          <div id="cloudStatus" class="cloud-status">☁️ Cloud Synced</div>
+        </div>
+        <button id="syncNowBtn" class="titlesBtn" title="Sync save with cloud">☁️ SYNC SAVE</button>
+        <button id="rankBtnIn" class="titlesBtn" title="View Global Hall of Heroes">🏛 RANKINGS</button>
+        <button id="googleLogoutBtn" class="titlesBtn ghost-sm" title="Sign out">Sign Out</button>
+      </div>
+    </div>
     <div id="menuRow">
       <button id="langBtn" title="Switch language">EN · ខ្មែរ</button>
       <button id="titlesBtn" title="Unlockable titles" class="titlesBtn">🏆 TITLES <span id="titlesCount">0/10</span></button>
@@ -83,6 +100,7 @@
       <button class="arch-tab" data-arch="Summoner">🐺 Summoner</button>
       <button class="arch-tab" data-arch="Druid">🌿 Druid</button>
       <button class="arch-tab" data-arch="Demon">😈 Demon</button>
+      <button class="arch-tab" data-arch="All">🏛 All (71)</button>
     </div>
     <div class="classes" id="classesGrid"></div>
     <div class="hint">
@@ -101,12 +119,38 @@
   </div>
 </div>
 
+<div class="overlay hidden" id="leaderboardOverlay">
+  <div class="panel lb-panel">
+    <div class="lb-header">
+      <div>
+        <div class="angkor-crest" style="margin-bottom:2px">🏛 ANGKOR HALL OF HEROES 🏛</div>
+        <h2 style="margin:0;letter-spacing:2px;color:#ffd54f">GLOBAL RANKINGS</h2>
+      </div>
+      <button id="lbClose" title="Close" class="btn ghost" style="margin-top:0;padding:8px 14px">✕</button>
+    </div>
+    <div class="lb-filters">
+      <button class="lb-filter active" data-lbdiff="all">ALL REALMS</button>
+      <button class="lb-filter" data-lbdiff="hard">🔥 HARD</button>
+      <button class="lb-filter" data-lbdiff="normal">⚔ NORMAL</button>
+      <button class="lb-filter" data-lbdiff="easy">🌿 EASY</button>
+    </div>
+    <div id="lbAuthNotice" class="lb-auth-notice hidden">
+      <span>Sign in with Google to post your run to the Angkor Hall of Heroes &amp; view live global rankings.</span>
+      <button id="lbLoginBtn" class="google-btn">🔑 Sign in with Google</button>
+    </div>
+    <div id="lbList" class="lb-list"></div>
+  </div>
+</div>
+
 <div class="overlay hidden" id="deathScreen">
   <div class="panel">
     <div id="deathTitle" data-i18n="YOU DIED">YOU DIED</div>
     <div class="stats" id="deathStats"></div>
-    <button class="btn" id="againBtn" data-i18n="Try Again">Try Again</button>
-    <button class="btn ghost" id="menuBtn2" data-i18n="Main Menu">Main Menu</button>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn" id="againBtn" data-i18n="Try Again">Try Again</button>
+      <button class="btn" id="deathRankBtn">🏛 Rankings</button>
+      <button class="btn ghost" id="menuBtn2" data-i18n="Main Menu">Main Menu</button>
+    </div>
   </div>
 </div>
 
@@ -118,6 +162,7 @@
     <div class="pause-buttons" style="flex-direction:column">
       <button class="menu-btn primary" id="ngplusBtn">🔥 <span data-i18n="NEW GAME+ — restart Wave 1, keep everything">NEW GAME+ — restart Wave 1, keep everything</span></button>
       <button class="menu-btn" id="endlessBtn">♾ <span data-i18n="ENDLESS — keep pushing beyond the Rift">ENDLESS — keep pushing beyond the Rift</span></button>
+      <button class="menu-btn" id="vicRankBtn">🏛 <span>ANGKOR HALL OF HEROES</span></button>
       <button class="menu-btn" id="vicMenuBtn">↩ <span data-i18n="Main Menu">Main Menu</span></button>
     </div>
   </div>
@@ -129,7 +174,8 @@
     <div class="pause-sub" data-i18n="The shadows wait for you">The shadows wait for you</div>
     <div class="pause-buttons">
       <button class="menu-btn primary" id="resumeBtn">▶ &nbsp; RESUME</button>
-      <button class="menu-btn" id="saveBtn">💾 &nbsp; SAVE PROGRESS</button>
+      <button class="menu-btn" id="saveBtn">💾 &nbsp; SAVE &amp; CLOUD SYNC</button>
+      <button class="menu-btn" id="pauseRankBtn">🏛 &nbsp; HALL OF HEROES</button>
       <button class="menu-btn" id="backBtn">↩ &nbsp; SAVE &amp; MAIN MENU</button>
     </div>
     <div class="pause-hint">Press <b>Esc</b> to resume</div>
@@ -188,10 +234,12 @@
 </div>
 <div class="overlay hidden" id="upgScreen">
   <div class="upg-panel">
+    <div class="angkor-crest">🏛 SASTRA ASCENSION · ការឡើងកម្រិត 🏛</div>
     <div class="upg-title">⬆ LEVEL UP ⬆</div>
-    <div class="upg-sub" id="upgSub">Choose a power</div>
+    <div class="upg-sub" id="upgSub">Choose an Attribute Blessing or Skill Evolution</div>
+    <div id="upgAttrBar" class="upg-attr-bar"></div>
     <div class="upg-cards" id="upgCards"></div>
-    <div class="upg-hint">press <b>1</b> / <b>2</b> / <b>3</b> or click</div>
+    <div class="upg-hint">Press <b>1</b> / <b>2</b> / <b>3</b> / <b>4</b> or click a card to ascend</div>
   </div>
 </div>
 <div id="treeTooltip" class="tree-tooltip hidden"></div>

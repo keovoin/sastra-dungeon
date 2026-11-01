@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isValidUserSave(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'photoURL', 'cls', 'level', 'wave',
+          'kills', 'gold', 'bestWave', 'bestKills', 'bestLevel',
+          'bestClass', 'savePayload', 'titlesUnlocked', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'photoURL', 'cls', 'level', 'wave',
+          'kills', 'gold', 'bestWave', 'bestKills', 'bestLevel',
+          'bestClass', 'savePayload', 'titlesUnlocked', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == request.auth.uid
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.photoURL is string && data.photoURL.size() >= 0 && data.photoURL.size() <= 500
+        && data.cls is string && data.cls.size() >= 1 && data.cls.size() <= 40 && data.cls.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.level is number && data.level >= 1 && data.level <= 5000
+        && data.wave is number && data.wave >= 1 && data.wave <= 10000
+        && data.kills is number && data.kills >= 0 && data.kills <= 10000000
+        && data.gold is number && data.gold >= 0 && data.gold <= 1000000000
+        && data.bestWave is number && data.bestWave >= 1 && data.bestWave <= 10000
+        && data.bestKills is number && data.bestKills >= 0 && data.bestKills <= 10000000
+        && data.bestLevel is number && data.bestLevel >= 1 && data.bestLevel <= 5000
+        && data.bestClass is string && data.bestClass.size() >= 1 && data.bestClass.size() <= 40
+        && data.savePayload is map && data.savePayload.keys().size() <= 40
+        && data.titlesUnlocked is map && data.titlesUnlocked.keys().size() <= 80
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'photoURL', 'cls', 'className', 'archetype',
+          'wave', 'kills', 'level', 'gold', 'score', 'difficulty',
+          'titleName', 'realmName', 'isPublic', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'photoURL', 'cls', 'className', 'archetype',
+          'wave', 'kills', 'level', 'gold', 'score', 'difficulty',
+          'titleName', 'realmName', 'isPublic', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == request.auth.uid
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.photoURL is string && data.photoURL.size() >= 0 && data.photoURL.size() <= 500
+        && data.cls is string && data.cls.size() >= 1 && data.cls.size() <= 40 && data.cls.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.className is string && data.className.size() >= 1 && data.className.size() <= 60
+        && data.archetype is string && data.archetype.size() >= 1 && data.archetype.size() <= 40
+        && data.wave is number && data.wave >= 1 && data.wave <= 10000
+        && data.kills is number && data.kills >= 0 && data.kills <= 10000000
+        && data.level is number && data.level >= 1 && data.level <= 5000
+        && data.gold is number && data.gold >= 0 && data.gold <= 1000000000
+        && data.score is number && data.score >= 0 && data.score <= 1000000000
+        && data.difficulty is string && data.difficulty.size() >= 4 && data.difficulty.size() <= 16
+        && (data.difficulty == 'easy' || data.difficulty == 'normal' || data.difficulty == 'hard')
+        && data.titleName is string && data.titleName.size() >= 0 && data.titleName.size() <= 60
+        && data.realmName is string && data.realmName.size() >= 1 && data.realmName.size() <= 60
+        && data.isPublic is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && isValidUserSave(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidUserSave(incoming()) && isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'photoURL', 'cls', 'level', 'wave',
+            'kills', 'gold', 'bestWave', 'bestKills', 'bestLevel',
+            'bestClass', 'savePayload', 'titlesUnlocked', 'updatedAt'
+          ])
+        );
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    match /leaderboard/{entryId} {
+      allow get: if isSignedIn() && isValidId(entryId) && (existing().isPublic == true || existing().uid == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.isPublic == true || resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(entryId) && request.auth.uid == entryId
+        && isValidLeaderboardEntry(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidLeaderboardEntry(incoming()) && isSignedIn() && isValidId(entryId) && request.auth.uid == entryId
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'photoURL', 'cls', 'className', 'archetype',
+            'wave', 'kills', 'level', 'gold', 'score', 'difficulty',
+            'titleName', 'realmName', 'isPublic', 'updatedAt'
+          ])
+        );
+      allow delete: if isSignedIn() && isValidId(entryId) && request.auth.uid == entryId;
+    }
+  }
+}
