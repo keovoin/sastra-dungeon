@@ -3188,6 +3188,7 @@ function damageEnemy(e,amount,g,src,opts){
   amount=Math.max(1,Math.round(amount));
   e._lastCrit=!!crit;e._lastSkill=!!(opts.skill);e._lastPet=!!(opts.pet);
   e.hp-=amount;e.hitFlash=1;
+  vfxSparks(e,crit,src);
   if(crit)sfx.crit();else sfx.hit();
   if(crit&&src&&src._critNova&&!opts.noNova&&g.time-(src._novaLast||-9)>0.2){
     src._novaLast=g.time;const nv=amount*0.45;
@@ -3200,8 +3201,8 @@ function damageEnemy(e,amount,g,src,opts){
   let dmgColor='#ffffff';
   if(crit)dmgColor='#ffd54f';
   else if(src&&src.cls&&CLASSES[src.cls])dmgColor=CLASSES[src.cls].accent;
-  g.texts.push({x:e.x+rand(-8,8),y:e.y-e.r-6,vy:-60,life:0.85,max:0.85,spawn:0.85,
-    text:String(amount),color:dmgColor,size:crit?21:15});
+  g.texts.push({x:e.x+rand(-8,8),y:e.y-e.r-6,vy:-70,life:0.7,max:0.7,spawn:0.7,
+    text:String(amount),color:dmgColor,size:crit?17:12});
   if(e.hp<=0)killEnemy(e,g);
 }
 function dropXP(g,x,y,amount){
@@ -4744,8 +4745,8 @@ function gfxBright(col){let v=_brC.get(col);if(v!==undefined)return v;let r=0,g=
   else if(m=/rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(col)){r=+m[1];g=+m[2];b=+m[3];ok=true}
   v=ok&&(.3*r+.59*g+.11*b)>118;_brC.set(col,v);return v}
 function gfxGround(biome){
-  const p=G.player,t=G.time;ctx.save();ctx.globalAlpha=.85;
-  for(const e of G.enemies){if(e.dead)continue;const w=e.r*2.8,h=w*.5;ctx.drawImage(gfxShadow,e.x-w/2,e.y+e.r*.62-h/2,w,h)}
+  const p=G.player,t=G.time;ctx.save();ctx.globalAlpha=1;
+  for(const e of G.enemies){if(e.dead)continue;const w=e.r*3.1,h=w*.5;ctx.drawImage(gfxShadow,e.x-w/2,e.y+e.r*.62-h/2,w,h)}
   for(const m of G.minions){const w=(m.r||13)*2.8,h=w*.5;ctx.drawImage(gfxShadow,m.x-w/2,m.y+(m.r||13)*.62-h/2+4,w,h)}
   ctx.drawImage(gfxShadow,p.x-26,p.y+10,52,26);ctx.restore();
   ctx.save();ctx.globalCompositeOperation='lighter';
@@ -4773,6 +4774,92 @@ function gfxBloom(){
   b.globalCompositeOperation='multiply';b.drawImage(GFX.bc,0,0);
   ctx.save();ctx.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.95;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(GFX.bc,0,0,W,H);ctx.restore()}
 function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(d>45&&d<400)GFX.slow++;else GFX.slow=Math.max(0,GFX.slow-1);if(GFX.slow>90&&GFX.bloom){GFX.bloom=false}}GFX.last=n}
+
+/* ===== VFX PASS — dynamic dungeon lighting, emissive sigils, impact sparks =====
+   The world used to be uniformly lit: torch sprites only added glow on top of a
+   fully visible floor, so nothing read as a light source and entities looked
+   pasted on. This pass darkens the world into a light buffer, erases darkness
+   around every real light (hero, torches, bosses, projectiles, orbs, sigils),
+   then composites it back — the additive glows underneath now actually read as
+   illumination instead of decals. */
+const LIGHT_AMB = { crypt:0.54, caverns:0.52, frost:0.46, volcano:0.50, shadow:0.58 };
+const LIGHT = { c:null, x:null };
+function ensureLightBuf(){
+  if(!LIGHT.c){LIGHT.c=document.createElement('canvas');LIGHT.x=LIGHT.c.getContext('2d')}
+  const bw=Math.max(8,Math.floor(W/PIX_SCALE)),bh=Math.max(8,Math.floor(H/PIX_SCALE));
+  if(LIGHT.c.width!==bw||LIGHT.c.height!==bh){LIGHT.c.width=bw;LIGHT.c.height=bh}
+  return LIGHT;
+}
+let _holeSprite=null;
+function lightHole(){
+  if(_holeSprite)return _holeSprite;
+  const R=128,c=document.createElement('canvas');c.width=c.height=R*2;
+  const x=c.getContext('2d'),g=x.createRadialGradient(R,R,0,R,R,R);
+  for(let i=0;i<=10;i++){const t=i/10;g.addColorStop(t,`rgba(255,255,255,${Math.pow(1-t,1.9).toFixed(3)})`)}
+  x.fillStyle=g;x.beginPath();x.arc(R,R,R,0,TAU);x.fill();
+  _holeSprite=c;return c;
+}
+function vfxLight(biome,camX,camY,shX,shY){
+  const L=ensureLightBuf(),x=L.x;if(!x)return;
+  const amb=LIGHT_AMB[biome.key]!==undefined?LIGHT_AMB[biome.key]:0.58;
+  const bw=L.c.width,bh=L.c.height;
+  x.setTransform(1,0,0,1,0,0);
+  x.globalCompositeOperation='source-over';x.globalAlpha=1;
+  x.clearRect(0,0,bw,bh);
+  x.fillStyle=`rgba(7,4,13,${amb})`;x.fillRect(0,0,bw,bh);
+  x.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,(W/2-camX+shX)/PIX_SCALE,(H/2-camY+shY)/PIX_SCALE);
+  x.globalCompositeOperation='destination-out';
+  const hole=lightHole();
+  const put=(wx,wy,r,a)=>{if(a<=0.01||r<=1)return;x.globalAlpha=Math.min(1,a);x.drawImage(hole,wx-r,wy-r,r*2,r*2)};
+  const t=G.time,p=G.player;
+  put(p.x,p.y,190+Math.sin(t*2.4)*7,0.97);
+  for(const tt of torches){
+    const fl=0.84+Math.sin(t*8+tt.phase)*0.10+Math.sin(t*19+tt.phase*2)*0.06;
+    put(tt.x,tt.y,320*fl,0.92);
+  }
+  for(const e of G.enemies){
+    if(e.dead)continue;
+    if(e.boss)put(e.x,e.y,e.r*6.5,0.85);
+    else if(dist(e,p)<820)put(e.x,e.y,e.r*4.2,0.30);
+  }
+  for(const pr of G.projectiles)put(pr.x,pr.y,50+pr.r*3,0.72);
+  for(const o of G.orbs)put(o.x,o.y,o.kind==='xp'?32:42,0.55);
+  for(const it of G.loot)put(it.x,it.y,62,0.72);
+  put(WORLD.w/2,WORLD.h/2,250,0.52);
+  for(const m of [[-560,0],[560,0],[0,-440],[0,440]])put(WORLD.w/2+m[0],WORLD.h/2+m[1],118,0.42);
+  let n=0;
+  for(const pt of G.particles){
+    if(n>24)break;
+    if(!pt.glow&&pt.size<4)continue;
+    put(pt.x,pt.y,18+pt.size*6,0.35);n++;
+  }
+  x.globalAlpha=1;x.globalCompositeOperation='source-over';
+  ctx.drawImage(L.c,camX-shX-W/2,camY-shY-H/2,W,H);
+}
+function vfxSigils(biome){
+  const t=G.time,glow=gfxGlow(biome.torchColor),pulse=0.5+0.5*Math.sin(t*1.15);
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  const big=200;
+  ctx.globalAlpha=0.075+0.035*pulse;
+  ctx.drawImage(glow,WORLD.w/2-big*1.6,WORLD.h/2-big*1.6,big*3.2,big*3.2);
+  for(const m of [[-560,0],[560,0],[0,-440],[0,440]]){
+    const s=118;
+    ctx.globalAlpha=0.05+0.03*Math.sin(t*1.4+m[0]*0.01+m[1]*0.013);
+    ctx.drawImage(glow,WORLD.w/2+m[0]-s*1.6,WORLD.h/2+m[1]-s*1.6,s*3.2,s*3.2);
+  }
+  ctx.restore();
+}
+function vfxSparks(e,crit,src){
+  const C=(src&&src.cls&&CLASSES[src.cls])?CLASSES[src.cls]:null;
+  const col=(C&&C.accent)||'#ffd54f';
+  const n=crit?8:3;
+  for(let i=0;i<n;i++){
+    const a=rand(0,TAU),sp=rand(70,crit?300:180);
+    G.particles.push({x:e.x,y:e.y-e.r*0.2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-50,
+      life:rand(0.16,0.36),max:0.36,size:rand(1.6,crit?4.2:3),color:i%3===0?'#ffffff':col,glow:true});
+  }
+  if(crit)G.fx.push({type:'ring',x:e.x,y:e.y,r:e.r*2.6,life:0.22,max:0.22,color:col});
+}
 /* ===== Pixel downscale buffer (chunky 8/16-bit look) ===== */
 let pixBuf=null,pixCtx=null,mainCtxSaved=null;
 const PIX_SCALE=3;
@@ -4822,6 +4909,7 @@ function render(){
   }
   ctx.restore();
   for(const t of torches)px.drawTorchFlame(ctx,t.x,t.y,G.time,t.phase);
+  vfxSigils(biome);
   ctx.save();ctx.globalCompositeOperation='lighter';
   for(const d of G.dust){
     const a=d.alpha*(0.5+0.5*Math.sin(G.time*2+d.phase));
@@ -4959,6 +5047,7 @@ function render(){
   gfxParticles();
   ctx.globalAlpha=1;
   for(const f of G.fx)drawFx(f);
+  if(!cutscene.active)vfxLight(biome,G.cam.x,G.cam.y,shakeX,shakeY);
   const p=G.player;
   if(p.autoAttack&&p._autoTarget&&!p._autoTarget.dead&&!cutscene.active){
     const et=p._autoTarget;
@@ -4978,9 +5067,11 @@ function render(){
   ctx.globalAlpha=1;
   ctx.restore();
   gfxBloom();
+  ctx.save();ctx.globalAlpha=0.55;
   const grd=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
   grd.addColorStop(0,'rgba(0,0,0,0)');grd.addColorStop(1,biome.edge);
   ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
+  ctx.restore();
   if(G.damageFlash>0){ctx.fillStyle=`rgba(180,20,20,${G.damageFlash*0.28})`;ctx.fillRect(0,0,W,H)}
   const hpPct=G.player.hp/G.player.maxHp;
   if(hpPct<0.35&&G.player.hp>0){
@@ -5223,6 +5314,18 @@ function drawPlayer(p){
   ctx.globalAlpha = stealthAlpha;
   drawTitleAura(p,t);
   hpix.shadow(ctx,p.x,p.y+17,18,7,0.4);
+  /* hero locator ring — keeps the player findable in a crowded, lit scene */
+  {
+    const acc=(CLASSES[p.cls]||{}).accent||'#ffd54f';
+    ctx.save();
+    ctx.globalAlpha=0.55+0.12*Math.sin(t*3.2);
+    ctx.beginPath();ctx.ellipse(p.x,p.y+16,p.r*2.0,p.r*0.92,0,0,TAU);
+    ctx.strokeStyle='rgba(0,0,0,0.75)';ctx.lineWidth=3.6;ctx.stroke();
+    ctx.strokeStyle='#e6f7ff';ctx.lineWidth=1.8;ctx.stroke();
+    ctx.globalAlpha=0.30+0.10*Math.sin(t*3.2);
+    ctx.strokeStyle=acc;ctx.lineWidth=3.2;ctx.stroke();
+    ctx.restore();
+  }
   hpix.hero(ctx,p.cls,p.x,p.y,{face:p.facing,moving,phase:walk/14,t,swing:p.swing>0?Math.min(1,p.swing/0.18):0,alpha:stealthAlpha,flash:p.hitFlash||0});
   ctx.globalAlpha=1;
   if(p._shieldT>0&&p._shieldAmt>0){
@@ -5569,7 +5672,8 @@ function drawEnemy(e){
     ctx.fillStyle=e.dotColor||'#7aff9a';
     ctx.beginPath();ctx.arc(0,-e.r-4,3,0,TAU);ctx.fill();ctx.restore();
   }
-  drawEnemyBody(e,wob);
+  if(GFX.bloom){ctx.save();ctx.shadowColor='rgba(0,0,0,0.55)';ctx.shadowBlur=6;drawEnemyBody(e,wob);ctx.restore()}
+  else drawEnemyBody(e,wob);
   ctx.restore();
   if((e.hp<e.maxHp||e.boss)&&!(e.sink>0||e.lift>0)){
     const w=e.boss?130:(e.elite?e.r*3.2:e.r*2.6);
