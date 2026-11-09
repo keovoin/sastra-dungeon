@@ -87,12 +87,13 @@ let PIX_SCALE=3, ZOOM=1;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,3);
   const baseW=window.innerWidth, baseH=window.innerHeight;
-  const want = baseW<560 ? 1 : (baseW<1000 ? 2 : 3);   /* chunky-pixel intent */
-  /* Snap the backing store to a whole multiple of the game-pixel size so the
-     final blit is an exact integer upscale. Without this, a 125% Windows scale
-     gives 3x1.25 = 3.75 and the nearest-neighbour blit produces 3px/4px
-     alternating pixels — the "slightly blurry" look. */
-  const C = Math.max(1, Math.round(want*DPR));         /* device px per game px */
+  /* Render at native device resolution: the old 1/3-resolution buffer quantised
+     sprites and made spell gradients look smeared after the upscale. The pixel
+     look now comes from the sprites themselves (heropix draws on a 3x grid),
+     not from downsampling the whole frame. Put PIX_CHUNK back to 3 to restore
+     the chunky pass. */
+  const PIX_CHUNK = 1;                                 /* device px per game px */
+  const C = Math.max(1, Math.round(PIX_CHUNK*DPR));
   const bw = Math.max(64, Math.round(baseW*DPR/C)*C);
   const bh = Math.max(64, Math.round(baseH*DPR/C)*C);
   canvas.width=bw; canvas.height=bh;
@@ -4890,9 +4891,10 @@ function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(
    illumination instead of decals. */
 const LIGHT_AMB = { crypt:0.54, caverns:0.52, frost:0.46, volcano:0.50, shadow:0.58 };
 const LIGHT = { c:null, x:null };
+const LIGHT_SCALE = 2;   /* light is a soft gradient — half-res buffer, smooth upscale */
 function ensureLightBuf(){
   if(!LIGHT.c){LIGHT.c=document.createElement('canvas');LIGHT.x=LIGHT.c.getContext('2d')}
-  const bw=Math.max(8,Math.floor(W/PIX_SCALE)),bh=Math.max(8,Math.floor(H/PIX_SCALE));
+  const bw=Math.max(8,Math.floor(W/(PIX_SCALE*LIGHT_SCALE))),bh=Math.max(8,Math.floor(H/(PIX_SCALE*LIGHT_SCALE)));
   if(LIGHT.c.width!==bw||LIGHT.c.height!==bh){LIGHT.c.width=bw;LIGHT.c.height=bh}
   return LIGHT;
 }
@@ -4913,7 +4915,7 @@ function vfxLight(biome,camX,camY,shX,shY){
   x.globalCompositeOperation='source-over';x.globalAlpha=1;
   x.clearRect(0,0,bw,bh);
   x.fillStyle=`rgba(7,4,13,${amb})`;x.fillRect(0,0,bw,bh);
-  x.setTransform(ZOOM/PIX_SCALE,0,0,ZOOM/PIX_SCALE,(W/2-camX*ZOOM+shX)/PIX_SCALE,(H/2-camY*ZOOM+shY)/PIX_SCALE);
+  x.setTransform(ZOOM/(PIX_SCALE*LIGHT_SCALE),0,0,ZOOM/(PIX_SCALE*LIGHT_SCALE),(W/2-camX*ZOOM+shX)/(PIX_SCALE*LIGHT_SCALE),(H/2-camY*ZOOM+shY)/(PIX_SCALE*LIGHT_SCALE));
   x.globalCompositeOperation='destination-out';
   const hole=lightHole();
   const put=(wx,wy,r,a)=>{if(a<=0.01||r<=1)return;x.globalAlpha=Math.min(1,a);x.drawImage(hole,wx-r,wy-r,r*2,r*2)};
@@ -4940,7 +4942,9 @@ function vfxLight(biome,camX,camY,shX,shY){
     put(pt.x,pt.y,18+pt.size*6,0.35);n++;
   }
   x.globalAlpha=1;x.globalCompositeOperation='source-over';
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='low';
   ctx.drawImage(L.c,(camX*ZOOM-shX-W/2)/ZOOM,(camY*ZOOM-shY-H/2)/ZOOM,W/ZOOM,H/ZOOM);
+  ctx.restore();
 }
 function vfxSigils(biome){
   const t=G.time,glow=gfxGlow(biome.torchColor),pulse=0.5+0.5*Math.sin(t*1.15);
@@ -5001,7 +5005,14 @@ function render(){
   ctx.save();
   ctx.translate(Math.round(W/2-G.cam.x*ZOOM+shakeX),Math.round(H/2-G.cam.y*ZOOM+shakeY));
   ctx.scale(ZOOM,ZOOM);
-  ctx.drawImage(floorCanvas,0,0);
+  /* blit only the visible slab of the 2800x2100 floor — drawing the whole thing
+     every frame was the dominant cost once the renderer went native-res */
+  {
+    const vw=W/ZOOM, vh=H/ZOOM;
+    const sx=Math.max(0,Math.floor(G.cam.x-vw/2)), sy=Math.max(0,Math.floor(G.cam.y-vh/2));
+    const sw=Math.min(WORLD.w-sx, Math.ceil(vw)+2), sh=Math.min(WORLD.h-sy, Math.ceil(vh)+2);
+    if(sw>0&&sh>0) ctx.drawImage(floorCanvas, sx,sy,sw,sh, sx,sy,sw,sh);
+  }
   const biome=getBiomeForWave(Math.max(1,G.wave));
   ctx.save();ctx.globalCompositeOperation='multiply';ctx.fillStyle=biome.floorTint;ctx.fillRect(0,0,WORLD.w,WORLD.h);ctx.restore();
   ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=0.12;ctx.fillStyle=biome.tint;ctx.fillRect(0,0,WORLD.w,WORLD.h);ctx.restore();
