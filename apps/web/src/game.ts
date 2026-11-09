@@ -1879,6 +1879,7 @@ const ATTR_DEFS = [
   { id:'leech', kind:'attr', icon:'🩸', name:'Rakshasa Thirst (LEECH)', desc:'+2% Life Steal on basic attacks', cap:10 },
   { id:'mend',  kind:'attr', icon:'🌿', name:'Bodhi Mend (MEND)', desc:'+0.8 HP/s Health Regen', cap:10 },
   { id:'stone', kind:'attr', icon:'🛡️', name:'Laterite Skin (STONE)', desc:'+12 Armor — flat damage reduction', cap:10 },
+  { id:'magnet', kind:'attr', icon:'🧲', name:'Lotus Attraction (MAGNET)', desc:'+37 pickup radius — orbs fly to you', cap:8 },
 ];
 const UPG_DEFS=[
   {id:'dmg',  kind:'attr', attrKey:'str', icon:'⚔️', name:'Kshatriya Might (STR)', desc:'+14% Damage · +6% Attack Range', cap:12, ranged:false},
