@@ -1196,17 +1196,27 @@ function saveGamePayload(g) {
   };
   return save;
 }
+let cloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
+function queueCloudSync() {
+  if (!auth.currentUser) return;
+  if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(() => {
+    cloudSyncTimer = null;
+    if (!auth.currentUser) return;
+    const save = loadSaveData();
+    if (!save) return;
+    let best: any = null;
+    try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
+    syncSaveToCloud(save, TITLES_UNLOCKED, best).catch(() => {});
+  }, 2500);
+}
 function saveGame() {
   if (!G || !G.player) return false;
   const save = saveGamePayload(G);
   if (!save) return false;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-    if (auth.currentUser) {
-      let best = null;
-      try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
-      syncSaveToCloud(save, TITLES_UNLOCKED, best).catch(() => {});
-    }
+    queueCloudSync();
     return true;
   }
   catch (e) { return false; }
@@ -5754,7 +5764,7 @@ let lbCurrentFilter = 'all';
 let lbUnsub: (() => void) | null = null;
 
 function renderLeaderboardRows() {
-  const listEl = document.getElementById('leaderboardList');
+  const listEl = document.getElementById('lbList');
   if (!listEl) return;
   const filtered = lbCurrentFilter === 'all'
     ? lbAllEntries
@@ -5789,10 +5799,16 @@ function renderLeaderboardRows() {
   }).join('');
 }
 
+function refreshLbAuthNotice() {
+  const notice = document.getElementById('lbAuthNotice');
+  if (notice) notice.classList.toggle('hidden', !!auth.currentUser);
+}
+
 function openLeaderboard() {
   const modal = document.getElementById('leaderboardOverlay');
   if (!modal) return;
   modal.classList.remove('hidden');
+  refreshLbAuthNotice();
   if (!lbUnsub) {
     lbUnsub = subscribeLeaderboard((entries) => {
       lbAllEntries = entries;
@@ -5813,8 +5829,8 @@ function initFirebaseUI() {
   const inEl = document.getElementById('authLoggedIn');
   const nameEl = document.getElementById('userName');
   const avatarEl = document.getElementById('userAvatar') as HTMLImageElement | null;
-  const syncStatusEl = document.getElementById('syncStatus');
-  const lbBannerEl = document.getElementById('lbAuthBanner');
+  const syncStatusEl = document.getElementById('cloudStatus');
+  const lbBannerEl = document.getElementById('lbAuthNotice');
 
   onUserChange(async (user) => {
     if (user) {
@@ -5834,36 +5850,29 @@ function initFirebaseUI() {
       try {
         const cloud = await loadSaveFromCloud();
         if (cloud) {
-          if (cloud.titlesJson) {
-            try {
-              const cloudTitles = JSON.parse(cloud.titlesJson);
-              TITLES_UNLOCKED = { ...TITLES_UNLOCKED, ...cloudTitles };
-              saveTitles();
-              renderTitlesPanel();
-              renderClassGrid(currentArch);
-            } catch {}
+          if (cloud.titlesUnlocked && Object.keys(cloud.titlesUnlocked).length) {
+            TITLES_UNLOCKED = { ...TITLES_UNLOCKED, ...cloud.titlesUnlocked };
+            saveTitles();
+            renderTitlesPanel();
+            renderClassGrid(currentArch);
           }
-          if (cloud.bestRunJson) {
-            try {
-              const cb = JSON.parse(cloud.bestRunJson);
-              const lb = JSON.parse(localStorage.getItem('sd_best') || 'null');
-              if (!lb || (cb && cb.wave > lb.wave)) {
-                localStorage.setItem('sd_best', JSON.stringify(cb));
-                const _br = document.getElementById('bestRun');
-                if (_br) _br.textContent = '🏆 BEST: Wave ' + cb.wave + ' · ' + (cb.kills || 0) + ' kills' + (CLASSES[cb.cls] ? (' · ' + CLASSES[cb.cls].name) : '');
-              }
-            } catch {}
+          if (cloud.bestRun) {
+            const cb: any = cloud.bestRun;
+            const lb: any = JSON.parse(localStorage.getItem('sd_best') || 'null');
+            if (cb && (!lb || (cb.wave || 0) > (lb.wave || 0))) {
+              localStorage.setItem('sd_best', JSON.stringify(cb));
+              const _br = document.getElementById('bestRun');
+              if (_br) _br.textContent = '🏆 BEST: Wave ' + cb.wave + ' · ' + (cb.kills || 0) + ' kills' + (CLASSES[cb.cls] ? (' · ' + CLASSES[cb.cls].name) : '');
+            }
           }
-          if (cloud.saveDataJson) {
-            try {
-              const cloudSave = JSON.parse(cloud.saveDataJson);
-              const localSave = loadSaveData();
-              if (cloudSave && CLASSES[cloudSave.cls] && (!localSave || (cloudSave.savedAt || 0) > (localSave.savedAt || 0))) {
-                localStorage.setItem(SAVE_KEY, JSON.stringify(cloudSave));
-                refreshContinuePanel();
-                addToast('☁ CLOUD SAVE RESTORED', '#7aff9a', `Level ${cloudSave.level || 1} ${CLASSES[cloudSave.cls].name} · Wave ${cloudSave.wave || 1}`);
-              }
-            } catch {}
+          if (cloud.savePayload) {
+            const cloudSave: any = cloud.savePayload;
+            const localSave: any = loadSaveData();
+            if (cloudSave && CLASSES[cloudSave.cls] && (!localSave || (cloudSave.savedAt || 0) > (localSave.savedAt || 0))) {
+              localStorage.setItem(SAVE_KEY, JSON.stringify(cloudSave));
+              refreshContinuePanel();
+              addToast('☁ CLOUD SAVE RESTORED', '#7aff9a', `Level ${cloudSave.level || 1} ${CLASSES[cloudSave.cls].name} · Wave ${cloudSave.wave || 1}`);
+            }
           }
         }
         // Also push local save / best run to cloud if present
@@ -5916,6 +5925,9 @@ function initFirebaseUI() {
   document.getElementById('googleLogoutBtn')?.addEventListener('click', async () => {
     sfx.ui();
     await logoutGoogle();
+    if (lbUnsub) { lbUnsub(); lbUnsub = null; }
+    lbAllEntries = [];
+    renderLeaderboardRows();
     addToast('Signed out', '#a89886', 'Local saves remain intact');
   });
   document.getElementById('syncNowBtn')?.addEventListener('click', async () => {
@@ -5949,7 +5961,7 @@ function initFirebaseUI() {
       sfx.ui();
       document.querySelectorAll('.lb-filter').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      lbCurrentFilter = (btn as HTMLElement).dataset.filter || 'all';
+      lbCurrentFilter = (btn as HTMLElement).dataset.lbdiff || 'all';
       renderLeaderboardRows();
     });
   });
