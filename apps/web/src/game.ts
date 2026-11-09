@@ -44,7 +44,7 @@ function clearSeed(){_seeded=false;_rngImpl=Math.random}
 /* ===== Player settings (persisted to localStorage 'sd_settings_v1') =====
    Accessibility + mix controls. `flash` and `shake` gate the full-screen white
    flashes and camera shake that every boss death, crit and cutscene produces. */
-const SETTINGS = { sfxVol:0.85, musicVol:0.80, flash:true, shake:true, vfx:true };
+const SETTINGS = { sfxVol:0.85, musicVol:0.80, flash:true, shake:true, vfx:true, autoPause:true };
 function loadSettings(){
   try{
     const s=JSON.parse(localStorage.getItem('sd_settings_v1')||'{}');
@@ -1674,7 +1674,9 @@ window.addEventListener('keyup',e=>{
   }
 });
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&G&&G.running&&!G.paused&&!G.pauseMenu&&!cutscene.active&&G.player)togglePause();
+  /* autoPause is a player setting: some people want the run to hold when they
+     alt-tab or switch apps, others want it to keep ticking. */
+  if(document.hidden&&SETTINGS.autoPause&&G&&G.running&&!G.paused&&!G.pauseMenu&&!cutscene.active&&G.player)togglePause();
 });
 function screenToWorld(sx,sy){return {x:(sx-W/2)/ZOOM+G.cam.x, y:(sy-H/2)/ZOOM+G.cam.y}}
 function updateAutoBadge(){
@@ -6349,10 +6351,11 @@ function syncSettingsUI(){
   const a=document.getElementById('setSfxVal'), b=document.getElementById('setMusicVal');
   if(a)a.textContent=String(Math.round(SETTINGS.sfxVol*100));
   if(b)b.textContent=String(Math.round(SETTINGS.musicVol*100));
-  const f=g('setFlash'), s=g('setShake'), v=g('setVfx');
+  const f=g('setFlash'), s=g('setShake'), v=g('setVfx'), ap=g('setAutoPause');
   if(f)f.checked=!SETTINGS.flash;      /* checkbox = "reduce …" */
   if(s)s.checked=!SETTINGS.shake;
   if(v)v.checked=SETTINGS.vfx;
+  if(ap)ap.checked=!!SETTINGS.autoPause;
 }
 function initSettingsUI(){
   const ov=document.getElementById('settingsOverlay'); if(!ov)return;
@@ -6379,6 +6382,7 @@ function initSettingsUI(){
   bindToggle('setFlash',(on)=>{ SETTINGS.flash=!on; });
   bindToggle('setShake',(on)=>{ SETTINGS.shake=!on; });
   bindToggle('setVfx',(on)=>{ SETTINGS.vfx=on; });
+  bindToggle('setAutoPause',(on)=>{ SETTINGS.autoPause=on; });
   document.getElementById('dailyBtn')?.addEventListener('click',()=>{ sfx.ui(); startDailyRun(); });
   try{
     const last=localStorage.getItem('sd_daily_last');
