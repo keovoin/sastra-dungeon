@@ -49,7 +49,7 @@ function tick(){if(!AC||!inGame())return;
     if(step%16===0){const k=want(),h=G.enemies.some(e=>e.boss&&e.hp>0);hot=h;
       if(!tr||tr.key!==k){tr=Object.assign({key:k},TR[k]);step=0}}
     playStep(tr,step,nextT,60/(tr.bpm*(hot?1.18:1))/4);step++;nextT+=60/(tr.bpm*(hot?1.18:1))/4}}
-function paint(){btn.textContent=off?'♪ MUSIC OFF [M]':'♪ MUSIC ON [M]';btn.classList.toggle('off',off)}
+function paint(){const touch=document.body.classList.contains('touch');btn.textContent=(off?'♪ MUSIC OFF':'♪ MUSIC ON')+(touch?'':' [M]');btn.classList.toggle('off',off)}
 function toggle(){off=!off;try{localStorage.setItem('sd_music_off',off?'1':'0')}catch(e){}paint();watch()}
 function watch(){
   const ig=inGame();btn.style.display=ig?'block':'none';

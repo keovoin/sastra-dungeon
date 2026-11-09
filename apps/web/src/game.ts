@@ -79,9 +79,16 @@ function shadeColor(hex,pct){
 const canvas = document.getElementById('game');
 let ctx = canvas.getContext('2d');
 let W=0,H=0,DPR=1;
+/* Chunky-pixel downscale factor and mobile view zoom. Both adapt to the
+   viewport: a 390px phone rendering at 1/3 resolution (the desktop value) gives
+   a ~130px-wide framebuffer — mush. Phones render at native scale and zoom in
+   so the hero reads at a sensible size. */
+let PIX_SCALE=3, ZOOM=1;
 function resize(){
-  DPR=Math.min(window.devicePixelRatio||1,2);
+  DPR=Math.min(window.devicePixelRatio||1,3);
   W=window.innerWidth;H=window.innerHeight;
+  PIX_SCALE = W<560 ? 1 : (W<1000 ? 2 : 3);
+  ZOOM = W<600 ? 1.35 : 1;
   canvas.width=Math.floor(W*DPR);canvas.height=Math.floor(H*DPR);
   canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -1659,7 +1666,7 @@ window.addEventListener('keyup',e=>{
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden&&G&&G.running&&!G.paused&&!G.pauseMenu&&!cutscene.active&&G.player)togglePause();
 });
-function screenToWorld(sx,sy){return {x:sx-W/2+G.cam.x, y:sy-H/2+G.cam.y}}
+function screenToWorld(sx,sy){return {x:(sx-W/2)/ZOOM+G.cam.x, y:(sy-H/2)/ZOOM+G.cam.y}}
 function updateAutoBadge(){
   const el=document.getElementById('autoBadge');
   if(!el)return;
@@ -3464,6 +3471,7 @@ function openUpgradePanel(g){
   const el=document.getElementById('upgScreen');
   if(el){
     el.classList.remove('hidden');
+    document.body.classList.add('upg-open');
     const sub=document.getElementById('upgSub');
     if(sub)sub.textContent='Level '+p.level+' — Choose an Attribute Blessing or Active Skill Upgrade'+(upgState.pending>1?'  ·  '+(upgState.pending-1)+' more to come':'');
     const attrBar=document.getElementById('upgAttrBar');
@@ -3539,6 +3547,7 @@ function closeUpgradePanel(){
   upgState.open=false;upgState.pending=0;upgState.opts=[];
   const el=document.getElementById('upgScreen');
   if(el)el.classList.add('hidden');
+  document.body.classList.remove('upg-open');
   syncPause();
 }
 function rollLoot(g,x,y,wave,guaranteed){
@@ -4888,7 +4897,7 @@ function vfxLight(biome,camX,camY,shX,shY){
   x.globalCompositeOperation='source-over';x.globalAlpha=1;
   x.clearRect(0,0,bw,bh);
   x.fillStyle=`rgba(7,4,13,${amb})`;x.fillRect(0,0,bw,bh);
-  x.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,(W/2-camX+shX)/PIX_SCALE,(H/2-camY+shY)/PIX_SCALE);
+  x.setTransform(ZOOM/PIX_SCALE,0,0,ZOOM/PIX_SCALE,(W/2-camX*ZOOM+shX)/PIX_SCALE,(H/2-camY*ZOOM+shY)/PIX_SCALE);
   x.globalCompositeOperation='destination-out';
   const hole=lightHole();
   const put=(wx,wy,r,a)=>{if(a<=0.01||r<=1)return;x.globalAlpha=Math.min(1,a);x.drawImage(hole,wx-r,wy-r,r*2,r*2)};
@@ -4915,7 +4924,7 @@ function vfxLight(biome,camX,camY,shX,shY){
     put(pt.x,pt.y,18+pt.size*6,0.35);n++;
   }
   x.globalAlpha=1;x.globalCompositeOperation='source-over';
-  ctx.drawImage(L.c,camX-shX-W/2,camY-shY-H/2,W,H);
+  ctx.drawImage(L.c,(camX*ZOOM-shX-W/2)/ZOOM,(camY*ZOOM-shY-H/2)/ZOOM,W/ZOOM,H/ZOOM);
 }
 function vfxSigils(biome){
   const t=G.time,glow=gfxGlow(biome.torchColor),pulse=0.5+0.5*Math.sin(t*1.15);
@@ -4944,7 +4953,6 @@ function vfxSparks(e,crit,src){
 }
 /* ===== Pixel downscale buffer (chunky 8/16-bit look) ===== */
 let pixBuf=null,pixCtx=null,mainCtxSaved=null;
-const PIX_SCALE=3;
 function ensurePixBuf(){
   if(!pixBuf){pixBuf=document.createElement('canvas');pixCtx=pixBuf.getContext('2d')}
   const bw=Math.max(8,Math.floor(W/PIX_SCALE)),bh=Math.max(8,Math.floor(H/PIX_SCALE));
@@ -4975,7 +4983,8 @@ function render(){
   const shakeX=G.shake>0?rand(-SHK(G.shake),SHK(G.shake)):0;
   const shakeY=G.shake>0?rand(-SHK(G.shake),SHK(G.shake)):0;
   ctx.save();
-  ctx.translate(Math.round(W/2-G.cam.x+shakeX),Math.round(H/2-G.cam.y+shakeY));
+  ctx.translate(Math.round(W/2-G.cam.x*ZOOM+shakeX),Math.round(H/2-G.cam.y*ZOOM+shakeY));
+  ctx.scale(ZOOM,ZOOM);
   ctx.drawImage(floorCanvas,0,0);
   const biome=getBiomeForWave(Math.max(1,G.wave));
   ctx.save();ctx.globalCompositeOperation='multiply';ctx.fillStyle=biome.floorTint;ctx.fillRect(0,0,WORLD.w,WORLD.h);ctx.restore();
@@ -6161,6 +6170,15 @@ const TUT_KEYS=[
   'LEVEL UP — pick an Attribute Blessing or Skill Upgrade every level + Tree [T]',
   'SHOP — press B to buy gear · Q drinks a potion · O toggles AUTO-PLAY',
 ];
+/* touch devices get their own coach lines — keyboard hints on a phone read as a bad port */
+const TUT_KEYS_TOUCH=[
+  'MOVE — drag the joystick on the left side',
+  'ATTACK — your basic attack is automatic · tap ⚔ to force a target',
+  'SKILLS — tap the skill buttons above the ability bar',
+  'LEVEL UP — tap a card to take an Attribute Blessing or Skill Upgrade',
+  'SHOP — tap 🛒 for gear · 🧪 drinks a potion · 🤖 toggles AUTO-PLAY',
+];
+const tutKeys = () => document.body.classList.contains('touch') ? TUT_KEYS_TOUCH : TUT_KEYS;
 const tut={active:false,step:0,st:0,moved:0,p0:0,px:0,py:0,el:null};
 function tutorialInit(){
   let seen=false;
@@ -6175,9 +6193,9 @@ function tutorialInit(){
 function renderTut(){
   if(!tut.el)return;
   const tEl=document.getElementById('tutText');
-  if(tEl)tEl.textContent=tr(TUT_KEYS[tut.step]||'');
+  if(tEl)tEl.textContent=tr(tutKeys()[tut.step]||'');
   const dEl=document.getElementById('tutDots');
-  if(dEl)dEl.textContent='●'.repeat(tut.step+1)+'○'.repeat(Math.max(0,TUT_KEYS.length-tut.step-1));
+  if(dEl)dEl.textContent='●'.repeat(tut.step+1)+'○'.repeat(Math.max(0,tutKeys().length-tut.step-1));
 }
 function tutClose(){
   tut.active=false;
@@ -6191,7 +6209,7 @@ function tutorialTick(dt){
   const dm=Math.hypot(p.x-tut.px,p.y-tut.py);tut.px=p.x;tut.py=p.y;
   if(dm>0)tut.moved+=dm;
   tut.st+=dt;
-  const next=()=>{tut.step++;tut.st=0;if(tut.step>=TUT_KEYS.length){tutClose();return}renderTut();};
+  const next=()=>{tut.step++;tut.st=0;if(tut.step>=tutKeys().length){tutClose();return}renderTut();};
   switch(tut.step){
     case 0:if(tut.moved>60)next();break;
     case 1:if(G.kills>0||tut.st>12)next();break;
@@ -6204,6 +6222,7 @@ function tutorialTick(dt){
 (function initTouch(){
   if(!('ontouchstart' in window)&&!(navigator.maxTouchPoints>0))return;
   document.body.classList.add('touch');
+  try{ const bg=document.getElementById('bgmBtn'); if(bg) bg.textContent=bg.textContent.replace(/\s*\[[A-Z]\]/g,''); }catch(e){}
   const touchUI=document.getElementById('touchUI');
   if(touchUI)touchUI.classList.remove('hidden');
   const joyZone=document.getElementById('joyZone');
