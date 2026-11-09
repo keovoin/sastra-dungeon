@@ -1673,10 +1673,34 @@ window.addEventListener('keyup',e=>{
     G.player.chargingUlt=false;G.player.chargeTime=0;G.player.ultCooldown=15;
   }
 });
+let bgTickTimer=null, bgLastWall=0, wentHiddenAt=0;
+function bgTick(){
+  if(!G||!G.running||G.paused){ if(bgTickTimer){clearInterval(bgTickTimer);bgTickTimer=null} return; }
+  const now=performance.now();
+  let left=Math.min(2.0,(now-bgLastWall)/1000);   /* throttled tabs tick ~1/s */
+  bgLastWall=now;
+  let guard=0;
+  while(left>0.0001 && guard<60){ const d=Math.min(0.05,left); stepWorld(d); left-=d; guard++; }
+}
 document.addEventListener('visibilitychange',()=>{
   /* autoPause is a player setting: some people want the run to hold when they
      alt-tab or switch apps, others want it to keep ticking. */
-  if(document.hidden&&SETTINGS.autoPause&&G&&G.running&&!G.paused&&!G.pauseMenu&&!cutscene.active&&G.player)togglePause();
+  if(document.hidden){
+    if(SETTINGS.autoPause&&G&&G.running&&!G.paused&&!G.pauseMenu&&!cutscene.active&&G.player)togglePause();
+    else if(!SETTINGS.autoPause&&G&&G.running&&!G.paused){
+      bgLastWall=performance.now(); wentHiddenAt=bgLastWall;
+      if(!bgTickTimer)bgTickTimer=setInterval(bgTick,250);
+    }
+  } else {
+    if(bgTickTimer){clearInterval(bgTickTimer);bgTickTimer=null}
+    /* browsers suspend hidden tabs outright; replay the gap (capped) so the run
+       really did keep playing instead of freezing on the last frame */
+    if(wentHiddenAt && !SETTINGS.autoPause && G && G.running && !G.paused){
+      let left=Math.min(10,(performance.now()-wentHiddenAt)/1000), guard=0;
+      while(left>0.0001 && guard<240){ const d=Math.min(0.05,left); stepWorld(d); left-=d; guard++; }
+    }
+    wentHiddenAt=0;
+  }
 });
 function screenToWorld(sx,sy){return {x:(sx-W/2)/ZOOM+G.cam.x, y:(sy-H/2)/ZOOM+G.cam.y}}
 function updateAutoBadge(){
@@ -2986,6 +3010,7 @@ function tryCast(i){
   if(p._skillPower)p.dmg=Math.round(p.dmg*(1+p._skillPower));
   if(p.titleBonus&&p.titleBonus.skill)p.dmg=Math.round(p.dmg*(1+p.titleBonus.skill));
   s.cast(p,G);
+  try{ vfxSignature(p,s); }catch(e){}
   p.dmg=origDmg;
   const wisPts = ((p.attrs&&p.attrs.wis)||0) + ((p.upg&&p.upg.cd)||0);
   const cdMult=Math.max(0.28,(1-((p._cdr||0)+wisPts*0.09)) * (1-(sl-1)*0.06));
@@ -4961,6 +4986,51 @@ function vfxSigils(biome){
   }
   ctx.restore();
 }
+/* Per-archetype cast signature: 213 skills share a dozen fx primitives, so the
+   class only differed by tint. Each archetype now leaves its own mark on cast. */
+function vfxSignature(p,s){
+  const C=CLASSES[p.cls]||{}, role=C.roleTag||'Warrior', col=C.accent||'#ffd54f';
+  const g=G; if(!g||!p)return;
+  const x=p.x, y=p.y, face=p.facing||0;
+  const R=(r,c,life)=>g.fx.push({type:'ring',x,y,r,life,max:life,color:c});
+  switch(role){
+    case 'Warrior':
+      R(78,col,0.26);
+      for(let i=0;i<7;i++){const a=face+(i-3)*0.22;g.particles.push({x,y,vx:Math.cos(a)*280,vy:Math.sin(a)*280,life:0.26,max:0.26,size:3,color:col,glow:true})}
+      break;
+    case 'Ranger':
+      R(48,col,0.18);
+      for(let i=0;i<7;i++){const a=face+(i-3)*0.15;g.particles.push({x,y,vx:Math.cos(a)*430,vy:Math.sin(a)*430,life:0.3,max:0.3,size:2,color:'#d8f0a0',glow:true})}
+      break;
+    case 'Mage':
+      R(122,col,0.42); R(70,'#ffffff',0.24);
+      for(let i=0;i<10;i++){const a=i/10*TAU;g.particles.push({x:x+Math.cos(a)*40,y:y+Math.sin(a)*40-6,vx:Math.cos(a)*40,vy:-96,life:0.62,max:0.62,size:2.5,color:col,glow:true})}
+      break;
+    case 'Rogue':
+      for(let i=0;i<9;i++){g.particles.push({x:x-Math.cos(face)*i*8,y:y-Math.sin(face)*i*8,vx:0,vy:0,life:Math.max(0.1,0.28-i*0.02),max:0.28,size:Math.max(1.2,3-i*0.2),color:'#cfd8ff',glow:true})}
+      break;
+    case 'Necromancer':
+      R(62,'#a060ff',0.36);
+      for(let i=0;i<9;i++){const a=rand(0,TAU);g.particles.push({x:x+Math.cos(a)*26,y:y+Math.sin(a)*26,vx:Math.cos(a)*22,vy:-120-rand(0,60),life:0.8,max:0.8,size:3,color:i%2?'#a060ff':'#7affc0',glow:true})}
+      break;
+    case 'Healer':
+      R(142,'#bfffe0',0.46); R(92,'#ffffff',0.3);
+      for(let i=0;i<8;i++){const a=i/8*TAU;g.particles.push({x:x+Math.cos(a)*30,y:y+Math.sin(a)*30,vx:Math.cos(a)*64,vy:-72,life:0.6,max:0.6,size:2.6,color:'#9dffc0',glow:true})}
+      break;
+    case 'Summoner':
+      R(84,'#ffe066',0.32);
+      for(let i=0;i<12;i++){const a=i/12*TAU;g.particles.push({x:x+Math.cos(a)*34,y:y+Math.sin(a)*20,vx:Math.cos(a)*30,vy:Math.sin(a)*20,life:0.5,max:0.5,size:2.4,color:'#ffd54f',glow:true})}
+      break;
+    case 'Druid':
+      for(let i=0;i<12;i++){const a=i*0.6, r=18+i*5;g.particles.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,vx:Math.cos(a+1.6)*72,vy:Math.sin(a+1.6)*72-40,life:0.66,max:0.66,size:2.8,color:i%2?'#7aff9a':'#bfe8a0',glow:true})}
+      break;
+    case 'Demon':
+      R(104,'#ff5020',0.32);
+      for(let i=0;i<12;i++){const a=i/12*TAU;g.particles.push({x,y,vx:Math.cos(a)*310,vy:Math.sin(a)*310,life:0.4,max:0.4,size:3.2,color:i%3?'#ff5020':'#ffd54f',glow:true})}
+      break;
+    default: R(70,col,0.22);
+  }
+}
 function vfxSparks(e,crit,src){
   if(!GFX.sparks)return;
   const C=(src&&src.cls&&CLASSES[src.cls])?CLASSES[src.cls]:null;
@@ -5812,6 +5882,46 @@ function drawEnemy(e){
   }
 }
 
+
+/* One simulation step. Split out of loop() so the run can keep advancing
+   while the tab is hidden (background timers + catch-up on return). */
+function stepWorld(dt){
+  if(!G||!G.running||G.paused)return;
+  G.time+=dt;
+  G.shake=Math.max(0,G.shake-dt*45);
+  G.damageFlash=Math.max(0,G.damageFlash-dt*2.2);
+  if(cutscene.active){
+    updateCutscene(dt);
+    updateParticles(dt,G);updateFx(dt,G);updateTexts(dt,G);updatePortals(dt,G);updateDust(dt,G);
+    updateHUD(G);
+  } else {
+    const px0=G.player.x,py0=G.player.y;
+    if (autoPlay.enabled) updateAutoPlay(dt, G);
+    tutorialTick(dt);
+    updatePlayer(dt,G);
+    G.player.isMoving=Math.hypot(G.player.x-px0,G.player.y-py0)>0.4;
+    G.player.walkPhase=(G.player.walkPhase||0)+Math.hypot(G.player.x-px0,G.player.y-py0)*0.45;
+    updateMinions(dt,G);
+    updateEnemies(dt,G);
+    updateProjectiles(dt,G);
+    updateHazards(dt,G);
+    updateTraps(dt,G);
+    updateTotems(dt,G);
+    updateGrounds(dt,G);
+    updatePortals(dt,G);
+    updateRains(dt,G);
+    updateParticles(dt,G);
+    updateDust(dt,G);
+    updateTexts(dt,G);
+    updateFx(dt,G);
+    updateDelayed(dt,G);
+    updateLoot(dt,G);
+    updateOrbs(dt,G);
+    updateWaves(dt,G);
+    updateCamera(dt,G);
+    updateHUD(G);
+  }
+}
 /* Main loop */
 let lastTs=0;
 function loop(ts){
@@ -5823,42 +5933,7 @@ function loop(ts){
   }
   if(cutscene.active){const _cb=document.getElementById('cutsceneBars');if(_cb&&_cb.classList.contains('hidden'))endCutscene()}
   if(G&&G._finaleDone&&!G._victoryOpen&&G.player&&G.player.hp>0&&!G.endless)showVictoryScreen();
-  if(G&&G.running&&!G.paused){
-    G.time+=dt;
-    G.shake=Math.max(0,G.shake-dt*45);
-    G.damageFlash=Math.max(0,G.damageFlash-dt*2.2);
-    if(cutscene.active){
-      updateCutscene(dt);
-      updateParticles(dt,G);updateFx(dt,G);updateTexts(dt,G);updatePortals(dt,G);updateDust(dt,G);
-      updateHUD(G);
-    } else {
-      const px0=G.player.x,py0=G.player.y;
-      if (autoPlay.enabled) updateAutoPlay(dt, G);
-      tutorialTick(dt);
-      updatePlayer(dt,G);
-      G.player.isMoving=Math.hypot(G.player.x-px0,G.player.y-py0)>0.4;
-      G.player.walkPhase=(G.player.walkPhase||0)+Math.hypot(G.player.x-px0,G.player.y-py0)*0.45;
-      updateMinions(dt,G);
-      updateEnemies(dt,G);
-      updateProjectiles(dt,G);
-      updateHazards(dt,G);
-      updateTraps(dt,G);
-      updateTotems(dt,G);
-      updateGrounds(dt,G);
-      updatePortals(dt,G);
-      updateRains(dt,G);
-      updateParticles(dt,G);
-      updateDust(dt,G);
-      updateTexts(dt,G);
-      updateFx(dt,G);
-      updateDelayed(dt,G);
-      updateLoot(dt,G);
-      updateOrbs(dt,G);
-      updateWaves(dt,G);
-      updateCamera(dt,G);
-      updateHUD(G);
-    }
-  }
+  stepWorld(dt);
   render();
   requestAnimationFrame(loop);
 }

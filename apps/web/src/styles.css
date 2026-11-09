@@ -553,5 +553,18 @@ body.touch #touchUI{display:block}
   /* tutorial was clipping the ability bar; park it under the top HUD instead */
   #tutorial{top:168px;bottom:auto;max-width:88vw;padding:11px 14px}
   #tutText{font-size:12px}
+  /* pause button sat inside the attack orb's ring */
+  #touchPause{right:14px;bottom:150px;width:42px;height:42px;font-size:14px}
+  /* utility column: give the thumb room between them */
+  #touchSkill{right:126px;bottom:14px}
+  #touchItems{right:126px;bottom:72px}
+  #touchShop{right:126px;bottom:130px}
+  /* orbs: smaller, back in the corners (they sit behind the thumb controls) */
+  .orb{width:84px;height:84px}
+  #hpOrb{left:14px;bottom:14px}
+  #enOrb{right:14px;bottom:14px}
+  .orb::after{position:absolute;left:0;right:0;bottom:12px;text-align:center;font-size:8.5px;letter-spacing:1px;color:rgba(255,255,255,.62);z-index:4;pointer-events:none}
+  #hpOrb::after{content:'HP'}
+  #enOrb::after{content:'EN'}
 }
 
