@@ -86,11 +86,20 @@ let W=0,H=0,DPR=1;
 let PIX_SCALE=3, ZOOM=1;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,3);
-  W=window.innerWidth;H=window.innerHeight;
-  PIX_SCALE = W<560 ? 1 : (W<1000 ? 2 : 3);
-  ZOOM = W<600 ? 1.35 : 1;
-  canvas.width=Math.floor(W*DPR);canvas.height=Math.floor(H*DPR);
-  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const baseW=window.innerWidth, baseH=window.innerHeight;
+  const want = baseW<560 ? 1 : (baseW<1000 ? 2 : 3);   /* chunky-pixel intent */
+  /* Snap the backing store to a whole multiple of the game-pixel size so the
+     final blit is an exact integer upscale. Without this, a 125% Windows scale
+     gives 3x1.25 = 3.75 and the nearest-neighbour blit produces 3px/4px
+     alternating pixels — the "slightly blurry" look. */
+  const C = Math.max(1, Math.round(want*DPR));         /* device px per game px */
+  const bw = Math.max(64, Math.round(baseW*DPR/C)*C);
+  const bh = Math.max(64, Math.round(baseH*DPR/C)*C);
+  canvas.width=bw; canvas.height=bh;
+  canvas.style.width=(bw/DPR)+'px'; canvas.style.height=(bh/DPR)+'px';
+  W=bw/DPR; H=bh/DPR;
+  PIX_SCALE=C/DPR;              /* W/PIX_SCALE === bw/C — whole pixels */
+  ZOOM = baseW<600 ? 1.35 : 1;
   ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 window.addEventListener('resize',resize);resize();
@@ -1837,6 +1846,11 @@ const ATTR_DEFS = [
   { id:'agi', kind:'attr', icon:'🌪️', name:'Garuda Windstep (AGI)', desc:'+12% Attack Speed · +8% Move Speed', cap:10 },
   { id:'wis', kind:'attr', icon:'🔮', name:'Sastra Prana (WIS)', desc:'-9% Skill Cooldowns · +2.5 Energy Regen', cap:10 },
   { id:'lck', kind:'attr', icon:'🐍', name:'Naga Fortune (LCK)', desc:'+5% Critical Chance · +18% Crit Damage', cap:10 },
+  { id:'haste', kind:'attr', icon:'⚡', name:'Apsara Haste (HASTE)', desc:'+12% Attack Speed — basics only', cap:10 },
+  { id:'swift', kind:'attr', icon:'👣', name:'Naga Stride (SWIFT)', desc:'+10% Move Speed — dodge faster', cap:8 },
+  { id:'leech', kind:'attr', icon:'🩸', name:'Rakshasa Thirst (LEECH)', desc:'+2% Life Steal on basic attacks', cap:10 },
+  { id:'mend',  kind:'attr', icon:'🌿', name:'Bodhi Mend (MEND)', desc:'+0.8 HP/s Health Regen', cap:10 },
+  { id:'stone', kind:'attr', icon:'🛡️', name:'Laterite Skin (STONE)', desc:'+12 Armor — flat damage reduction', cap:10 },
 ];
 const UPG_DEFS=[
   {id:'dmg',  kind:'attr', attrKey:'str', icon:'⚔️', name:'Kshatriya Might (STR)', desc:'+14% Damage · +6% Attack Range', cap:12, ranged:false},
@@ -1869,11 +1883,11 @@ function recalcStats(p){
   const lckPts = (at.lck||0) + (up.crit||0);
   p.dmg=(p.baseStats.dmg+tot.dmg)*(1+strPts*0.14)*(1+(tb.dmg||0));
   p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+vitPts*0.16)*(1+(tb.hp||0)));
-  p.armor=p.baseStats.armor+tot.armor+vitPts*12;
-  p.speed=(p.baseStats.speed+tot.speed)*(1+agiPts*0.08)*(1+(tb.spd||0));
+  p.armor=p.baseStats.armor+tot.armor+vitPts*12+(at.stone||0)*12;
+  p.speed=(p.baseStats.speed+tot.speed)*(1+agiPts*0.08)*(1+(at.swift||0)*0.10)*(1+(tb.spd||0));
   p.crit=Math.min(0.80,(p.baseStats.crit+tot.crit)+lckPts*0.05+(tb.crit||0));
   p.energyRegen=p.baseStats.energyRegen+tot.regen+wisPts*2.5+(tb.regen||0);
-  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(tb.atk||0));
+  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(at.haste||0)*0.12)*(1+(tb.atk||0));
   p.range=(p.baseStats.range||CL.range||100)*(1+strPts*0.06+(up.range||0)*0.12);
   if(p.baseStats.maxEnergy){
     p.maxEnergy=p.baseStats.maxEnergy + wisPts*8;
@@ -3236,8 +3250,9 @@ function damageEnemy(e,amount,g,src,opts){
     g.fx.push({type:'ring',x:e.x,y:e.y,r:110,life:.3,max:.3,color:'#ff5c5c'});
     for(const o of g.enemies){if(o===e||o.dead)continue;if(dist(o,e)<110)damageEnemy(o,nv,g,null,{noNova:true})}
   }
-  if(opts.fromBasic&&src&&src._lifesteal&&src.maxHp){
-    src.hp=Math.min(src.maxHp,src.hp+amount*src._lifesteal);
+  if(opts.fromBasic&&src&&src.maxHp){
+    const _ls=(src._lifesteal||0)+(((src.attrs&&src.attrs.leech)||0)*0.02);
+    if(_ls>0) src.hp=Math.min(src.maxHp,src.hp+amount*_ls);
   }
   let dmgColor='#ffffff';
   if(crit)dmgColor='#ffd54f';
@@ -4194,6 +4209,7 @@ function updatePlayer(dt,g){
   if(p.ultCooldown>0)p.ultCooldown-=dt;
   if(p._healingT>0){p._healingT-=dt;p.hp=Math.min(p.maxHp,p.hp+p._healingRate*dt)}
   if(p._regenPct&&p.hp>0)p.hp=Math.min(p.maxHp,p.hp+p.maxHp*p._regenPct*dt);
+  { const mend=((p.attrs&&p.attrs.mend)||0)*0.8; if(mend>0&&p.hp>0)p.hp=Math.min(p.maxHp,p.hp+mend*dt); }
   if(p._undying&&p.hp>0&&p.hp/p.maxHp<0.25)p.hp=Math.min(p.maxHp,p.hp+p.maxHp*0.02*dt);
   if(p._frenzyT>0)p._frenzyT-=dt;
   if(p._markT>0)p._markT-=dt;
