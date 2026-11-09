@@ -13,7 +13,7 @@ import * as px from './pixel';
 import * as hpix from './heropix';
 import {PIXFAM,hasPx,drawPxSprite} from './pixelfam';
 import {FXI,FX1,preloadFx} from './fxassets';
-import {sfx} from './sfx';
+import {sfx, sfxSetVolume} from './sfx';
 import {tr,applyLang,toggleLang} from './i18n';
 import {
   auth,
@@ -30,12 +30,43 @@ import {
 preloadFx();
 
 export const TAU = Math.PI * 2;
-const rand = (a,b) => a + Math.random()*(b-a);
+
+/* ===== Seedable RNG (mulberry32) — a seed makes shop stock, upgrade offers,
+   enemy mixes and item rolls identical across players (Daily Trial). When no
+   seed is set, rng() is Math.random, so normal runs behave exactly as before. */
+let _seed = 0, _seeded = false;
+function mulberry32(a:number){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let _rngImpl: () => number = Math.random;
+const rng = () => _rngImpl();
+function setSeed(s:number){_seed=s>>>0;_rngImpl=mulberry32(_seed);_seeded=true}
+function clearSeed(){_seeded=false;_rngImpl=Math.random}
+
+/* ===== Player settings (persisted to localStorage 'sd_settings_v1') =====
+   Accessibility + mix controls. `flash` and `shake` gate the full-screen white
+   flashes and camera shake that every boss death, crit and cutscene produces. */
+const SETTINGS = { sfxVol:0.85, musicVol:0.80, flash:true, shake:true, vfx:true };
+function loadSettings(){
+  try{
+    const s=JSON.parse(localStorage.getItem('sd_settings_v1')||'{}');
+    for(const k of Object.keys(SETTINGS)) if(s&&s[k]!==undefined) (SETTINGS as any)[k]=s[k];
+  }catch(e){}
+  applySettings();
+}
+function saveSettings(){try{localStorage.setItem('sd_settings_v1',JSON.stringify(SETTINGS))}catch(e){}}
+function applySettings(){
+  try{(window as any).SD_MUSIC_VOL=SETTINGS.musicVol}catch(e){}
+  try{sfxSetVolume(SETTINGS.sfxVol)}catch(e){}
+  try{GFX.shadows=SETTINGS.vfx;GFX.sparks=SETTINGS.vfx}catch(e){}
+}
+const FL = (a:number) => SETTINGS.flash ? a : a*0.2;   /* flash multiplier */
+const SHK = (a:number) => SETTINGS.shake ? a : a*0.22; /* shake multiplier */
+
+const rand = (a,b) => a + rng()*(b-a);
 const randInt = (a,b) => Math.floor(rand(a,b+1));
 const clamp = (v,a,b) => v<a?a:v>b?b:v;
 const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
 const lerp = (a,b,t) => a+(b-a)*t;
-const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const pick = arr => arr[Math.floor(rng()*arr.length)];
 function angDiff(a,b){let d=(a-b)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;return d}
 function shadeColor(hex,pct){
   const c=hex.replace('#','');
@@ -1720,7 +1751,7 @@ function cryptDecorate(x){
 function cavernsDecorate(x){
   for(let i=0;i<180;i++){const cx=rand(0,WORLD.w),cy=rand(0,WORLD.h),r=rand(30,140);
     const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
-    g.addColorStop(0,Math.random()<0.5?'rgba(20,60,35,0.45)':'rgba(40,90,60,0.35)');
+    g.addColorStop(0,rng()<0.5?'rgba(20,60,35,0.45)':'rgba(40,90,60,0.35)');
     g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,TAU);x.fill();}
   for(let i=0;i<30;i++){const cx=rand(60,WORLD.w-60),cy=rand(60,WORLD.h-60),r=rand(20,60);
     const g=x.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,'rgba(30,80,90,0.7)');g.addColorStop(1,'rgba(15,50,60,0)');
@@ -1739,7 +1770,7 @@ function frostDecorate(x){
 function volcanoDecorate(x){
   for(let i=0;i<200;i++){const cx=rand(0,WORLD.w),cy=rand(0,WORLD.h),r=rand(30,140);
     const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
-    g.addColorStop(0,Math.random()<0.5?'rgba(20,8,5,0.5)':'rgba(60,20,10,0.4)');
+    g.addColorStop(0,rng()<0.5?'rgba(20,8,5,0.5)':'rgba(60,20,10,0.4)');
     g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,TAU);x.fill();}
   for(let i=0;i<30;i++){const cx=rand(60,WORLD.w-60),cy=rand(60,WORLD.h-60);
     x.strokeStyle='rgba(255,120,40,0.85)';x.lineWidth=rand(2,4);x.lineCap='round';
@@ -1892,7 +1923,7 @@ function updateCutscene(dt) {
           if (a.vanishDelay <= 0) {
             if (!a.burst) { a.burst = true;
               for (let k = 0; k < 3; k++) { const an = rand(0, TAU), sp = rand(60, 220);
-                G.particles.push({ x: a.x, y: a.y, vx: Math.cos(an)*sp, vy: Math.sin(an)*sp, life: rand(0.3,0.7), max: 0.7, size: rand(2,5), color: Math.random()<0.5 ? '#4aff8a' : '#b8ffc8' }); } }
+                G.particles.push({ x: a.x, y: a.y, vx: Math.cos(an)*sp, vy: Math.sin(an)*sp, life: rand(0.3,0.7), max: 0.7, size: rand(2,5), color: rng()<0.5 ? '#4aff8a' : '#b8ffc8' }); } }
             a.vanishT = (a.vanishT === undefined ? 0.35 : a.vanishT) - dt;
             a.scale = Math.max(0, a.vanishT / 0.35);
             if (a.vanishT <= 0) a.dead = true;
@@ -1907,7 +1938,7 @@ function updateCutscene(dt) {
           G.fx.push({ type: 'ring', x: a.x, y: a.y, r: 170, life: .55, max: .55, color: a.accent });
           G.fx.push({ type: 'ring', x: a.x, y: a.y, r: 90, life: .35, max: .35, color: '#ffffff' });
           for (let k = 0; k < 26; k++) { const an = rand(0, TAU), sp = rand(80, 320);
-            G.particles.push({ x: a.x, y: a.y + 14, vx: Math.cos(an)*sp, vy: Math.sin(an)*sp*0.5 - 40, life: rand(0.3,0.8), max: 0.8, size: rand(2,6), color: Math.random()<0.5 ? '#b9b0a4' : a.accent }); }
+            G.particles.push({ x: a.x, y: a.y + 14, vx: Math.cos(an)*sp, vy: Math.sin(an)*sp*0.5 - 40, life: rand(0.3,0.8), max: 0.8, size: rand(2,6), color: rng()<0.5 ? '#b9b0a4' : a.accent }); }
         }
       }
       if (a.fading) a.fade = Math.max(0, (a.fade === undefined ? 1 : a.fade) - dt / 0.8);
@@ -2098,7 +2129,7 @@ function startWyrmCutscene(g){
   const st=csStage(g),sx=st.x,sy=st.y;let boss,orbit=0,shat=false;const FIN={x:sx,y:sy+150};
   boss=csBoss('frostWyrm',sx,sy+20,{alpha:0,sc:1,tick:(a,dt)=>{const e=cutscene.elapsed;
     if(!shat)a.alpha=clamp((e-4.5)/2,0,.5);
-    if(orbit){orbit+=dt*2.1;const nx=sx+Math.cos(orbit)*240,ny=sy+Math.sin(orbit)*110;a.facing=Math.atan2(ny-a.y,nx-a.x);a.x=nx;a.y=ny;a.dropY=-40-Math.sin(orbit*2)*10;if(Math.random()<.6)G.particles.push({x:a.x,y:a.y,vx:rand(-30,30),vy:rand(-10,30),life:.7,max:.7,size:rand(2,5),color:pick(['#bfeaff','#ffffff','#7fd4ff'])})}}});
+    if(orbit){orbit+=dt*2.1;const nx=sx+Math.cos(orbit)*240,ny=sy+Math.sin(orbit)*110;a.facing=Math.atan2(ny-a.y,nx-a.x);a.x=nx;a.y=ny;a.dropY=-40-Math.sin(orbit*2)*10;if(rng()<.6)G.particles.push({x:a.x,y:a.y,vx:rand(-30,30),vy:rand(-10,30),life:.7,max:.7,size:rand(2,5),color:pick(['#bfeaff','#ffffff','#7fd4ff'])})}}});
   csActor({upd(a,dt){const e=cutscene.elapsed;if(e>1&&e<9)for(let i=0;i<3;i++)G.particles.push({x:sx+rand(-650,650),y:sy-420,vx:rand(-30,10),vy:rand(120,220),life:3,max:3,size:rand(1.5,3.5),color:'#f0faff'});if(e>1&&e<8.4)G.shake=Math.max(G.shake,e>6?3:1)},
     draw(){const e=cutscene.elapsed,r=clamp((e-1)/5,0,1)*540;if(r>0){ctx.save();const gr=ctx.createRadialGradient(sx,sy+40,r*.2,sx,sy+40,r);gr.addColorStop(0,'rgba(190,235,255,.35)');gr.addColorStop(1,'rgba(120,200,255,0)');ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(sx,sy+40,r,r*.6,0,0,TAU);ctx.fill();
       ctx.strokeStyle='rgba(230,248,255,.7)';ctx.lineWidth=2;for(let i=0;i<10;i++){const a=i/10*TAU;ctx.beginPath();ctx.moveTo(sx,sy+40);for(let j=1;j<=6;j++)ctx.lineTo(sx+Math.cos(a+Math.sin(j+i)*.12)*r*j/6,sy+40+Math.sin(a+Math.sin(j+i)*.12)*r*.6*j/6);ctx.stroke()}ctx.restore()}}});
@@ -2137,7 +2168,7 @@ function startBehemothCutscene(g){
 /* V - Shadow Prince: born from the hero's own shadow */
 function startPrinceCutscene(g){
   const st=csStage(g),sx=st.x,sy=st.y,px=g.player.x,py=g.player.y;let boss;const FIN={x:sx,y:sy+90},clones=[];
-  boss=csBoss('shadowPrince',px,py,{alpha:0,sc:.7,tick:(a,dt)=>{const e=cutscene.elapsed;if(e>5.4&&!a.walkTo&&!a.moved)csRise(a,dt,.7,2.4);if(e>8&&a.alpha>.9&&Math.random()<.02)a.alpha=.4;else if(a.rise>=1&&a.alpha<1)a.alpha=Math.min(1,a.alpha+dt*4)}});
+  boss=csBoss('shadowPrince',px,py,{alpha:0,sc:.7,tick:(a,dt)=>{const e=cutscene.elapsed;if(e>5.4&&!a.walkTo&&!a.moved)csRise(a,dt,.7,2.4);if(e>8&&a.alpha>.9&&rng()<.02)a.alpha=.4;else if(a.rise>=1&&a.alpha<1)a.alpha=Math.min(1,a.alpha+dt*4)}});
   csActor({upd(){const e=cutscene.elapsed;if(e>1&&e<14)G.shake=Math.max(G.shake,1.5)},
     draw(){const e=cutscene.elapsed,k=clamp((e-1.5)/3.5,0,1);if(k<=0||e>8)return;ctx.save();const gr=ctx.createRadialGradient(px,py+16,4,px,py+16,30+k*70);gr.addColorStop(0,'rgba(10,0,25,.95)');gr.addColorStop(.6,'rgba(70,20,130,.5)');gr.addColorStop(1,'rgba(40,0,80,0)');ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(px,py+16,30+k*70,(30+k*70)*.4,0,0,TAU);ctx.fill();ctx.restore()}});
   for(let i=0;i<4;i++)clones.push(csBoss('shadowPrince',sx,sy,{alpha:0,sc:.85,base:i/4*TAU,tick:(a)=>{const e=cutscene.elapsed;if(e<8.6||a.dead)return;a.alpha=Math.min(.38,(e-8.6)*.4);
@@ -2158,7 +2189,7 @@ const FIN_LINES={cryptLord:['I am not finished feeding.','💀'],frostWyrm:['Win
 const csRgba=(c,a)=>{const n=parseInt(c.slice(1),16);return`rgba(${n>>16},${n>>8&255},${n&255},${a})`};
 function finalePos(p,i){const a=-.95+i*.475;return{x:clamp(p.x+Math.cos(a)*380,120,WORLD.w-120),y:clamp(p.y+Math.sin(a)*300,120,WORLD.h-120)}}
 function finaleAllyClasses(p){const seen={},out=[],ks=Object.keys(CLASSES).filter(k=>k!==p.cls);
-  for(let i=ks.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ks[i],ks[j]]=[ks[j],ks[i]]}
+  for(let i=ks.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[ks[i],ks[j]]=[ks[j],ks[i]]}
   for(const k of ks){const r=CLASSES[k].roleTag;if(!seen[r]){seen[r]=1;out.push(k);if(out.length>=4)break}}return out}
 function spawnFinaleAlly(k,x,y){const C=CLASSES[k],p=G.player,lvl=p.level,melee=C.basic==='melee',hp=Math.round((C.hp*.8+lvl*16+G.wave*6)*3);
   const m={ally:true,finaleAlly:true,allyRef:{cls:k,champ:true},champ:true,cls:k,name:C.name,icon:C.icon,color:C.color,accent:C.accent,x,y,r:16,hp,maxHp:hp,
@@ -2232,11 +2263,11 @@ function startMageFinisher(g){
         let gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(200,240,255,${.55*ice})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
         if(heat>0){gr=ctx.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(255,70,10,${.5*heat})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H)}
         if(e<7.6){ctx.fillStyle='#f4fbff';for(let i=0;i<70;i++){const x=((i*137.5+Math.sin(e+i)*30)%W+W)%W,y=((i*83+e*(60+i%5*25)*u)%H+H)%H;ctx.globalAlpha=.8*clamp(e/1,0,1);ctx.fillRect(x,y,(1.5+i%3)*u,(1.5+i%3)*u)}ctx.globalAlpha=1}
-        if(flash>0){ctx.fillStyle=`rgba(255,230,180,${flash*.6})`;ctx.fillRect(0,0,W,H)}
+        if(flash>0){ctx.fillStyle=`rgba(255,230,180,${FL(flash*.6)})`;ctx.fillRect(0,0,W,H)}
         ctx.textAlign='center';ctx.shadowColor='#000';ctx.shadowBlur=12;
         if(e<2.4){const q=clamp(e/.25,0,1),k=q*(1-clamp((e-1.7)/.7,0,1));ctx.globalAlpha=k;ctx.font=`bold ${Math.round(74*u*(1.3-.3*q))}px 'Trebuchet MS'`;ctx.fillStyle='#d8f4ff';ctx.fillText('A B S O L U T E   Z E R O',W/2,H*.28)}
         const n=Math.floor(e-3);if(n>=0&&n<4){const t=e-3-n,q=clamp(t/.22,0,1),al=1-clamp((t-.7)/.3,0,1);ctx.globalAlpha=al;ctx.font=`bold ${Math.round(300*u*(2-q))}px 'Trebuchet MS'`;ctx.lineWidth=10*u;ctx.strokeStyle='#000';ctx.fillStyle=['#9fe0ff','#ffffff','#ffc060','#ff4a20'][n];ctx.strokeText(4-n,W/2,H*.56);ctx.fillText(4-n,W/2,H*.56)}
-        ctx.globalAlpha=1;if(e>=8.85){const w=e<9?(e-8.85)/.15:clamp(1-(e-9)/1.2,0,1);ctx.fillStyle=`rgba(255,255,255,${w})`;ctx.fillRect(0,0,W,H)}})}});
+        ctx.globalAlpha=1;if(e>=8.85){const w=e<9?(e-8.85)/.15:clamp(1-(e-9)/1.2,0,1);ctx.fillStyle=`rgba(255,255,255,${FL(w)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:10.9,cameraTarget:{x:cx,y:cy},script:[
     {at:.05,fn:()=>{G.shake=10;csRing(p.x,p.y,300,'#bfeaff');showCutsceneDialogue(C.name,'ABSOLUTE ZERO!!',C.icon,1.9)}},
     {at:2.7,fn:()=>showCutsceneDialogue(C.name,'Stand still. This will be quick.',C.icon,1.8)},
@@ -2261,11 +2292,11 @@ function defeatWho(g){return CLASSES[g.player.cls]||{name:'Hero',icon:'⚔'}}
 function startTitanDefeat(g,b){
   const p=g.player,bx=b.x,by=b.y,gy=by+b.r*.55,T_CR=6.0,ch=mkChunks(),pc=defeatWho(g);let flash=0,done=false;
   csActor({upd(a,dt){const e=cutscene.elapsed;flash=Math.max(0,flash-dt*2);ch.upd(dt);
-      if(e>.8&&e<T_CR){G.shake=Math.max(G.shake,2+e*.8);if(Math.random()<.6)G.particles.push({x:bx+rand(-260,260),y:by-rand(380,520),vx:rand(-15,15),vy:rand(260,420),life:.9,max:.9,size:rand(3,7),color:pick(['#8a7a6a','#5a4a3a','#c9b9a0'])})}
+      if(e>.8&&e<T_CR){G.shake=Math.max(G.shake,2+e*.8);if(rng()<.6)G.particles.push({x:bx+rand(-260,260),y:by-rand(380,520),vx:rand(-15,15),vy:rand(260,420),life:.9,max:.9,size:rand(3,7),color:pick(['#8a7a6a','#5a4a3a','#c9b9a0'])})}
       if(e>2.6&&!done)b.sink=csEase(clamp((e-2.6)/3.2,0,1))*.14+.0001},
     draw(){const e=cutscene.elapsed;if(!done)defeatCracks(b,clamp((e-1)/3.5,0,1),'#ffb040','#ff7a20',1.3);ch.draw(1-clamp((e-8.2)/1,0,1));
       csScreen((W,H)=>{const a=clamp(e/1.2,0,1)*(1-clamp((e-7.5)/1.5,0,1)),gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(20,12,4,${.55*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
-        if(flash>0){ctx.fillStyle=`rgba(255,235,200,${flash*.6})`;ctx.fillRect(0,0,W,H)}})}});
+        if(flash>0){ctx.fillStyle=`rgba(255,235,200,${FL(flash*.6)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:9.6,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
     {at:.2,fn:()=>showCutsceneDialogue('Cavern Titan','Impossible... I am the DEEP...','🗿',2.4)},
     {at:1.0,fn:()=>{G.shake=Math.max(G.shake,8);csRing(bx,gy,200,'#ffb040')}},
@@ -2280,12 +2311,12 @@ function startWyrmDefeat(g,b){
   const p=g.player,bx=b.x,by=b.y,gy=by+b.r*.55,T_SH=6.2,ch=mkChunks(),pc=defeatWho(g);let flash=0,done=false;
   csActor({upd(a,dt){const e=cutscene.elapsed;flash=Math.max(0,flash-dt*2);ch.upd(dt);
       if(e>.8&&e<T_SH){G.shake=Math.max(G.shake,1.5+e*.5);for(let i=0;i<2;i++)G.particles.push({x:bx+rand(-300,300),y:by-rand(300,460),vx:rand(-30,10),vy:rand(90,190),life:2,max:2,size:rand(1.5,3.5),color:'#f0faff'})}
-      if(e>T_SH&&e<T_SH+2.5&&Math.random()<.7)G.particles.push({x:bx+rand(-260,260),y:by-rand(250,400),vx:rand(-40,20),vy:rand(60,160),life:2,max:2,size:rand(1.5,3.5),color:'#f0faff'})},
+      if(e>T_SH&&e<T_SH+2.5&&rng()<.7)G.particles.push({x:bx+rand(-260,260),y:by-rand(250,400),vx:rand(-40,20),vy:rand(60,160),life:2,max:2,size:rand(1.5,3.5),color:'#f0faff'})},
     drawGround(){const e=cutscene.elapsed,k=clamp((e-1.5)/2.5,0,1)*(1-clamp((e-T_SH-1.5)/1.5,0,1));if(k>0)csCircle(bx,gy-b.r*1.6*.35,b.r*1.6,e,'#bfeaff',k*.9)},
     draw(){const e=cutscene.elapsed;if(!done){defeatCracks(b,clamp((e-.8)/2.8,0,1),'#eafaff','#7fd4ff',.7);const k=clamp((e-3)/2.4,0,1);if(k>0)csIce(bx,by,b.r*1.5,k)}
       ch.draw(1-clamp((e-8.2)/1,0,1));
       csScreen((W,H)=>{const a=clamp(e/1,0,1)*(1-clamp((e-7.5)/1.5,0,1));ctx.fillStyle=`rgba(120,190,255,${.16*a})`;ctx.fillRect(0,0,W,H);const gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(200,240,255,${.45*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
-        if(flash>0){ctx.fillStyle=`rgba(235,250,255,${flash*.7})`;ctx.fillRect(0,0,W,H)}})}});
+        if(flash>0){ctx.fillStyle=`rgba(235,250,255,${FL(flash*.7)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:9.6,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
     {at:.2,fn:()=>showCutsceneDialogue('Frost Wyrm','The cold... betrays me?!','🐉',2.4)},
     {at:1.0,fn:()=>{G.shake=Math.max(G.shake,6);csRing(bx,gy,220,'#bfeaff')}},
@@ -2299,7 +2330,7 @@ function startWyrmDefeat(g,b){
 function startBehemothDefeat(g,b){
   const p=g.player,bx=b.x,by=b.y,gy=by+b.r*.55,T_S0=4.0,T_S1=6.6,T_ER=6.8,pc=defeatWho(g);let flash=0,done=false;
   csActor({upd(a,dt){const e=cutscene.elapsed;flash=Math.max(0,flash-dt*2);
-      if(e>.8&&e<T_ER){G.shake=Math.max(G.shake,2+e*.9);if(Math.random()<.7)G.particles.push({x:bx+rand(-b.r*1.6,b.r*1.6),y:gy+rand(-8,8),vx:rand(-20,20),vy:-rand(60,200),life:1,max:1,size:rand(2,5),color:pick(['#ff5020','#ffb040','#ffe082'])})}
+      if(e>.8&&e<T_ER){G.shake=Math.max(G.shake,2+e*.9);if(rng()<.7)G.particles.push({x:bx+rand(-b.r*1.6,b.r*1.6),y:gy+rand(-8,8),vx:rand(-20,20),vy:-rand(60,200),life:1,max:1,size:rand(2,5),color:pick(['#ff5020','#ffb040','#ffe082'])})}
       if(e>T_S0&&!done)b.sink=csEase(clamp((e-T_S0)/(T_S1-T_S0),0,1))},
     drawGround(){const e=cutscene.elapsed,k=clamp((e-2.4)/1.8,0,1),cool=clamp((e-T_ER-.5)/1.8,0,1);if(k<=0)return;const rx=b.r*2.6*k;ctx.save();ctx.translate(bx,gy);ctx.scale(1,.45);
       const gr=ctx.createRadialGradient(0,0,0,0,0,rx);gr.addColorStop(0,`rgba(255,${Math.round(230-150*cool)},${Math.round(130-110*cool)},.98)`);gr.addColorStop(.55,`rgba(${Math.round(255-140*cool)},${Math.round(90-60*cool)},20,.95)`);gr.addColorStop(1,'rgba(120,20,0,0)');ctx.fillStyle=gr;ctx.beginPath();ctx.arc(0,0,rx,0,TAU);ctx.fill();
@@ -2309,7 +2340,7 @@ function startBehemothDefeat(g,b){
         if(k>0){ctx.save();ctx.globalCompositeOperation='lighter';const gr=ctx.createRadialGradient(bx,by,b.r*.2,bx,by,b.r*(1.4+.2*Math.sin(e*14)));gr.addColorStop(0,`rgba(255,235,170,${.55*k})`);gr.addColorStop(1,'rgba(255,80,20,0)');ctx.fillStyle=gr;ctx.beginPath();ctx.arc(bx,by,b.r*1.7,0,TAU);ctx.fill();ctx.restore()}}
       if(e>=T_ER&&e<T_ER+1.2){const k=(e-T_ER)/1.2;csGeyser(bx,gy,b.r*1.5*(1-.5*k),760*(1-(1-k)*(1-k)),k,'#ff5020','#ffe082',e)}
       csScreen((W,H)=>{const a=clamp(e/1.2,0,1)*(1-clamp((e-T_ER-.6)/1.6,0,1));ctx.fillStyle=`rgba(80,15,0,${.22*a})`;ctx.fillRect(0,0,W,H);const gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(255,70,10,${.4*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
-        if(flash>0){ctx.fillStyle=`rgba(255,200,120,${flash*.65})`;ctx.fillRect(0,0,W,H)}})}});
+        if(flash>0){ctx.fillStyle=`rgba(255,200,120,${FL(flash*.65)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:9.8,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
     {at:.2,fn:()=>showCutsceneDialogue('Ember Behemoth','The fire... DIES?!','🔥',2.2)},
     {at:1.0,fn:()=>{G.shake=Math.max(G.shake,8);csRing(bx,gy,240,'#ff7020')}},
@@ -2374,8 +2405,8 @@ function startRangerFinisher(g){
         if(rs>0){ctx.strokeStyle=`rgba(255,255,255,${.35*rs})`;ctx.lineWidth=2*u;for(let i=0;i<28;i++){const an=i/28*TAU+Math.sin(i*5.1)*.1,r0=H*(.35+.1*((i*7)%5)/5),r1=r0+H*(.35+.15*Math.sin(e*30+i));ctx.beginPath();ctx.moveTo(W/2+Math.cos(an)*r0,H/2+Math.sin(an)*r0);ctx.lineTo(W/2+Math.cos(an)*r1,H/2+Math.sin(an)*r1);ctx.stroke()}}
         csTitle(W,H,u,e,0,1.9,'T I M E   S L O W S','#d8ecff');csTitle(W,H,u,e,T_RUSH,1.2,'R E L E A S E','#ffd54f');
         if(hits>0&&e<T_KILL){ctx.save();ctx.textAlign='right';ctx.shadowColor='#000';ctx.shadowBlur=10;ctx.font=`bold ${Math.round((40+popT*14)*u)}px 'Trebuchet MS'`;ctx.fillStyle=hits>60?'#ffd54f':'#ffffff';ctx.fillText(hits+' HITS',W-40*u,H*.22);ctx.restore()}
-        if(e>=T_RUSH&&e<T_RUSH+.15){ctx.fillStyle=`rgba(255,255,255,${.8*(1-(e-T_RUSH)/.15)})`;ctx.fillRect(0,0,W,H)}
-        if(flash>0){ctx.fillStyle=`rgba(255,255,255,${flash*.45})`;ctx.fillRect(0,0,W,H)}
+        if(e>=T_RUSH&&e<T_RUSH+.15){ctx.fillStyle=`rgba(255,255,255,${FL(.8*(1-(e-T_RUSH)/.15))})`;ctx.fillRect(0,0,W,H)}
+        if(flash>0){ctx.fillStyle=`rgba(255,255,255,${FL(flash*.45)})`;ctx.fillRect(0,0,W,H)}
         csFlash(W,H,'255,255,255',e,T_KILL,1.3)})}});
   startCutscene({duration:T_KILL+2.1,cameraTarget:{x:cx,y:cy},script:[
     {at:.05,fn:()=>{G.shake=8;csRing(p.x,p.y,260,'#bfeaff');showCutsceneDialogue(C.name,'Breathe in. Time bends to my arrow.',C.icon,1.9)}},
@@ -2403,7 +2434,7 @@ function startHealerFinisher(g){
       bs.forEach((b,bi)=>{if(b.dead)return;const tl=T_LOCK+bi*.5;
         if(e>T_CALL+.35){const s=clamp((e-T_CALL-.35)/2,0,1);b.lift=csEase(s)*320+.01;b.ghost=1-clamp((e-T_CALL-.9)/1.4,0,1)*.97}
         if(e>tl&&e<T_KILL){const w=width(b,bi,e),n=e>=T_CALL?4:1;for(let i=0;i<n;i++){G.particles.push({x:b.x+rand(-w,w),y:gy(b)-rand(0,60),vx:rand(-20,20),vy:-rand(80,220),life:1.2,max:1.2,size:rand(2,5),color:pick(['#fff6b0','#ffffff','#ffe082'])})}
-          if(Math.random()<.5)G.particles.push({x:b.x+rand(-120,120),y:b.y-rand(380,620),vx:rand(-25,25),vy:rand(60,130),life:2,max:2,size:rand(3,5),color:'#ffffff'})}});
+          if(rng()<.5)G.particles.push({x:b.x+rand(-120,120),y:b.y-rand(380,620),vx:rand(-25,25),vy:rand(60,130),life:2,max:2,size:rand(3,5),color:'#ffffff'})}});
       if(e>T_CALL&&e<T_KILL)G.shake=Math.max(G.shake,5+clamp((e-T_KILL+1.2)/1.2,0,1)*9)},
     drawGround(){const e=cutscene.elapsed;if(e>T_KILL+.5)return;const fo=1-clamp((e-T_KILL)/.5,0,1);
       csCircle(p.x,p.y-30,110,e*.8,'#ffe082',clamp(e/.6,0,1)*(1-clamp((e-T_LOCK)/1,0,1)*.5)*fo*.9);
@@ -2417,7 +2448,7 @@ function startHealerFinisher(g){
         ctx.fillStyle=`rgba(255,225,150,${.14*w+.12*sl})`;ctx.fillRect(0,0,W,H);
         const gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(255,248,215,${.45*sl+.15*w})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
         csTitle(W,H,u,e,0,2.1,'D I V I N E   J U D G M E N T','#fff0b0');csTitle(W,H,u,e,T_CALL,1.4,'J U D G M E N T','#ffffff');
-        if(flash>0){ctx.fillStyle=`rgba(255,250,225,${flash*.7})`;ctx.fillRect(0,0,W,H)}
+        if(flash>0){ctx.fillStyle=`rgba(255,250,225,${FL(flash*.7)})`;ctx.fillRect(0,0,W,H)}
         csFlash(W,H,'255,252,235',e,T_KILL,1.5)})}});
   startCutscene({duration:T_KILL+2.1,cameraTarget:{x:cx,y:cy},script:[
     {at:.05,fn:()=>{G.shake=6;csRing(p.x,p.y,280,'#ffe082');csRing(p.x,p.y,140,'#ffffff');showCutsceneDialogue(C.name,'Light... hear my prayer.',C.icon,1.9)}},
@@ -2470,7 +2501,7 @@ function startDragDownFinisher(g,cfg){
         ctx.fillStyle=`rgba(${cfg.tint},${.32*a})`;ctx.fillRect(0,0,W,H);const gr=ctx.createRadialGradient(W/2,H/2,H*.22,W/2,H/2,W*.68);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(${cfg.vig},${.78*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
         ctx.fillStyle=cfg.c2;ctx.globalAlpha=.6*a;for(let i=0;i<40;i++){const x=((i*131.7+Math.sin(e*.8+i)*24)%W+W)%W,y=H-(((e*(40+i%5*18)*u+i*53)%H)+H)%H;ctx.fillRect(x,y,(1.5+i%3)*u,(1.5+i%3)*u)}ctx.globalAlpha=1;
         csTitle(W,H,u,e,0,2.4,cfg.title,cfg.titleCol);csTitle(W,H,u,e,cfg.tSink,1.6,cfg.title2,cfg.col2);
-        if(flash>0){ctx.fillStyle=`rgba(${cfg.flash},${flash*.6})`;ctx.fillRect(0,0,W,H)}
+        if(flash>0){ctx.fillStyle=`rgba(${cfg.flash},${FL(flash*.6)})`;ctx.fillRect(0,0,W,H)}
         csFlash(W,H,cfg.flash,e,T_KILL,1.0)})}});
   startCutscene({duration:T_KILL+2.0,cameraTarget:{x:cx,y:cy},script:[
     {at:.05,fn:()=>{G.shake=9;csRing(p.x,p.y,300,cfg.c1);showCutsceneDialogue(C.name,cfg.lines[0],C.icon,1.8)}},
@@ -2512,11 +2543,11 @@ function startFinisherCutscene(g){
       ctx.restore();
       csScreen((W,H,u)=>{const fz=e<7.4?clamp(e/.35,0,1):0;
         if(fz>0){ctx.fillStyle=`rgba(30,60,130,${.32*fz})`;ctx.fillRect(0,0,W,H);const gr=ctx.createRadialGradient(W/2,H/2,H*.3,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(0,10,40,${.7*fz})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H)}
-        if(flash>0){ctx.fillStyle=`rgba(255,255,255,${flash*.5})`;ctx.fillRect(0,0,W,H)}
+        if(flash>0){ctx.fillStyle=`rgba(255,255,255,${FL(flash*.5)})`;ctx.fillRect(0,0,W,H)}
         ctx.textAlign='center';ctx.shadowColor='#000';ctx.shadowBlur=10;
         if(e<1.3){const q=clamp(e/.3,0,1),k=q*q*(3-2*q)*(1-clamp((e-.9)/.4,0,1));ctx.globalAlpha=k;ctx.font=`bold ${Math.round(70*u*(1.25-.25*k))}px 'Trebuchet MS'`;ctx.fillStyle='#bfeaff';ctx.fillText('T I M E   S T O P',W/2,H*.3)}
         if(combo>0&&e<7.4){ctx.globalAlpha=1;ctx.textAlign='right';ctx.font=`bold ${Math.round((40+popT*14)*u)}px 'Trebuchet MS'`;ctx.fillStyle=combo>30?'#ffd54f':'#ffffff';ctx.fillText(combo+' HITS',W-40*u,H*.22)}
-        if(e>7.3){const w=clamp(1-(e-7.4)/1.1,0,1)*(e>=7.4?1:(e-7.3)/.1);ctx.globalAlpha=1;ctx.fillStyle=`rgba(255,255,255,${w})`;ctx.fillRect(0,0,W,H)}})}});
+        if(e>7.3){const w=clamp(1-(e-7.4)/1.1,0,1)*(e>=7.4?1:(e-7.3)/.1);ctx.globalAlpha=1;ctx.fillStyle=`rgba(255,255,255,${FL(w)})`;ctx.fillRect(0,0,W,H)}})}});
   const pc=CLASSES[p.cls]||{name:'Hero',icon:'⚔'};
   startCutscene({duration:9.8,cameraTarget:{x:cx,y:cy},script:[
     {at:.05,fn:()=>{G.shake=8;csRing(p.x,p.y,320,'#ffffff');csRing(p.x,p.y,160,'#bfeaff');showCutsceneDialogue(pc.name,'Now — all together!',pc.icon,1.3)}},
@@ -2583,9 +2614,9 @@ function startCryptDefeatCutscene(g, boss) {
   };
   const spawnBatch = () => {
     for (let i = 0; i < 10; i++) {
-      const an = rand(0, TAU), r = 70 + Math.pow(Math.random(), 0.7) * 360;
+      const an = rand(0, TAU), r = 70 + Math.pow(rng(), 0.7) * 360;
       cutscene.actors.push({ type: 'slime', x: px + Math.cos(an) * r, y: py + Math.sin(an) * r, r: 14, scale: 0, grow: 0,
-        idx: Math.random() * 10, dead: false, eating: null, bob: 0 });
+        idx: rng() * 10, dead: false, eating: null, bob: 0 });
     }
   };
   const script = [
@@ -2711,7 +2742,7 @@ function rollAffix(k,w,m){switch(k){
   case 'crit':return +(rand(0.01,0.03)*m).toFixed(3);
   case 'regen':return +(rand(0.5,1.8)*m).toFixed(1);
 }return 0}
-function weightedSlot(){const r=Math.random();
+function weightedSlot(){const r=rng();
   if(r<0.24)return 'weapon';if(r<0.38)return 'helm';if(r<0.52)return 'chest';
   if(r<0.64)return 'gloves';if(r<0.76)return 'boots';if(r<0.88)return 'ring';return 'amulet'}
 function makeItem(wave,rarityIdx,forcedSlot){
@@ -2759,10 +2790,13 @@ function itemPower(it){
 }
 
 /* Start game */
-export function startGame(clsKey){
+export function startGame(clsKey, opts?:{daily?:boolean}){
   try {
     const C=CLASSES[clsKey];
     if(!C){console.error('❌ Class not found:', clsKey);addToast('Class not found: '+clsKey,'#ef4444','');return;}
+    const _daily = (opts&&opts.daily) || pendingDaily;
+    pendingDaily=false;
+    if(!_daily){ dailyRun=null; clearSeed(); }   /* seeded RNG only for Daily Trial */
     closeUpgradePanel();
     G={
       running:true,paused:false,pauseMenu:false,
@@ -2933,8 +2967,8 @@ function tryCast(i){
   const cdMult=Math.max(0.28,(1-((p._cdr||0)+wisPts*0.09)) * (1-(sl-1)*0.06));
   s.cd=s.baseCd*cdMult;
   p.energy-=s.cost;
-  if(p._refund&&Math.random()<p._refund){s.cd=0;p.energy=Math.min(p.maxEnergy,p.energy+s.cost);G.fx.push({type:'ring',x:p.x,y:p.y,r:50,life:.35,max:.35,color:'#7fb4ff'})}
-  if(p._echo&&Math.random()<p._echo){
+  if(p._refund&&rng()<p._refund){s.cd=0;p.energy=Math.min(p.maxEnergy,p.energy+s.cost);G.fx.push({type:'ring',x:p.x,y:p.y,r:50,life:.35,max:.35,color:'#7fb4ff'})}
+  if(p._echo&&rng()<p._echo){
     setTimeout(()=>{
       if(!G||!G.running||!G.player||G.player!==p)return;
       const od=p.dmg;
@@ -3178,7 +3212,7 @@ function damageEnemy(e,amount,g,src,opts){
   opts=opts||{};
   let crit=false;
   const critMult=((src&&src._critDmg)||2)+((src&&src.titleBonus&&src.titleBonus.critDmg)||0);
-  if(opts.forceCrit||(src&&src.crit&&Math.random()<src.crit)){
+  if(opts.forceCrit||(src&&src.crit&&rng()<src.crit)){
     crit=true;amount*=critMult;
   }
   if(src&&src._markT>0)amount*=1.4;
@@ -3274,7 +3308,7 @@ function killEnemy(e,g){
     const a=rand(0,TAU),sp=rand(60,e.boss?400:240);
     g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
       life:rand(0.3,0.8),max:0.8,size:rand(2,e.boss?7:5),
-      color:Math.random()<0.5?e.color:e.dark});
+      color:rng()<0.5?e.color:e.dark});
   }
   if(e.type==='bomber'){
     g.fx.push({type:'boom',x:e.x,y:e.y,r:90,life:.4,max:.4,color:'#ff8f2e'});
@@ -3286,8 +3320,8 @@ function killEnemy(e,g){
   const goldAmt=Math.round((e.gold||Math.round((e.xp||5)*0.7))*(e.boss?1.5:1));
   dropGold(g,e.x,e.y,goldAmt);
   if(e.boss){rollLoot(g,e.x+22,e.y,g.wave,true);rollLoot(g,e.x-22,e.y,g.wave,true);}
-  else if(e.elite){if(Math.random()<0.3)rollLoot(g,e.x,e.y,g.wave,false);}
-  else if(Math.random()<0.06)rollLoot(g,e.x,e.y,g.wave,false);
+  else if(e.elite){if(rng()<0.3)rollLoot(g,e.x,e.y,g.wave,false);}
+  else if(rng()<0.06)rollLoot(g,e.x,e.y,g.wave,false);
   if(e.boss){
     g.shake=20;
     if(!e.finale)addToast('BOSS DEFEATED!','#ffd54f','+'+goldAmt+' gold · '+e.name+' has fallen');
@@ -3301,7 +3335,7 @@ function triggerDodge(p,g){
   p._dashAt=g.time;
   let near=null,nd=1e9;
   for(const e of g.enemies){if(e.dead)continue;const d=dist(e,p);if(d<nd){nd=d;near=e}}
-  const side=Math.random()<0.5?1:-1;
+  const side=rng()<0.5?1:-1;
   const ang=near?Math.atan2(near.y-p.y,near.x-p.x)+side*(Math.PI/2)+rand(-0.35,0.35):rand(0,TAU);
   const len=p._shadowMaster?150:100,dur=0.14;
   p._dash={vx:Math.cos(ang)*len/dur,vy:Math.sin(ang)*len/dur,t:dur,acc:0};
@@ -3312,10 +3346,10 @@ function damagePlayer(amount,g,kind,attacker){
   if(p.invuln>0||p.hp<=0)return;
   if(kind!=='hazard'){
     const dc=kind==='proj'?(p._dodgeProj||0):(p._dodgeMelee||0);
-    if(dc>0&&Math.random()<dc){triggerDodge(p,g);return}
+    if(dc>0&&rng()<dc){triggerDodge(p,g);return}
     // COUNTER — deflect a percentage back to the attacker
     const dch = kind==='proj' ? (p._deflectProj||0) : kind==='melee' ? (p._deflectMelee||0) : 0;
-    if(dch>0 && attacker && !attacker.dead && Math.random()<dch && g.time-(p._lastDeflectAt||-9)>0.15){
+    if(dch>0 && attacker && !attacker.dead && rng()<dch && g.time-(p._lastDeflectAt||-9)>0.15){
       p._lastDeflectAt = g.time;
       const reflectAmt = Math.max(1, Math.round(amount * (p._deflectMult||0.3)));
       amount = Math.max(1, Math.round(amount * 0.55));
@@ -3417,11 +3451,11 @@ function openUpgradePanel(g){
     return;
   }
 
-  const pickedAttrs = availAttrs.slice().sort(()=>Math.random()-0.5).slice(0, 2);
-  const pickedSkills = availSkills.slice().sort(()=>Math.random()-0.5).slice(0, 2);
+  const pickedAttrs = availAttrs.slice().sort(()=>rng()-0.5).slice(0, 2);
+  const pickedSkills = availSkills.slice().sort(()=>rng()-0.5).slice(0, 2);
   let combined = [...pickedAttrs, ...pickedSkills];
   if (combined.length < 4) {
-    const rest = [...availAttrs, ...availSkills].filter(x => !combined.includes(x)).sort(()=>Math.random()-0.5);
+    const rest = [...availAttrs, ...availSkills].filter(x => !combined.includes(x)).sort(()=>rng()-0.5);
     combined = combined.concat(rest.slice(0, 4 - combined.length));
   }
   upgState.opts = combined.slice(0, 4);
@@ -3508,7 +3542,7 @@ function closeUpgradePanel(){
   syncPause();
 }
 function rollLoot(g,x,y,wave,guaranteed){
-  let r=Math.random(),idx=0;
+  let r=rng(),idx=0;
   const boost=Math.min(0.12,wave*0.014);
   if(r>0.985-boost)idx=3;
   else if(r>0.90-boost)idx=2;
@@ -4400,7 +4434,7 @@ function refreshShopStock(g){
   const boost=Math.min(0.18,wave*0.018);
   if((g.player.potions||0)<5)g.shopStock.push({kind:'potion',name:'Healing Potion',icon:'🧪',color:'#7aff9a',value:60,rarity:3,slot:'potion'});
   for(let i=0;i<12;i++){
-    const r=Math.random();
+    const r=rng();
     let idx=0;
     if(r>0.96-boost)idx=3;
     else if(r>0.82-boost)idx=2;
@@ -4669,7 +4703,52 @@ function renderTitlesPanel(){
 renderTitlesPanel();
 
 /* Menu */
-let currentArch='All';
+let currentArch='Warrior';
+
+/* Class portraits: the in-game hero sprite for each class, rendered once into a
+   cached canvas and used as the card art (the grid was emoji + text only). */
+const _thumbCache = new Map<string, HTMLCanvasElement>();
+function heroThumb(key:string, w=48, h=58, accent='#8a7a63'):HTMLCanvasElement {
+  const ck = key+':'+w+'x'+h+':'+accent;
+  const hit = _thumbCache.get(ck); if(hit) return hit;
+  const out = document.createElement('canvas');
+  out.width = w*2; out.height = h*2;                 // 2x, downscaled by CSS
+  const o = out.getContext('2d');
+  if(!o){ _thumbCache.set(ck,out); return out }
+  const S = 176;
+  const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
+  const g = tmp.getContext('2d');
+  if(!g){ _thumbCache.set(ck,out); return out }
+  g.imageSmoothingEnabled = false;
+  try { hpix.hero(g, key, S/2, S/2, { face:0, t:0.4, moving:false, noWeapon:false }); } catch(e) {}
+  let x0=S, y0=S, x1=-1, y1=-1;
+  try {
+    const d = g.getImageData(0,0,S,S).data;
+    for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+      if(d[(y*S+x)*4+3] > 8){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+    }
+  } catch(e) {}
+  if(x1 < x0 || y1 < y0){ x0=0; y0=0; x1=S-1; y1=S-1; }
+  // soft class-coloured pool behind the hero
+  const cx = out.width/2, cy = out.height*0.66, pr = out.width*0.52;
+  const bg = o.createRadialGradient(cx,cy,0,cx,cy,pr);
+  bg.addColorStop(0, accent+'55'); bg.addColorStop(1, accent+'00');
+  o.fillStyle = bg; o.beginPath(); o.arc(cx,cy,pr,0,Math.PI*2); o.fill();
+  const bw = x1-x0+1, bh = y1-y0+1, pad = 6;
+  /* shared baseline + height-normalised scale so every class reads at one size */
+  const targetH = out.height - pad*2;
+  let k = targetH / bh;
+  if(bw*k > out.width - pad*2) k = (out.width - pad*2) / bw;
+  const dx = (out.width - bw*k)/2, dy = out.height - pad - bh*k;
+  /* pedestal shadow under the feet */
+  o.fillStyle = 'rgba(0,0,0,0.42)';
+  o.beginPath(); o.ellipse(out.width/2, out.height-pad*0.4, out.width*0.26, out.height*0.05, 0, 0, Math.PI*2); o.fill();
+  o.imageSmoothingEnabled = false;
+  o.drawImage(tmp, x0,y0,bw,bh, dx, dy, bw*k, bh*k);
+  _thumbCache.set(ck,out);
+  return out;
+}
+
 function renderClassGrid(arch){
   try {
     const grid = document.getElementById('classesGrid');
@@ -4690,12 +4769,14 @@ function renderClassGrid(arch){
       const skillsHtml = (C.skills || []).map((s, idx) =>
         `<span style="display:inline-block;margin:2px 2px 0 0;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,0.45);border:1px solid ${(s.color||C.accent||'#ffd54f')}44;font-size:9px;color:#e8dcc4">${s.icon||''} ${s.name}</span>`
       ).join('');
-      card.innerHTML = `<div class="ico" style="color:${C.color || '#fff'}">${C.icon || '?'}</div>
+      card.innerHTML = `<div class="ico"></div>
         <h3 style="color:${C.accent || '#fff'}">${C.name || key}</h3>
         <div class="role">${C.roleTag || '?'}</div>
-        <div class="cls-attrs">❤ ${Math.round(C.hp)} · ⚔ ${C.dmg} · 👟 ${C.speed} · 🎯 ${Math.round(C.crit*100)}%</div>
+        <div class="cls-attrs"><span class="st"><i>HP</i>${Math.round(C.hp)}</span><span class="st"><i>DMG</i>${C.dmg}</span><span class="st"><i>SPD</i>${C.speed}</span><span class="st"><i>CRIT</i>${Math.round(C.crit*100)}%</span></div>
         <div style="margin-top:5px;line-height:1.3">${skillsHtml}</div>
         ${(TITLES[key]&&TITLES_UNLOCKED[key])?`<div class="cls-title on">${TITLES[key].icon} ${TITLES[key].name} · ${fxLabel(TITLES[key].fx)}</div>`:(TITLES[key]?`<div class="cls-title">🔒 ${TITLES[key].icon} ${TITLES[key].name} — ${TITLES[key].cond}</div>`:'')}`;
+      const icoEl = card.querySelector('.ico');
+      if(icoEl) icoEl.appendChild(heroThumb(key, 48, 58, C.accent || C.color || '#8a7a63'));
       card.addEventListener('click', () => {
         try { sfx.ui(); (window as any).startGame(key); }
         catch (err) { console.error('❌ startGame failed:', err); }
@@ -4717,7 +4798,7 @@ document.querySelectorAll('.arch-tab').forEach(tab=>{
 
 /* Render */
 /* ===== GFX polish: soft shadows, light pools, additive glow, mist, bloom (brings gameplay up to the cutscene look) ===== */
-const GFX={bloom:false,slow:0,last:0,bc:null,bx:null};
+const GFX={bloom:false,shadows:true,sparks:true,slow:0,last:0,bc:null,bx:null};
 const gfxShadow=(()=>{const c=document.createElement('canvas');c.width=64;c.height=32;const x=c.getContext('2d');x.translate(32,16);x.scale(1,.5);const g=x.createRadialGradient(0,0,1,0,0,31);g.addColorStop(0,'rgba(0,0,0,.62)');g.addColorStop(.6,'rgba(0,0,0,.3)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.arc(0,0,31,0,Math.PI*2);x.fill();return c})();
 const _glowC=new Map(),_brC=new Map();
 let _torchC={};
@@ -4773,7 +4854,7 @@ function gfxBloom(){
   const b=GFX.bx;b.globalCompositeOperation='source-over';b.globalAlpha=1;b.imageSmoothingEnabled=true;b.imageSmoothingQuality='medium';b.clearRect(0,0,bw,bh);b.drawImage(canvas,0,0,bw,bh);
   b.globalCompositeOperation='multiply';b.drawImage(GFX.bc,0,0);
   ctx.save();ctx.setTransform(1/PIX_SCALE,0,0,1/PIX_SCALE,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.95;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(GFX.bc,0,0,W,H);ctx.restore()}
-function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(d>45&&d<400)GFX.slow++;else GFX.slow=Math.max(0,GFX.slow-1);if(GFX.slow>90&&GFX.bloom){GFX.bloom=false}}GFX.last=n}
+function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(d>45&&d<400)GFX.slow++;else GFX.slow=Math.max(0,GFX.slow-1);if(GFX.slow>90){if(GFX.bloom)GFX.bloom=false;if(GFX.shadows)GFX.shadows=false}}GFX.last=n}
 
 /* ===== VFX PASS — dynamic dungeon lighting, emissive sigils, impact sparks =====
    The world used to be uniformly lit: torch sprites only added glow on top of a
@@ -4850,6 +4931,7 @@ function vfxSigils(biome){
   ctx.restore();
 }
 function vfxSparks(e,crit,src){
+  if(!GFX.sparks)return;
   const C=(src&&src.cls&&CLASSES[src.cls])?CLASSES[src.cls]:null;
   const col=(C&&C.accent)||'#ffd54f';
   const n=crit?8:3;
@@ -4890,8 +4972,8 @@ function render(){
       ctx.restore();
     }
     return}
-  const shakeX=G.shake>0?rand(-G.shake,G.shake):0;
-  const shakeY=G.shake>0?rand(-G.shake,G.shake):0;
+  const shakeX=G.shake>0?rand(-SHK(G.shake),SHK(G.shake)):0;
+  const shakeY=G.shake>0?rand(-SHK(G.shake),SHK(G.shake)):0;
   ctx.save();
   ctx.translate(Math.round(W/2-G.cam.x+shakeX),Math.round(H/2-G.cam.y+shakeY));
   ctx.drawImage(floorCanvas,0,0);
@@ -5072,7 +5154,7 @@ function render(){
   grd.addColorStop(0,'rgba(0,0,0,0)');grd.addColorStop(1,biome.edge);
   ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
   ctx.restore();
-  if(G.damageFlash>0){ctx.fillStyle=`rgba(180,20,20,${G.damageFlash*0.28})`;ctx.fillRect(0,0,W,H)}
+  if(G.damageFlash>0){ctx.fillStyle=`rgba(180,20,20,${FL(G.damageFlash*0.28)})`;ctx.fillRect(0,0,W,H)}
   const hpPct=G.player.hp/G.player.maxHp;
   if(hpPct<0.35&&G.player.hp>0){
     const intensity=(1-hpPct/0.35)*0.55;
@@ -5672,7 +5754,7 @@ function drawEnemy(e){
     ctx.fillStyle=e.dotColor||'#7aff9a';
     ctx.beginPath();ctx.arc(0,-e.r-4,3,0,TAU);ctx.fill();ctx.restore();
   }
-  if(GFX.bloom){ctx.save();ctx.shadowColor='rgba(0,0,0,0.55)';ctx.shadowBlur=6;drawEnemyBody(e,wob);ctx.restore()}
+  if(GFX.shadows){ctx.save();ctx.shadowColor='rgba(0,0,0,0.55)';ctx.shadowBlur=6;drawEnemyBody(e,wob);ctx.restore()}
   else drawEnemyBody(e,wob);
   ctx.restore();
   if((e.hp<e.maxHp||e.boss)&&!(e.sink>0||e.lift>0)){
@@ -6185,10 +6267,89 @@ function tutorialTick(dt){
   const shopB=document.getElementById('touchShop');
   if(shopB)shopB.addEventListener('click',()=>{sfx.ui();if(inv.open&&invTab==='shop'){closeInventory();return}if(tree.open){tree.open=false;tree.el.classList.add('hidden');hideTreeTooltip()}toggleInventory('shop')});
 })();
+/* ═══ SETTINGS + DAILY TRIAL ═══ */
+let dailyRun: {key:string;cls:string;seed:number}|null = null;
+let pendingDaily = false;   /* set before the intro-wrapped startGame runs */
+
+function dailyInfo(){
+  const d=new Date();
+  const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  let h=2166136261>>>0;
+  for(let i=0;i<key.length;i++){ h^=key.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+  const keys=Object.keys(CLASSES);
+  return { key, seed:h, cls:keys[h%keys.length] };
+}
+function startDailyRun(){
+  const info=dailyInfo();
+  if(dailyRun && dailyRun.key===info.key){
+    addToast('🗓 ALREADY IN TODAY\'S TRIAL','#ffd54f','Seed '+info.seed+' · '+CLASSES[info.cls].name);
+    return;
+  }
+  setSeed(info.seed);
+  dailyRun={key:info.key,cls:info.cls,seed:info.seed};
+  pendingDaily=true;
+  try{ localStorage.setItem('sd_daily_last',info.key) }catch(e){}
+  /* go through the intro-wrapped entry point so the cinematic and its overlay behave */
+  try{ const wg=(window as any).startGame; if(typeof wg==='function') wg(info.cls); else startGame(info.cls,{daily:true}); }
+  catch(e){ console.error('❌ daily start:',e); pendingDaily=false; }
+  setTimeout(()=>addToast('🗓 DAILY TRIAL · '+info.key,'#ffd54f','Seeded run · '+CLASSES[info.cls].name+' · every player gets the same rolls'),900);
+}
+
+function syncSettingsUI(){
+  const g=(id)=>document.getElementById(id) as HTMLInputElement|null;
+  const sfxEl=g('setSfx'), musEl=g('setMusic');
+  if(sfxEl){ sfxEl.value=String(Math.round(SETTINGS.sfxVol*100)); }
+  if(musEl){ musEl.value=String(Math.round(SETTINGS.musicVol*100)); }
+  const a=document.getElementById('setSfxVal'), b=document.getElementById('setMusicVal');
+  if(a)a.textContent=String(Math.round(SETTINGS.sfxVol*100));
+  if(b)b.textContent=String(Math.round(SETTINGS.musicVol*100));
+  const f=g('setFlash'), s=g('setShake'), v=g('setVfx');
+  if(f)f.checked=!SETTINGS.flash;      /* checkbox = "reduce …" */
+  if(s)s.checked=!SETTINGS.shake;
+  if(v)v.checked=SETTINGS.vfx;
+}
+function initSettingsUI(){
+  const ov=document.getElementById('settingsOverlay'); if(!ov)return;
+  const close=()=>{ ov.classList.add('hidden'); saveSettings(); };
+  document.getElementById('settingsBtn')?.addEventListener('click',()=>{ sfx.ui(); ov.classList.remove('hidden'); syncSettingsUI(); });
+  document.getElementById('settingsClose')?.addEventListener('click',()=>{ sfx.ui(); close(); });
+  ov.addEventListener('click',(e)=>{ if(e.target===ov) close(); });
+  const bindRange=(id,key)=>{
+    const el=document.getElementById(id) as HTMLInputElement|null;
+    if(!el)return;
+    el.addEventListener('input',()=>{
+      (SETTINGS as any)[key]=Number(el.value)/100;
+      applySettings(); syncSettingsUI();
+    });
+    el.addEventListener('change',()=>{ saveSettings(); });
+  };
+  bindRange('setSfx','sfxVol');
+  bindRange('setMusic','musicVol');
+  const bindToggle=(id,apply)=>{
+    const el=document.getElementById(id) as HTMLInputElement|null;
+    if(!el)return;
+    el.addEventListener('change',()=>{ apply(el.checked); applySettings(); saveSettings(); });
+  };
+  bindToggle('setFlash',(on)=>{ SETTINGS.flash=!on; });
+  bindToggle('setShake',(on)=>{ SETTINGS.shake=!on; });
+  bindToggle('setVfx',(on)=>{ SETTINGS.vfx=on; });
+  document.getElementById('dailyBtn')?.addEventListener('click',()=>{ sfx.ui(); startDailyRun(); });
+  try{
+    const last=localStorage.getItem('sd_daily_last');
+    const info=dailyInfo();
+    if(last===info.key){
+      const db=document.getElementById('dailyBtn');
+      if(db) db.textContent='🗓 TRIAL DONE';
+    }
+  }catch(e){}
+}
+
 /* Boot */
+try { loadSettings(); } catch(e) { console.error('❌ loadSettings:', e); }
+try { initSettingsUI(); } catch(e) { console.error('❌ initSettingsUI:', e); }
 try { buildEquipUI(); } catch(e) { console.error('❌ buildEquipUI:', e); }
 try { refreshContinuePanel(); } catch(e) { console.error('❌ refreshContinuePanel:', e); }
-try { renderClassGrid('All'); } catch(e) { console.error('❌ renderClassGrid:', e); }
+try { renderClassGrid(currentArch); } catch(e) { console.error('❌ renderClassGrid:', e); }
 try { applyLang(); } catch(e) { console.error('❌ applyLang:', e); }
 try { updateDiffUI(); } catch(e) { console.error('❌ updateDiffUI:', e); }
 try { initFirebaseUI(); } catch(e) { console.error('❌ initFirebaseUI:', e); }

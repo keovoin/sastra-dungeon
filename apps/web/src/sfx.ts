@@ -78,6 +78,11 @@ export const sfx = {
   win() { if (!ready()) return; arp([523, 659, 784, 1046, 1318], 0.11, 0.28, 0.14, 'triangle'); arp([261, 329, 392, 523], 0.11, 0.4, 0.07, 'square', 0.22) },
 };
 export function sfxIsOff() { return off }
+export function sfxSetVolume(v: number) {
+  /* 0..1 multiplier on the master bus; 0.55 was the original fixed level */
+  const want = Math.max(0, Math.min(1, v)) * 0.55;
+  try { if (master) master.gain.value = off ? 0 : want; } catch (e) {}
+}
 export function sfxToggle(): boolean {
   off = !off;
   try { localStorage.setItem('sd_sfx_off', off ? '1' : '0') } catch (e) {}

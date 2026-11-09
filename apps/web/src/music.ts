@@ -57,7 +57,8 @@ function watch(){
     if(!AC)init();if(!AC)return;if(AC.state==='suspended')AC.resume();
     if(stopT){clearTimeout(stopT);stopT=0}
     if(!timer){nextT=AC.currentTime+.1;step=0;tr=null;timer=setInterval(tick,50)}
-    const v=(G.paused||G.pauseMenu)?BASE*.3:cutscene.active?BASE*.55:BASE;
+    const volMul=(typeof (window as any).SD_MUSIC_VOL==='number'?(window as any).SD_MUSIC_VOL:1);
+    const v=((G.paused||G.pauseMenu)?BASE*.3:cutscene.active?BASE*.55:BASE)*volMul;
     master.gain.setTargetAtTime(v,AC.currentTime,.25)}
   else if(timer&&!stopT){master.gain.setTargetAtTime(0,AC.currentTime,.2);stopT=setTimeout(()=>{clearInterval(timer);timer=0;stopT=0},900)}}
 btn.addEventListener('click',toggle);

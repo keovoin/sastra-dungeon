@@ -72,6 +72,8 @@
     <div id="menuRow">
       <button id="langBtn" title="Switch language">EN · ខ្មែរ</button>
       <button id="titlesBtn" title="Unlockable titles" class="titlesBtn">🏆 TITLES <span id="titlesCount">0/10</span></button>
+      <button id="dailyBtn" class="titlesBtn" title="Seeded run — same rolls for every player today">🗓 DAILY TRIAL</button>
+      <button id="settingsBtn" class="titlesBtn" title="Settings &amp; accessibility">⚙ SETTINGS</button>
       <div id="diffSel" title="Difficulty">
         <button class="diff-opt" data-diff="easy">EASY</button>
         <button class="diff-opt active" data-diff="normal">NORMAL</button>
@@ -139,6 +141,34 @@
       <button id="lbLoginBtn" class="google-btn">🔑 Sign in with Google</button>
     </div>
     <div id="lbList" class="lb-list"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="settingsOverlay">
+  <div class="panel settings-panel">
+    <div class="angkor-crest">⚙ ការកំណត់ · TEMPLE SETTINGS ⚙</div>
+    <h2 class="set-title">SETTINGS</h2>
+    <div class="set-row">
+      <div class="set-label">Sound effects<small>hits, skills, UI clicks</small></div>
+      <div class="set-ctl"><input type="range" id="setSfx" min="0" max="100" step="5"><b id="setSfxVal">85</b></div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">Music<small>biome loop · M toggles</small></div>
+      <div class="set-ctl"><input type="range" id="setMusic" min="0" max="100" step="5"><b id="setMusicVal">80</b></div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">Reduce flashing<small>boss deaths, crits &amp; cutscenes drop to 20%</small></div>
+      <div class="set-ctl"><label class="switch"><input type="checkbox" id="setFlash"><span></span></label></div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">Reduce camera shake<small>screen shake kept to a whisper</small></div>
+      <div class="set-ctl"><label class="switch"><input type="checkbox" id="setShake"><span></span></label></div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">Extra effects<small>sprite silhouettes &amp; impact sparks</small></div>
+      <div class="set-ctl"><label class="switch"><input type="checkbox" id="setVfx"><span></span></label></div>
+    </div>
+    <button class="btn" id="settingsClose" style="margin-top:14px">CLOSE</button>
   </div>
 </div>
 
