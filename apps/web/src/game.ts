@@ -2859,7 +2859,7 @@ export function startGame(clsKey, opts?:{daily?:boolean}){
       minions:[],dust:[],portals:[],delayed:[],hazards:[],
       traps:[],totems:[],grounds:[],
       shopStock:[],shopWave:0,
-      damageFlash:0,hitStop:0,currentBiomeKey:'crypt',lastBiomeKey:'crypt',
+      damageFlash:0,hitStop:0,realmWipe:null,currentBiomeKey:'crypt',lastBiomeKey:'crypt',
       _cutscenesPlayed:{},
       cam:{x:WORLD.w/2,y:WORLD.h/2},
       player:{
@@ -3651,7 +3651,9 @@ function startWave(g){
     g.lastBiomeKey=biome.key;
     setFloorForBiome(biome.key);
     respawnDustForBiome(biome.key);
-    addToast('◆ '+biome.name.toUpperCase()+' ◆','#c8b89a','A new biome awaits');
+    g.realmWipe={t:0,name:biome.name,sub:'REALM '+(BIOMES.indexOf(biome)+1)+' OF '+BIOMES.length};
+    /* the realm wipe already names the biome — a toast on top of it is clutter */
+    if(!g.realmWipe) addToast('◆ '+biome.name.toUpperCase()+' ◆','#c8b89a','A new biome awaits');
     updateBiomeLabel();
     showLore(biome);
     saveGame();
@@ -5328,6 +5330,95 @@ function render(){
   grd.addColorStop(0,'rgba(0,0,0,0)');grd.addColorStop(1,biome.edge);
   ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
   ctx.restore();
+
+  /* ── FOREGROUND PARALLAX: temple lintel and hanging vines pass over the
+        player, which is what gives the room depth ── */
+  {
+    const px=G.cam.x*0.35, t=G.time;
+    ctx.save();
+    /* stone lintel across the top */
+    ctx.fillStyle='rgba(24,16,10,0.92)';
+    ctx.fillRect(0,0,W,30);
+    ctx.fillStyle='rgba(60,42,26,0.95)';
+    ctx.fillRect(0,0,W,20);
+    for(let i=0;i<Math.ceil(W/56)+2;i++){
+      const bx=((i*56-px)%(W+56)+W+56)%(W+56)-56;
+      ctx.fillStyle='rgba(96,70,42,0.55)';
+      ctx.fillRect(bx+6,4,10,10);
+      ctx.fillStyle='rgba(20,12,6,0.5)';
+      ctx.fillRect(bx+20,6,26,3);
+    }
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,20,W,10);
+    /* vines hanging from the lintel */
+    for(let i=0;i<7;i++){
+      const vx=((i*233-px*1.6)%(W+240)+W+240)%(W+240)-120;
+      const len=54+((i*37)%70), sway=Math.sin(t*0.7+i)*7;
+      ctx.strokeStyle='rgba(30,52,30,0.9)';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(vx,24);
+      ctx.quadraticCurveTo(vx+sway,len*0.55,vx+sway*1.6,len);
+      ctx.stroke();
+      for(let k=1;k<=4;k++){
+        const q=k/4, ly=24+len*q, lx=vx+sway*1.6*q*q;
+        ctx.fillStyle=k%2?'rgba(46,78,42,0.9)':'rgba(34,60,32,0.9)';
+        ctx.beginPath();ctx.ellipse(lx-5,ly,7,4,-0.5,0,TAU);ctx.fill();
+        ctx.beginPath();ctx.ellipse(lx+5,ly,7,4,0.5,0,TAU);ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /* ── REALM TRANSITION: stone panels close, name the realm, open ── */
+  if(G.realmWipe){
+    const t=G.realmWipe.t, D=2.4;
+    const shut=Math.min(1,Math.max(0,(t<0.55?t/0.55:1-(t-1.5)/0.55)));
+    if(shut>0.001){
+      const wid=W/2*shut;
+      ctx.save();
+      const gL=ctx.createLinearGradient(0,0,wid,0);
+      gL.addColorStop(0,'#1a1006');gL.addColorStop(0.75,'#33200f');gL.addColorStop(1,'#573a1e');
+      ctx.fillStyle=gL;ctx.fillRect(0,0,wid,H);
+      ctx.save();ctx.translate(W,0);ctx.scale(-1,1);
+      ctx.fillStyle=gL;ctx.fillRect(0,0,wid,H);ctx.restore();
+      /* carved relief: column pairs + lotus rosettes, so the panels read as
+         temple doors instead of a fade */
+      ctx.save();
+      for(const sgn of [1,-1]){
+        ctx.save();
+        ctx.translate(sgn>0?0:W,0);ctx.scale(sgn,1);
+        for(let cx2=34;cx2<wid;cx2+=74){
+          ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(cx2+6,0,16,H);
+          ctx.fillStyle='rgba(240,193,75,0.10)';ctx.fillRect(cx2,0,5,H);
+          ctx.fillStyle='rgba(240,193,75,0.06)';ctx.fillRect(cx2+22,0,3,H);
+        }
+        for(let ry=120;ry<H-60;ry+=190){
+          for(let rx=56;rx<wid-40;rx+=110){
+            ctx.strokeStyle='rgba(240,193,75,0.14)';ctx.lineWidth=2;
+            for(let k=0;k<8;k++){
+              const a=k/8*TAU;
+              ctx.beginPath();ctx.ellipse(rx+Math.cos(a)*13,ry+Math.sin(a)*13,7,4,a,0,TAU);ctx.stroke();
+            }
+            ctx.beginPath();ctx.arc(rx,ry,4,0,TAU);ctx.stroke();
+          }
+        }
+        /* gold seam band */
+        ctx.fillStyle='rgba(232,181,58,0.55)';ctx.fillRect(wid-9,0,9,H);
+        ctx.fillStyle='rgba(255,238,190,0.35)';ctx.fillRect(wid-9,0,3,H);
+        ctx.restore();
+      }
+      ctx.restore();
+      const a=Math.max(0,Math.min(1,(t-0.45)/0.35))*Math.max(0,Math.min(1,(1.75-t)/0.3));
+      if(a>0.01){
+        ctx.globalAlpha=a;ctx.textAlign='center';
+        ctx.font=`bold ${Math.round(H*0.052)}px 'Trebuchet MS', sans-serif`;
+        ctx.fillStyle='#f0c14b';ctx.fillText(G.realmWipe.name.toUpperCase(),W/2,H*0.48);
+        ctx.font=`${Math.round(H*0.021)}px 'Trebuchet MS', sans-serif`;
+        ctx.fillStyle='#c8b89a';ctx.fillText(G.realmWipe.sub,W/2,H*0.53);
+        ctx.strokeStyle='rgba(240,193,75,0.6)';ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(W/2-140,H*0.505);ctx.lineTo(W/2+140,H*0.505);ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
   if(G.damageFlash>0){ctx.fillStyle=`rgba(180,20,20,${FL(G.damageFlash*0.28)})`;ctx.fillRect(0,0,W,H)}
   const hpPct=G.player.hp/G.player.maxHp;
   if(hpPct<0.35&&G.player.hp>0){
@@ -6109,6 +6200,7 @@ function drawEnemy(e){
 /* One simulation step. Split out of loop() so the run can keep advancing
    while the tab is hidden (background timers + catch-up on return). */
 function stepWorld(dt){
+  if(G&&G.realmWipe){ G.realmWipe.t+=dt; if(G.realmWipe.t>2.4) G.realmWipe=null; }
   if(!G||!G.running||G.paused)return;
   G.time+=dt;
   G.shake=Math.max(0,G.shake-dt*45);
@@ -6262,6 +6354,69 @@ document.getElementById('vicMenuBtn').addEventListener('click',()=>{
   sfx.click();
   backToMenu();
 });
+
+/* Run summary card: a shareable image of the run, drawn on death. */
+function drawRunCard(g, score){
+  const cv=document.getElementById('runCard');
+  if(!cv||!cv.getContext) return;
+  const x=cv.getContext('2d'), W2=cv.width, H2=cv.height;
+  const p=g.player, C=CLASSES[p.cls], biome=getBiomeForWave(Math.max(1,g.wave));
+
+  const bg=x.createLinearGradient(0,0,W2,H2);
+  bg.addColorStop(0,'#160f08');bg.addColorStop(0.55,'#241708');bg.addColorStop(1,'#0c0805');
+  x.fillStyle=bg;x.fillRect(0,0,W2,H2);
+
+  /* sandstone frame + corner naga marks */
+  x.strokeStyle='#8a6a32';x.lineWidth=6;x.strokeRect(14,14,W2-28,H2-28);
+  x.strokeStyle='rgba(240,193,75,0.45)';x.lineWidth=2;x.strokeRect(26,26,W2-52,H2-52);
+
+  /* mandala watermark behind the score */
+  x.save();x.globalAlpha=0.10;x.translate(W2*0.79,H2*0.5);x.strokeStyle='#e8b53a';x.lineWidth=3;
+  for(let r=40;r<=190;r+=38){x.beginPath();x.arc(0,0,r,0,TAU);x.stroke();}
+  for(let i=0;i<12;i++){const a=i/12*TAU;x.beginPath();x.moveTo(Math.cos(a)*40,Math.sin(a)*40);x.lineTo(Math.cos(a)*190,Math.sin(a)*190);x.stroke();}
+  x.restore();
+
+  x.textAlign='left';
+  x.fillStyle='#f0c14b';x.font="bold 34px 'Trebuchet MS', sans-serif";
+  x.fillText('ANGKOR SASTRA CHRONICLES', 54, 92);
+  x.fillStyle='#c8b89a';x.font="18px 'Trebuchet MS', sans-serif";
+  x.fillText('RUN RECORD · ' + new Date().toLocaleDateString(), 54, 120);
+
+  /* class block */
+  const col=(C&&C.color)||'#e8c07a';
+  x.fillStyle=col;x.font="bold 64px 'Trebuchet MS', sans-serif";
+  x.fillText(C?C.name:'Unknown', 54, 210);
+  if(C&&C.arch){x.fillStyle='rgba(200,184,154,0.9)';x.font="20px 'Trebuchet MS', sans-serif";
+    x.fillText(String(C.arch).toUpperCase()+' · LV '+p.level, 56, 240);}
+
+  /* stat row */
+  const stats=[['WAVE',g.wave],['KILLS',g.kills],['GOLD',Math.floor(p.gold||0)]];
+  let sx=54;
+  for(const [k,lv] of stats){
+    x.fillStyle='#c8b89a';x.font="17px 'Trebuchet MS', sans-serif";x.fillText(k, sx, 306);
+    x.fillStyle='#f4e7c8';x.font="bold 40px 'Trebuchet MS', sans-serif";x.fillText(String(lv), sx, 350);
+    sx+=170;
+  }
+
+  /* score plate */
+  x.fillStyle='rgba(122,255,154,0.12)';x.fillRect(W2-300,286,240,96);
+  x.strokeStyle='rgba(122,255,154,0.5)';x.lineWidth=2;x.strokeRect(W2-300,286,240,96);
+  x.fillStyle='#7aff9a';x.font="17px 'Trebuchet MS', sans-serif";x.textAlign='center';
+  x.fillText('HERO SCORE',W2-180,318);
+  x.font="bold 44px 'Trebuchet MS', sans-serif";
+  x.fillText(score.toLocaleString(),W2-180,366);
+
+  x.textAlign='left';
+  x.fillStyle='#8a7a5a';x.font="17px 'Trebuchet MS', sans-serif";
+  x.fillText('Fell in ' + biome.name + ' · ' + (diffKey||'normal').toUpperCase(), 54, 410);
+  x.textAlign='right';
+  x.fillStyle='#e8b53a';x.fillText('play.sastra.tech', W2-54, 410);
+  x.textAlign='left';
+
+  const dl=document.getElementById('runCardDl');
+  if(dl) dl.href=cv.toDataURL('image/png');
+}
+
 function gameOver(){
   if(!G)return;
   G.running=false;
@@ -6277,6 +6432,7 @@ function gameOver(){
      <div>Class: <b style="color:${C?C.color:'#fff'}">${C?C.name:'?'}</b></div>
      <div>Fell in <b style="color:#e8c07a">${getBiomeForWave(Math.max(1,G.wave)).name}</b> · Wave ${G.wave}</div>
      <div><b style="color:#ff8f2e">${G.kills}</b> monsters slain · <b style="color:#ffd54f">${Math.floor(p.gold||0)}g</b> earned</div>`;
+  try{ drawRunCard(G, score); }catch(e){ console.warn('run card failed', e); }
   document.getElementById('deathScreen').classList.remove('hidden');
   document.getElementById('autoBadge').style.display='none';
 }

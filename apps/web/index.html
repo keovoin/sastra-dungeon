@@ -180,9 +180,12 @@
   <div class="panel">
     <div id="deathTitle" data-i18n="YOU DIED">YOU DIED</div>
     <div class="stats" id="deathStats"></div>
+    <canvas id="runCard" width="900" height="460" aria-label="Run summary card"
+      style="width:100%;max-width:520px;border-radius:10px;border:1px solid #4a3a22;display:block;margin:10px auto"></canvas>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button class="btn" id="againBtn" data-i18n="Try Again">Try Again</button>
       <button class="btn" id="deathRankBtn">🏛 Rankings</button>
+      <a class="btn ghost" id="runCardDl" download="sastra-run.png" style="text-decoration:none">⬇ Save card</a>
       <button class="btn ghost" id="menuBtn2" data-i18n="Main Menu">Main Menu</button>
     </div>
   </div>
