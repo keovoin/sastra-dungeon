@@ -3290,8 +3290,12 @@ function damageEnemy(e,amount,g,src,opts){
   let dmgColor='#ffffff';
   if(crit)dmgColor='#ffd54f';
   else if(src&&src.cls&&CLASSES[src.cls])dmgColor=CLASSES[src.cls].accent;
-  g.texts.push({x:e.x+rand(-8,8),y:e.y-e.r-6,vy:-70,life:0.7,max:0.7,spawn:0.7,
-    text:String(amount),color:dmgColor,size:crit?21:12});
+  /* boss numbers arc above the head: at 130px tall a number placed at e.r-6
+     sits right on the face and hides the sprite it belongs to */
+  const bossLift=e.boss?e.r*1.45:0;
+  g.texts.push({x:e.x+rand(-8,8)+ (e.boss?rand(-14,14):0), y:e.y-e.r-6-bossLift,
+    vy:e.boss?-96:-70, life:e.boss?0.85:0.7, max:e.boss?0.85:0.7, spawn:e.boss?0.85:0.7,
+    text:String(amount),color:dmgColor,size:crit?(e.boss?19:21):12});
   if(e.hp<=0)killEnemy(e,g);
 }
 function dropXP(g,x,y,amount){
@@ -5070,13 +5074,13 @@ function vfxSparks(e,crit,src){
   if(!GFX.sparks)return;
   const C=(src&&src.cls&&CLASSES[src.cls])?CLASSES[src.cls]:null;
   const col=(C&&C.accent)||'#ffd54f';
-  const n=crit?8:3;
+  const n=e.boss?(crit?5:2):(crit?8:3);       /* boss silhouettes need air */
   for(let i=0;i<n;i++){
     const a=rand(0,TAU),sp=rand(70,crit?300:180);
     G.particles.push({x:e.x,y:e.y-e.r*0.2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-50,
-      life:rand(0.16,0.36),max:0.36,size:rand(1.6,crit?4.2:3),color:i%3===0?'#ffffff':col,glow:true});
+      life:rand(0.16,0.36),max:0.36,size:rand(1.6,crit?(e.boss?3.4:4.2):3),color:i%3===0?'#ffffff':col,glow:true});
   }
-  if(crit)G.fx.push({type:'ring',x:e.x,y:e.y,r:e.r*2.6,life:0.22,max:0.22,color:col});
+  if(crit)G.fx.push({type:'ring',x:e.x,y:e.y,r:e.r*(e.boss?1.9:2.6),life:0.22,max:0.22,color:col});
 }
 /* ===== Pixel downscale buffer (chunky 8/16-bit look) ===== */
 let pixBuf=null,pixCtx=null,mainCtxSaved=null;
