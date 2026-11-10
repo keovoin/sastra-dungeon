@@ -2977,6 +2977,7 @@ function itemPower(it){
 
 /* Start game */
 export function startGame(clsKey, opts?:{daily?:boolean}){
+  try{ localStorage.setItem('sd_last_cls', String(clsKey)); }catch(e){}
   try {
     const C=CLASSES[clsKey];
     if(!C){console.error('❌ Class not found:', clsKey);addToast('Class not found: '+clsKey,'#ef4444','');return;}
@@ -3034,6 +3035,13 @@ export function startGame(clsKey, opts?:{daily?:boolean}){
         titleIcon:(TITLES_UNLOCKED[clsKey]&&TITLES[clsKey])?TITLES[clsKey].icon:''
       }
     };
+    /* Boss Rush is armed before startGame runs, so the very first wave is a
+       guardian wave instead of trash. */
+    if((window as any).__rushPending){
+      (window as any).__rushPending=false;
+      G.rush=true; G.rushIdx=0; G.wave=7;
+      G._cutscenesPlayed={cryptLord:true,cavernTitan:true,frostWyrm:true,volcanoBehemoth:true,shadowPrince:true};
+    }
     cutscene.active=false;cutscene.actors=[];cutscene.dialogue=null;
     document.getElementById('cutsceneBars').classList.add('hidden');
     document.getElementById('cutsceneDialogue').classList.add('hidden');
@@ -3490,6 +3498,12 @@ function killEnemy(e,g){
   }
   e.dead=true;g.kills++;
   if(e.boss){ markCodex(e.bossKey,'kill'); }
+  if(e.boss && g.rush && !e._rushCounted){
+    e._rushCounted=true;
+    g.rushIdx=(g.rushIdx||0)+1;
+    if(g.rushIdx>=RUSH_CHAIN.length) endBossRush(g);
+    else addToast('⚔ GUARDIAN FALLEN','#ff8f2e',(RUSH_CHAIN.length-g.rushIdx)+' remain');
+  }
   if(e.boss&&!e.finale){
     /* BOSS RELIC: every boss kill grants two random attribute levels */
     try{
@@ -3784,10 +3798,46 @@ const BIOME_LORE={
 function showLore(b){const L=BIOME_LORE[b.key];if(!L)return;const el=document.getElementById('loreCard');
   el.innerHTML='<div class="lr">REALM '+L.n+'</div><div class="ln" style="color:'+L.c+'">'+b.name.toUpperCase()+'</div><div class="lt">'+L.t+'</div><div class="lk" style="color:'+L.c+'">'+L.r+'</div>';
   el.classList.add('on');clearTimeout(showLore._t);showLore._t=setTimeout(()=>el.classList.remove('on'),7000)}
+
+/* ═══ BOSS RUSH ═══
+   Five guardians back to back, no trash waves, realms swap per fight.
+   Uses the normal wave machinery so HP scaling, drops and cutscene-skip all
+   behave exactly as they do in a campaign run. */
+const RUSH_CHAIN = [
+  { biome:'crypt',   boss:'cryptLord' },
+  { biome:'caverns', boss:'cavernTitan' },
+  { biome:'frost',   boss:'frostWyrm' },
+  { biome:'volcano', boss:'volcanoBehemoth' },
+  { biome:'shadow',  boss:'shadowPrince' },
+];
+function startBossRush(){
+  let cls='ironclad';
+  try{ const saved=localStorage.getItem('sd_last_cls'); if(saved&&CLASSES[saved])cls=saved; }catch(e){}
+  (window as any).__rushPending=true;
+  try{
+    const wg=(window as any).startGame;
+    if(typeof wg==='function') wg(cls); else startGame(cls);
+  }catch(e){ (window as any).__rushPending=false; console.error('❌ boss rush start:',e); return; }
+  setTimeout(()=>addToast('⚔ BOSS RUSH','#ff5c5c','Five guardians · no trash waves · one life'),900);
+}
+function endBossRush(g){
+  g.rush=false;
+  const bonus=120;
+  META.souls+=bonus; META.earned+=bonus; saveMeta();
+  recordMetaRun(g, computeHeroScore(g.wave||1,g.kills||0,(g.player&&g.player.level)||1,diffKey||'normal'), true);
+  addToast('⚔ BOSS RUSH CLEARED','#ffd54f','+'+bonus+' souls banked');
+  g._finaleDone=true;
+  try{ showVictoryScreen(); }catch(e){}
+}
+
 function startWave(g){
   g.wave++;
   refreshShopStock(g);
-  const biome=getBiomeForWave(g.wave);
+  let biome=getBiomeForWave(g.wave);
+  if(g.rush){
+    const r=RUSH_CHAIN[Math.min(g.rushIdx||0,RUSH_CHAIN.length-1)];
+    biome=BIOMES.find(b=>b.key===r.biome)||biome;
+  }
   g.currentBiomeKey=biome.key;
   if(biome.key!==g.lastBiomeKey){
     g.lastBiomeKey=biome.key;
@@ -3800,15 +3850,18 @@ function startWave(g){
     showLore(biome);
     saveGame();
   }
-  const isBoss=isBossWave(g.wave), isElite=isEliteWave(g.wave);
-  const n=Math.min(3+g.wave*2,38); // early waves lighter (wave1: 5 mobs) so melee tanks can wall the open
+  const isBoss=g.rush?true:isBossWave(g.wave), isElite=g.rush?false:isEliteWave(g.wave);
+  const n=g.rush?0:Math.min(3+g.wave*2,38); // early waves lighter (wave1: 5 mobs) so melee tanks can wall the open
   g.spawnQueue=[];
   for(let i=0;i<n;i++){
     let type=pick(biome.enemies);
     if(isElite&&i===0)type='elite';
     g.spawnQueue.push(type);
   }
-  if(isBoss){ g.spawnQueue.push('BOSS:'+biome.boss); markCodex(biome.boss,'seen'); }
+  if(g.rush){
+    const r=RUSH_CHAIN[Math.min(g.rushIdx||0,RUSH_CHAIN.length-1)];
+    g.spawnQueue.push('BOSS:'+r.boss); markCodex(r.boss,'seen');
+  } else if(isBoss){ g.spawnQueue.push('BOSS:'+biome.boss); markCodex(biome.boss,'seen'); }
   const CSC={crypt:['cryptLord',startCryptLordCutscene],caverns:['cavernTitan',startTitanCutscene],frost:['frostWyrm',startWyrmCutscene],volcano:['volcanoBehemoth',startBehemothCutscene],shadow:['shadowPrince',startPrinceCutscene]}[biome.key];
   if(isBoss&&CSC&&!(g._cutscenesPlayed&&g._cutscenesPlayed[CSC[0]])){
     g._cutscenesPlayed=g._cutscenesPlayed||{};
@@ -7259,6 +7312,7 @@ document.querySelectorAll('.arc-tab').forEach(b=>b.addEventListener('click',()=>
   bindToggle('setAutoPause',(on)=>{ SETTINGS.autoPause=on; });
   document.getElementById('dailyBtn')?.addEventListener('click',()=>{ sfx.ui(); startDailyRun(); });
   document.getElementById('weeklyBtn')?.addEventListener('click',()=>{ sfx.ui(); startWeeklyRun(); });
+  document.getElementById('rushBtn')?.addEventListener('click',()=>{ sfx.ui(); startBossRush(); });
   document.getElementById('setProfile')?.addEventListener('change',(ev)=>{ const v=(ev.target as HTMLSelectElement).value; SETTINGS.profile=v; applyColorProfile(v); saveSettings(); });
   try{
     const last=localStorage.getItem('sd_daily_last');
