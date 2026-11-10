@@ -2859,7 +2859,7 @@ export function startGame(clsKey, opts?:{daily?:boolean}){
       minions:[],dust:[],portals:[],delayed:[],hazards:[],
       traps:[],totems:[],grounds:[],
       shopStock:[],shopWave:0,
-      damageFlash:0,hitStop:0,realmWipe:null,currentBiomeKey:'crypt',lastBiomeKey:'crypt',
+      damageFlash:0,hitStop:0,realmWipe:null,realmHazards:[],_hazT:3.0,currentBiomeKey:'crypt',lastBiomeKey:'crypt',
       _cutscenesPlayed:{},
       cam:{x:WORLD.w/2,y:WORLD.h/2},
       player:{
@@ -3415,6 +3415,7 @@ function triggerDodge(p,g){
 }
 function damagePlayer(amount,g,kind,attacker){
   const p=g.player;
+  if(!isFinite(amount)){ amount=0; }   /* a NaN amount used to set p.hp to NaN permanently */
   if(p.invuln>0||p.hp<=0)return;
   if(kind!=='hazard'){
     const dc=kind==='proj'?(p._dodgeProj||0):(p._dodgeMelee||0);
@@ -5070,6 +5071,95 @@ function vfxSignature(p,s){
     default: R(70,col,0.22);
   }
 }
+
+/* Hazard ground layer: telegraph first, then the effect. Drawn under actors so
+   the warning ring never hides the player. */
+function vfxHazards(){
+  if(!G||!G.realmHazards||!G.realmHazards.length)return;
+  const t=G.time;
+  for(const h of G.realmHazards){
+    const D=h.def, k=h.t/D.warn, live=h.t>=D.warn;
+    const on=live? Math.min(1,(h.t-D.warn)/0.12) : Math.min(1,k);
+    ctx.save(); ctx.translate(h.x,h.y);
+    if(!live){
+      /* telegraph: dashed ring closing inward + kind marker */
+      /* dark bed first so the ring separates from the stone */
+      ctx.globalAlpha=0.45;
+      ctx.fillStyle='rgba(0,0,0,0.75)';
+      ctx.beginPath(); ctx.arc(0,0,h.r*1.12,0,TAU); ctx.fill();
+      ctx.globalAlpha=1;
+      ctx.globalAlpha=0.55+0.40*(1-Math.abs(0.5-k)*2);
+      ctx.shadowColor=D.col; ctx.shadowBlur=12;
+      ctx.strokeStyle=D.col; ctx.lineWidth=5; ctx.setLineDash([14,9]);
+      ctx.lineDashOffset=-t*30;
+      ctx.beginPath(); ctx.arc(0,0,h.r*(1.22-0.22*k),0,TAU); ctx.stroke();
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,h.r*(1.02-0.10*k),0,TAU); ctx.stroke();
+      ctx.setLineDash([]); ctx.shadowBlur=0;
+      ctx.globalAlpha=0.22+0.26*k;
+      ctx.fillStyle=D.col2;
+      ctx.beginPath(); ctx.arc(0,0,h.r*0.92,0,TAU); ctx.fill();
+      ctx.globalAlpha=0.85;
+      ctx.fillStyle=D.col;
+      if(h.kind==='crypt'){ for(let i=0;i<3;i++){ const a=i*2.1+h.spin; ctx.beginPath();
+          ctx.moveTo(Math.cos(a)*h.r*0.5,Math.sin(a)*h.r*0.5);
+          ctx.lineTo(Math.cos(a)*h.r*0.5+5,Math.sin(a)*h.r*0.5-9);
+          ctx.lineTo(Math.cos(a)*h.r*0.5-5,Math.sin(a)*h.r*0.5-9); ctx.closePath(); ctx.fill(); } }
+      else if(h.kind==='caverns'){ ctx.beginPath(); ctx.arc(0,-h.r*1.5,10,0,TAU); ctx.fill(); }
+      else if(h.kind==='frost'){ for(let i=0;i<4;i++){ const a=i*Math.PI/2+h.spin*0.3;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a)*h.r*0.6,Math.sin(a)*h.r*0.6);
+          ctx.lineTo(Math.cos(a)*h.r*0.85+4,Math.sin(a)*h.r*0.85);
+          ctx.lineTo(Math.cos(a)*h.r*0.6-4,Math.sin(a)*h.r*0.85); ctx.closePath(); ctx.fill(); } }
+      else if(h.kind==='volcano'){ ctx.beginPath(); ctx.ellipse(0,0,h.r*0.55,h.r*0.3,0,0,TAU); ctx.fill(); }
+      else { ctx.beginPath(); ctx.ellipse(0,0,h.r*0.65,h.r*0.40,0,0,TAU); ctx.fill(); }
+    } else {
+      /* active effect */
+      const fade=Math.max(0,1-(h.t-D.warn)/D.active);
+      ctx.globalAlpha=on*fade;
+      if(h.kind==='crypt'||h.kind==='frost'){
+        const n=h.kind==='crypt'?7:9;
+        for(let i=0;i<n;i++){
+          const a=(i/n)*TAU+h.spin, rr=h.r*(h.kind==='crypt'?0.55:0.5);
+          const hh=(h.kind==='crypt'?34:26)*on;
+          ctx.fillStyle=h.kind==='crypt'?'#e8d8a8':D.col;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a)*rr-6,Math.sin(a)*rr);
+          ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr-hh);
+          ctx.lineTo(Math.cos(a)*rr+6,Math.sin(a)*rr);
+          ctx.closePath(); ctx.fill();
+        }
+      } else if(h.kind==='caverns'){
+        const fall=Math.max(0,1-(h.t-D.warn)/0.28);
+        const ry=-h.r*1.8*(1-fall);
+        ctx.fillStyle='#6a4a20'; ctx.beginPath(); ctx.arc(0,ry,16,0,TAU); ctx.fill();
+        ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(0,0,h.r*0.7*fade,h.r*0.4*fade,0,0,TAU); ctx.fill();
+        ctx.strokeStyle='#d8b070'; ctx.lineWidth=3;
+        for(let i=0;i<6;i++){ const a=i*1.05+h.spin; ctx.beginPath();
+          ctx.moveTo(Math.cos(a)*10,Math.sin(a)*10); ctx.lineTo(Math.cos(a)*h.r*0.9*fade,Math.sin(a)*h.r*0.6*fade); ctx.stroke(); }
+      } else if(h.kind==='volcano'){
+        ctx.globalCompositeOperation='lighter';
+        for(let i=0;i<9;i++){
+          const a=(i/9)*TAU, fl=h.r*(0.5+0.5*Math.abs(Math.sin(t*7+i)));
+          ctx.fillStyle=i%2?'#ff9a3c':'#ffd54f';
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a)*h.r*0.25,Math.sin(a)*h.r*0.25);
+          ctx.quadraticCurveTo(Math.cos(a)*h.r*0.7,Math.sin(a)*h.r*0.7-fl*0.5,Math.cos(a)*h.r*0.55,Math.sin(a)*h.r*0.55-fl);
+          ctx.quadraticCurveTo(Math.cos(a)*h.r*0.45,Math.sin(a)*h.r*0.45,Math.cos(a)*h.r*0.25,Math.sin(a)*h.r*0.25);
+          ctx.fill();
+        }
+      } else {
+        ctx.fillStyle='rgba(20,4,40,0.85)';
+        ctx.beginPath(); ctx.ellipse(0,0,h.r*0.85,h.r*0.5,0,0,TAU); ctx.fill();
+        ctx.strokeStyle=D.col; ctx.lineWidth=3;
+        for(let i=0;i<3;i++){ const rr=h.r*(0.3+0.25*i)+((t*22)%18);
+          ctx.globalAlpha=on*fade*(0.5-0.12*i);
+          ctx.beginPath(); ctx.ellipse(0,0,rr,rr*0.6,0,0,TAU); ctx.stroke(); }
+      }
+    }
+    ctx.restore();
+  }
+}
+
 function vfxSparks(e,crit,src){
   if(!GFX.sparks)return;
   const C=(src&&src.cls&&CLASSES[src.cls])?CLASSES[src.cls]:null;
@@ -5243,6 +5333,7 @@ function render(){
   }
   gfxGround(biome);
   if(cutscene.active)for(const a of cutscene.actors)if(a.drawGround&&!a.dead)a.drawGround(a);
+  vfxHazards();
   for(const e of G.enemies)if(!e.dead){drawEnemy(e);if(e._redAura)drawBossRage(e);if(e.finale&&!cutscene.active&&e.hp<=Math.ceil(e.maxHp*.1))drawFinaleMark(e)}
   for(const m of G.minions)drawMinion(m);
   for(const pt of (G.pets||[])){
@@ -6225,6 +6316,51 @@ function drawEnemy(e){
 
 /* One simulation step. Split out of loop() so the run can keep advancing
    while the tab is hidden (background timers + catch-up on return). */
+
+/* ═══ REALM HAZARDS ═══
+   Each realm now has one ground hazard that telegraphs, then fires. They are
+   what make a realm play differently rather than just look different. */
+const HAZ_DEF = {
+  crypt:  {name:'Spike Trap',     dmg:0.085, r:80, period:5.4, warn:0.95, active:0.45, col:'#ff8a4a', col2:'#5a3218'},
+  caverns:{name:'Falling Debris', dmg:0.105, r:88, period:6.2, warn:1.05, active:0.50, col:'#ffcf6a', col2:'#4a3210'},
+  frost:  {name:'Frost Shards',   dmg:0.090, r:92, period:6.6, warn:1.10, active:0.55, col:'#8fe4ff', col2:'#1a4a68'},
+  volcano:{name:'Lava Vent',      dmg:0.120, r:84, period:5.0, warn:0.85, active:0.60, col:'#ff6a2e', col2:'#5a1404'},
+  shadow: {name:'Shadow Pool',    dmg:0.070, r:96, period:6.4, warn:1.00, active:0.70, col:'#c070ff', col2:'#2a0850'},
+};
+
+function stepHazards(dt,g){
+  if(!g.realmHazards) { g.realmHazards=[]; g._hazT=3.0; }
+  if(cutscene.active) return;
+  g._hazT=(g._hazT||0)-dt;
+  const p=g.player;
+  if(g._hazT<=0 && p && p.hp>0 && g.realmHazards.length<3 && !g.betweenWaves){
+    const def=HAZ_DEF[g.currentBiomeKey]||HAZ_DEF.crypt;
+    g._hazT=def.period*rand(0.75,1.25);
+    /* Mostly under the player's feet — a hazard that lands 300px away is just
+       decoration. A third of the time it leads them, so standing still hurts. */
+    const a=rand(0,TAU);
+    const dist=rng()<0.62? rand(0,46) : rand(150,300);
+    const hx=clamp(p.x+Math.cos(a)*dist, 120, WORLD.w-120);
+    const hy=clamp(p.y+Math.sin(a)*dist, 120, WORLD.h-120);
+    g.realmHazards.push({x:hx,y:hy,r:def.r,kind:g.currentBiomeKey,def,t:0,hitT:0,spin:rand(0,TAU)});
+  }
+  for(const h of g.realmHazards){
+    h.t+=dt;
+    const D=h.def;
+    if(h.t<D.warn) continue;
+    if(h.t>D.warn+D.active) continue;
+    h.hitT=Math.max(0,h.hitT-dt);
+    const d=Math.hypot(p.x-h.x,p.y-h.y);
+    if(d<h.r*0.86 && h.hitT<=0 && p.hp>0){
+      h.hitT=0.55;
+      const amt=Math.max(4,Math.round(p.maxHp*D.dmg));
+      damagePlayer(amt,g,'hazard',null);
+      g.fx.push({type:'ring',x:p.x,y:p.y,r:40,life:.25,max:.25,color:D.col});
+    }
+  }
+  g.realmHazards=g.realmHazards.filter(h=>h.t<h.def.warn+h.def.active+0.15);
+}
+
 function stepWorld(dt){
   if(G&&G.realmWipe){ G.realmWipe.t+=dt; if(G.realmWipe.t>2.4) G.realmWipe=null; }
   if(!G||!G.running||G.paused)return;
@@ -6240,6 +6376,7 @@ function stepWorld(dt){
     if (autoPlay.enabled) updateAutoPlay(dt, G);
     tutorialTick(dt);
     updatePlayer(dt,G);
+    stepHazards(dt,G);
     G.player.isMoving=Math.hypot(G.player.x-px0,G.player.y-py0)>0.4;
     G.player.walkPhase=(G.player.walkPhase||0)+Math.hypot(G.player.x-px0,G.player.y-py0)*0.45;
     updateMinions(dt,G);
