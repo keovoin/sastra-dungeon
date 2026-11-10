@@ -6333,7 +6333,7 @@ function stepHazards(dt,g){
   if(cutscene.active) return;
   g._hazT=(g._hazT||0)-dt;
   const p=g.player;
-  if(g._hazT<=0 && p && p.hp>0 && g.realmHazards.length<3 && !g.betweenWaves){
+  if(g._hazT<=0 && p && p.hp>0 && g.realmHazards.length<((DIFFS[diffKey]&&DIFFS[diffKey].dmg>1.2)?3:2) && !g.betweenWaves){
     const def=HAZ_DEF[g.currentBiomeKey]||HAZ_DEF.crypt;
     g._hazT=def.period*rand(0.75,1.25);
     /* Mostly under the player's feet — a hazard that lands 300px away is just
@@ -6353,7 +6353,9 @@ function stepHazards(dt,g){
     const d=Math.hypot(p.x-h.x,p.y-h.y);
     if(d<h.r*0.86 && h.hitT<=0 && p.hp>0){
       h.hitT=0.55;
-      const amt=Math.max(4,Math.round(p.maxHp*D.dmg));
+      /* hazards respect the difficulty setting — easy used to hit as hard as hard */
+      const dif=DIFFS[diffKey]||DIFFS.normal;
+      const amt=Math.max(4,Math.round(p.maxHp*D.dmg*dif.dmg));
       damagePlayer(amt,g,'hazard',null);
       g.fx.push({type:'ring',x:p.x,y:p.y,r:40,life:.25,max:.25,color:D.col});
     }
