@@ -41,6 +41,107 @@ const rng = () => _rngImpl();
 function setSeed(s:number){_seed=s>>>0;_rngImpl=mulberry32(_seed);_seeded=true}
 function clearSeed(){_seeded=false;_rngImpl=Math.random}
 
+
+/* ═══════════ META PROGRESSION: souls, achievements, history, bestiary ═══════════ */
+const META_KEY = 'sd_meta_v1';
+type MetaRun = { cls:string; wave:number; kills:number; score:number; date:number; diff:string; won:boolean };
+const META: any = {
+  souls: 0, earned: 0,
+  shop: { hp:0, dmg:0, atk:0, fort:0 },
+  runs: [] as MetaRun[],
+  ach: {} as Record<string, boolean>,
+  codex: {} as Record<string, boolean>,
+  stats: { runs:0, kills:0, bestWave:0, bestScore:0, bestKills:0 },
+};
+function loadMeta(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(META_KEY) || '{}');
+    if (typeof raw.souls === 'number') META.souls = raw.souls;
+    if (typeof raw.earned === 'number') META.earned = raw.earned;
+    if (raw.shop) Object.assign(META.shop, raw.shop);
+    if (Array.isArray(raw.runs)) META.runs = raw.runs.slice(0, 10);
+    if (raw.ach) Object.assign(META.ach, raw.ach);
+    if (raw.codex) Object.assign(META.codex, raw.codex);
+    if (raw.stats) Object.assign(META.stats, raw.stats);
+  }catch(e){}
+}
+function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(META)); }catch(e){} }
+loadMeta();
+
+const SOUL_TRACKS = [
+  { id:'hp',   name:'Laterite Vitality', desc:'+8% max HP per rank',      max:5, cost:[60,110,180,280,420] },
+  { id:'dmg',  name:'Kshatriya Fury',    desc:'+6% damage per rank',       max:5, cost:[70,130,210,320,480] },
+  { id:'atk',  name:'Apsara Tempo',      desc:'+4% attack speed per rank', max:5, cost:[80,150,240,360,540] },
+  { id:'fort', name:'Naga Fortune',      desc:'+10% gold per rank',        max:5, cost:[50,90,150,230,350] },
+];
+const ACHIEVEMENTS = [
+  { id:'first_blood', name:'First Blood',         desc:'Slay your first monster',   test:()=>META.stats.kills>=1 },
+  { id:'wave10',      name:'Causeway Walker',     desc:'Reach wave 10',             test:()=>META.stats.bestWave>=10 },
+  { id:'wave25',      name:'Temple Raider',       desc:'Reach wave 25',             test:()=>META.stats.bestWave>=25 },
+  { id:'wave50',      name:'Sovereign of Sastra', desc:'Reach wave 50',             test:()=>META.stats.bestWave>=50 },
+  { id:'serpent',     name:'Serpent Slayer',      desc:'Defeat Naga Raja',          test:()=>!!META.codex.killed_cryptLord },
+  { id:'three',       name:'Three Thrones',       desc:'Defeat three guardians',    test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=3 },
+  { id:'five',        name:'Five Thrones',        desc:'Defeat all five guardians', test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=5 },
+  { id:'kill500',     name:'Deathbringer',        desc:'500 kills in a single run', test:()=>(META.stats.bestKills||0)>=500 },
+  { id:'runs10',      name:'Pilgrim',             desc:'Complete 10 runs',          test:()=>META.stats.runs>=10 },
+  { id:'soul500',     name:'Soulkeeper',          desc:'Bank 500 souls',            test:()=>META.earned>=500 },
+];
+const CODEX_BOSSES = [
+  { key:'cryptLord',       img:'naga',      name:'Naga Raja',   realm:'I · ANGKOR SANKRANTI CRYPT',      line:'Five-headed sovereign of the causeway. It has tasted a thousand kingdoms.' },
+  { key:'cavernTitan',     img:'kumbha',    name:'Kumbhakarna', realm:'II · TA PROHM ROOT CAVERNS',      line:'The asura colossus of the Reamker, woken by the roots of the banyan.' },
+  { key:'frostWyrm',       img:'garuda',    name:'Garuda',      realm:'III · PREAH VIHEAR SKY PEAK',     line:'The bird-king who ate the sun and still hungers for the peak.' },
+  { key:'volcanoBehemoth', img:'kala',      name:'Kala',        realm:'IV · BANTEAY SREI SACRED FORGE',  line:'The devouring face carved above every gate. Time made teeth.' },
+  { key:'shadowPrince',    img:'krongreap', name:'Krong Reap',  realm:'V · BAYON SHADOW SANCTUM',        line:'Ten heads, ten hungers, one throne in the heart of Bayon.' },
+];
+
+function checkAchievements(){
+  let unlocked = 0;
+  for (const a of ACHIEVEMENTS){
+    if (META.ach[a.id]) continue;
+    let ok = false;
+    try { ok = !!a.test(); } catch(e){}
+    if (ok){
+      META.ach[a.id] = true; unlocked++;
+      try { addToast('🏆 ' + a.name, '#ffd54f', a.desc); } catch(e){}
+    }
+  }
+  if (unlocked) saveMeta();
+  return unlocked;
+}
+function markCodex(key, kind){
+  if (!key) return;
+  const tag = kind === 'kill' ? 'killed_' + key : 'seen_' + key;
+  if (!META.codex[tag]){ META.codex[tag] = true; saveMeta(); }
+}
+function recordMetaRun(g, score, won){
+  const p = g && g.player; if (!p) return 0;
+  const soulsGain = Math.max(5, Math.round((g.wave || 1) * 2.2 + (g.kills || 0) * 0.35 + (score || 0) / 900));
+  META.souls += soulsGain;
+  META.earned += soulsGain;
+  META.stats.runs += 1;
+  META.stats.kills += (g.kills || 0);
+  META.stats.bestWave = Math.max(META.stats.bestWave || 0, g.wave || 0);
+  META.stats.bestKills = Math.max(META.stats.bestKills || 0, g.kills || 0);
+  META.stats.bestScore = Math.max(META.stats.bestScore || 0, score || 0);
+  META.runs.unshift({ cls: p.cls || 'warrior', wave: g.wave || 0, kills: g.kills || 0,
+                      score: score || 0, date: Date.now(), diff: diffKey || 'normal', won: !!won });
+  META.runs = META.runs.slice(0, 10);
+  saveMeta();
+  checkAchievements();
+  return soulsGain;
+}
+function buySoulTrack(id){
+  const tr = SOUL_TRACKS.find(t => t.id === id); if (!tr) return false;
+  const rank = META.shop[id] || 0;
+  if (rank >= tr.max) return false;
+  if (META.souls < tr.cost[rank]) return false;
+  META.souls -= tr.cost[rank];
+  META.shop[id] = rank + 1;
+  saveMeta();
+  if (typeof G !== 'undefined' && G && G.player) recalcStats(G.player);
+  return true;
+}
+
 /* ===== Player settings (persisted to localStorage 'sd_settings_v1') =====
    Accessibility + mix controls. `flash` and `shake` gate the full-screen white
    flashes and camera shake that every boss death, crit and cutscene produces. */
@@ -1910,13 +2011,14 @@ function recalcStats(p){
   const agiPts = (at.agi||0) + (up.atk||0) + (up.spd||0);
   const wisPts = (at.wis||0) + (up.cd||0);
   const lckPts = (at.lck||0) + (up.crit||0);
-  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+strPts*0.14)*(1+(tb.dmg||0));
-  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+vitPts*0.16)*(1+(tb.hp||0)));
+  const soulDmg=1+(META.shop.dmg||0)*0.06, soulHp=1+(META.shop.hp||0)*0.08, soulAtk=1+(META.shop.atk||0)*0.04;
+  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+strPts*0.14)*(1+(tb.dmg||0))*soulDmg;
+  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+vitPts*0.16)*(1+(tb.hp||0))*soulHp);
   p.armor=p.baseStats.armor+tot.armor+vitPts*12+(at.stone||0)*12;
   p.speed=(p.baseStats.speed+tot.speed)*(1+agiPts*0.08)*(1+(at.swift||0)*0.10)*(1+(tb.spd||0));
   p.crit=Math.min(0.80,(p.baseStats.crit+tot.crit)+lckPts*0.05+(tb.crit||0));
   p.energyRegen=p.baseStats.energyRegen+tot.regen+wisPts*2.5+(tb.regen||0);
-  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(at.haste||0)*0.12)*(1+(tb.atk||0));
+  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(at.haste||0)*0.12)*(1+(tb.atk||0))*soulAtk;
   p.range=(p.baseStats.range||CL.range||100)*(1+strPts*0.06+(up.range||0)*0.12);
   if(p.baseStats.maxEnergy){
     p.maxEnergy=p.baseStats.maxEnergy + wisPts*8;
@@ -2284,6 +2386,8 @@ function csCircle(x,y,r,t,col,a){ctx.save();ctx.translate(x,y+r*.35);ctx.scale(1
   ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.stroke();ctx.setLineDash([14,10]);ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,r*.78,0,TAU);ctx.stroke();ctx.setLineDash([]);
   ctx.rotate(t*1.2);ctx.beginPath();for(let i=0;i<6;i++){const a2=i/6*TAU;ctx.lineTo(Math.cos(a2)*r*.7,Math.sin(a2)*r*.7)}ctx.closePath();ctx.stroke();ctx.restore()}
 function finaleWin(g){const f=g.finale;f.done=true;g._finaleDone=true;addToast('THE FIVE THRONES HAVE FALLEN','#ffd54f','The Rift is sealed');
+  try{ recordMetaRun(g, computeHeroScore(g.wave||1,g.kills||0,(g.player&&g.player.level)||1,diffKey||'normal'), true); }catch(e){}
+  try{ checkAchievements(); }catch(e){}
   const v=document.getElementById('victoryCard');if(v){v.classList.add('on');setTimeout(()=>v.classList.remove('on'),7000)}}
 /* Mage finisher: ABSOLUTE ZERO -> 4-3-2-1 -> meteors */
 function startMageFinisher(g){
@@ -3307,6 +3411,7 @@ function dropXP(g,x,y,amount){
 }
 function dropGold(g,x,y,amount){
   if(!amount||amount<=0)return;
+  amount=Math.round(amount*(1+(META.shop.fort||0)*0.10));
   if(g.orbs.length>400){g.player.gold=(g.player.gold||0)+amount;return}
   const n=clamp(Math.max(1,Math.round(amount/4)),1,6);
   const part=Math.ceil(amount/n);
@@ -3353,6 +3458,7 @@ function killEnemy(e,g){
     return;
   }
   e.dead=true;g.kills++;
+  if(e.boss){ markCodex(e.bossKey,'kill'); }
   if(e.boss&&!e.finale){
     /* BOSS RELIC: every boss kill grants two random attribute levels */
     try{
@@ -3671,7 +3777,7 @@ function startWave(g){
     if(isElite&&i===0)type='elite';
     g.spawnQueue.push(type);
   }
-  if(isBoss)g.spawnQueue.push('BOSS:'+biome.boss);
+  if(isBoss){ g.spawnQueue.push('BOSS:'+biome.boss); markCodex(biome.boss,'seen'); }
   const CSC={crypt:['cryptLord',startCryptLordCutscene],caverns:['cavernTitan',startTitanCutscene],frost:['frostWyrm',startWyrmCutscene],volcano:['volcanoBehemoth',startBehemothCutscene],shadow:['shadowPrince',startPrinceCutscene]}[biome.key];
   if(isBoss&&CSC&&!(g._cutscenesPlayed&&g._cutscenesPlayed[CSC[0]])){
     g._cutscenesPlayed=g._cutscenesPlayed||{};
@@ -6592,12 +6698,15 @@ function gameOver(){
   const p=G.player;
   const C=CLASSES[p.cls];
   const score = computeHeroScore(G.wave||1, G.kills||0, p.level||1, diffKey||'normal');
+  const soulsGained = recordMetaRun(G, score, false);
   document.getElementById('deathStats').innerHTML=
     `<div>Reached <b style="color:#f0c14b">Level ${p.level}</b> · Score <b style="color:#7aff9a">${score.toLocaleString()}</b></div>
      <div>Class: <b style="color:${C?C.color:'#fff'}">${C?C.name:'?'}</b></div>
      <div>Fell in <b style="color:#e8c07a">${getBiomeForWave(Math.max(1,G.wave)).name}</b> · Wave ${G.wave}</div>
-     <div><b style="color:#ff8f2e">${G.kills}</b> monsters slain · <b style="color:#ffd54f">${Math.floor(p.gold||0)}g</b> earned</div>`;
+     <div><b style="color:#ff8f2e">${G.kills}</b> monsters slain · <b style="color:#ffd54f">${Math.floor(p.gold||0)}g</b> earned</div>
+     <div style="margin-top:6px">📜 <b style="color:#c8a0ff">+${soulsGained} souls</b> banked · total ${META.souls} · <a href="#" id="deathArchive" style="color:#ffd54f">open archive</a></div>`;
   try{ drawRunCard(G, score); }catch(e){ console.warn('run card failed', e); }
+  document.getElementById('deathArchive')?.addEventListener('click',(ev)=>{ ev.preventDefault(); document.getElementById('deathScreen')?.classList.add('hidden'); openArchive('souls'); });
   document.getElementById('deathScreen').classList.remove('hidden');
   document.getElementById('autoBadge').style.display='none';
 }
@@ -6980,7 +7089,88 @@ function syncSettingsUI(){
 function initSettingsUI(){
   const ov=document.getElementById('settingsOverlay'); if(!ov)return;
   const close=()=>{ ov.classList.add('hidden'); saveSettings(); };
-  document.getElementById('settingsBtn')?.addEventListener('click',()=>{ sfx.ui(); ov.classList.remove('hidden'); syncSettingsUI(); });
+  
+/* ═══ ARCHIVE UI ═══ */
+function renderArchive(tab){
+  const soulsEl=document.getElementById('arcSouls');
+  const achEl=document.getElementById('arcAch');
+  const runsEl=document.getElementById('arcRuns');
+  const codexEl=document.getElementById('arcCodex');
+  if(!soulsEl)return;
+  document.querySelectorAll('.arc-tab').forEach(b=>b.classList.toggle('active',b.getAttribute('data-tab')===tab));
+  [soulsEl,achEl,runsEl,codexEl].forEach(el=>el && el.classList.add('hidden'));
+  const show=document.getElementById('arc'+tab.charAt(0).toUpperCase()+tab.slice(1));
+  if(show) show.classList.remove('hidden');
+
+  if(tab==='souls'){
+    let h=`<div class="arc-soul-head"><div><div class="arc-soul-count">${META.souls.toLocaleString()}<small>SOULS BANKED</small></div></div>
+      <div style="text-align:right;font-size:11px;color:#9a8a6a;line-height:1.5">
+        ${META.stats.runs} runs · ${META.stats.kills.toLocaleString()} kills<br>
+        best wave ${META.stats.bestWave} · best score ${(META.stats.bestScore||0).toLocaleString()}
+      </div></div>`;
+    for(const t of SOUL_TRACKS){
+      const rank=META.shop[t.id]||0, maxed=rank>=t.max, cost=maxed?0:t.cost[rank], afford=META.souls>=cost;
+      h+=`<div class="arc-track"><div><b>${t.name}</b><small>${t.desc}</small>
+        <div class="arc-pips"><span style="font-size:9px;color:#8a7a5a;letter-spacing:.12em;margin-right:4px">RANK ${rank}/${t.max}</span>${Array.from({length:t.max},(_,i)=>`<span class="arc-pip${i<rank?' on':''}"></span>`).join('')}</div></div>
+        <button class="arc-buy" data-track="${t.id}" ${maxed||!afford?'disabled':''}>${maxed?'MAX':cost+' ◆'}</button></div>`;
+    }
+    soulsEl.innerHTML=h;
+    soulsEl.querySelectorAll('.arc-buy').forEach(btn=>btn.addEventListener('click',()=>{
+      buySoulTrack(btn.getAttribute('data-track'));
+      sfx.ui(); renderArchive('souls');
+    }));
+  }
+
+  if(tab==='ach'){
+    const got=ACHIEVEMENTS.filter(a=>META.ach[a.id]).length;
+    let h=`<div style="font-size:11px;color:#9a8a6a;margin-bottom:8px">${got} / ${ACHIEVEMENTS.length} unlocked</div><div class="arc-grid">`;
+    for(const a of ACHIEVEMENTS){
+      const on=!!META.ach[a.id];
+      h+=`<div class="arc-card${on?' got':''}"><div class="t">${on?'🏆':'🔒'} ${a.name}</div><div class="d">${a.desc}</div></div>`;
+    }
+    achEl.innerHTML=h+'</div>';
+  }
+
+  if(tab==='runs'){
+    if(!META.runs.length){ runsEl.innerHTML='<div style="color:#8a7a5a;font-size:12px;padding:10px">No runs recorded yet. Die once and this fills up.</div>'; }
+    else{
+      runsEl.innerHTML=META.runs.map(r=>{
+        const C=CLASSES[r.cls]||{};
+        const d=new Date(r.date);
+        const when=d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+        return `<div class="arc-row"><span><b style="color:${C.color||'#f0c14b'}">${C.name||r.cls}</b>
+          <span style="color:#6a5a44"> · ${r.diff}${r.won?' · <b style="color:#7aff9a">WON</b>':''}</span></span>
+          <span>wave <b>${r.wave}</b> · ${r.kills} kills · score <b>${(r.score||0).toLocaleString()}</b> · <span style="color:#6a5a44">${when}</span></span></div>`;
+      }).join('');
+    }
+  }
+
+  if(tab==='codex'){
+    let h='<div class="arc-codex">';
+    for(const b of CODEX_BOSSES){
+      const seen=!!META.codex['seen_'+b.key], killed=!!META.codex['killed_'+b.key];
+      if(!seen && !killed){
+        h+=`<div class="arc-boss locked"><img src="/art/boss-${b.img}.png" alt=""><div class="n">???</div><div class="r">undiscovered</div></div>`;
+      } else {
+        h+=`<div class="arc-boss"><img src="/art/boss-${b.img}.png" alt="${b.name}">
+          <div class="n">${b.name}${killed?' ⚔':''}</div><div class="r">${b.realm}</div><div class="l">${b.line}</div></div>`;
+      }
+    }
+    codexEl.innerHTML=h+'</div>';
+  }
+}
+function openArchive(tab){
+  tab=tab||'souls';
+  const el=document.getElementById('archiveScreen');
+  if(!el)return;
+  renderArchive(tab);
+  el.classList.remove('hidden');
+}
+
+document.getElementById('settingsBtn')?.addEventListener('click',()=>{ sfx.ui(); ov.classList.remove('hidden'); syncSettingsUI(); });
+document.getElementById('archiveBtn')?.addEventListener('click',()=>{ sfx.ui(); openArchive('souls'); });
+document.getElementById('archiveClose')?.addEventListener('click',()=>{ sfx.ui(); document.getElementById('archiveScreen')?.classList.add('hidden'); });
+document.querySelectorAll('.arc-tab').forEach(b=>b.addEventListener('click',()=>{ sfx.ui(); renderArchive(b.getAttribute('data-tab')); }));
   document.getElementById('settingsClose')?.addEventListener('click',()=>{ sfx.ui(); close(); });
   ov.addEventListener('click',(e)=>{ if(e.target===ov) close(); });
   const bindRange=(id,key)=>{

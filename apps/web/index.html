@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Sastra Dungeon — 71 Classes</title>
-<meta name="description" content="Sastra Dungeon — a top-down dungeon crawler with 71 unique classes, 9 archetypes, cutscenes, shops, skill trees and auto-play.">
+<meta name="description" content="Angkor Sastra Chronicles — a 71-class Angkor-era action roguelike: five temple realms, five mythical guardians, soul-shrine meta progression and daily trials.">
 <meta property="og:title" content="Sastra Dungeon — 71 Classes">
 <meta property="og:description" content="Top-down dungeon crawler · 71 classes · cutscenes · skill trees · auto-play.">
-<meta property="og:image" content="/og.png">
+<meta property="og:image" content="/art/og-image.png">
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.ico">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
@@ -74,6 +74,7 @@
       <button id="titlesBtn" title="Unlockable titles" class="titlesBtn">🏆 TITLES <span id="titlesCount">0/10</span></button>
       <button id="dailyBtn" class="titlesBtn" title="Seeded run — same rolls for every player today">🗓 DAILY TRIAL</button>
       <button id="settingsBtn" class="titlesBtn" title="Settings &amp; accessibility">⚙ SETTINGS</button>
+      <button id="archiveBtn" class="titlesBtn" title="Soul shrine, achievements, history, bestiary">📜 ARCHIVE</button>
       <div id="diffSel" title="Difficulty">
         <button class="diff-opt" data-diff="easy">EASY</button>
         <button class="diff-opt active" data-diff="normal">NORMAL</button>
@@ -141,6 +142,26 @@
       <button id="lbLoginBtn" class="google-btn">🔑 Sign in with Google</button>
     </div>
     <div id="lbList" class="lb-list"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="archiveScreen">
+  <div class="panel archive-panel">
+    <div class="angkor-crest">📜 បណ្ណសារ · THE ARCHIVE 📜</div>
+    <h2 class="set-title">ARCHIVE</h2>
+    <div class="arc-tabs">
+      <button class="arc-tab active" data-tab="souls">SOUL SHRINE</button>
+      <button class="arc-tab" data-tab="ach">ACHIEVEMENTS</button>
+      <button class="arc-tab" data-tab="runs">HISTORY</button>
+      <button class="arc-tab" data-tab="codex">BESTIARY</button>
+    </div>
+    <div id="arcSouls" class="arc-body"></div>
+    <div id="arcAch" class="arc-body hidden"></div>
+    <div id="arcRuns" class="arc-body hidden"></div>
+    <div id="arcCodex" class="arc-body hidden"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:14px">
+      <button class="btn ghost" id="archiveClose">Close</button>
+    </div>
   </div>
 </div>
 

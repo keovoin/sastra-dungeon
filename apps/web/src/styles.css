@@ -570,3 +570,45 @@ body.touch #touchUI{display:block}
 
 
 html,body{max-width:100%;overflow-x:hidden}
+
+/* ═══ ARCHIVE (soul shrine · achievements · history · bestiary) ═══ */
+.archive-panel{max-width:760px;width:min(94vw,760px);max-height:88vh;overflow:auto}
+.arc-tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:10px 0 14px}
+.arc-tab{background:#241708;border:1px solid #4a3a22;color:#c8b89a;padding:7px 12px;border-radius:8px;
+  font:600 11px 'Trebuchet MS',sans-serif;letter-spacing:.08em;cursor:pointer}
+.arc-tab.active{background:#3a2a12;border-color:#e8b53a;color:#ffd54f}
+.arc-body{min-height:180px}
+.arc-soul-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:linear-gradient(90deg,#2a1a08,#1a1006);border:1px solid #4a3a22;border-radius:10px;padding:10px 14px;margin-bottom:12px}
+.arc-soul-count{font:700 26px 'Trebuchet MS',sans-serif;color:#ffd54f}
+.arc-soul-count small{display:block;font:500 10px 'Trebuchet MS',sans-serif;color:#8a7a5a;letter-spacing:.14em}
+.arc-track{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+  background:#1e1409;border:1px solid #3a2a16;border-radius:9px;padding:9px 12px;margin-bottom:8px}
+.arc-track b{color:#f0c14b;font-size:13px}
+.arc-track small{display:block;color:#9a8a6a;font-size:11px;margin-top:2px}
+.arc-pips{display:flex;gap:3px;margin-top:5px}
+.arc-pip{width:12px;height:6px;border-radius:2px;background:#3a2a16}
+.arc-pip.on{background:#e8b53a}
+.arc-buy{background:#2f7d3a;border:1px solid #4fbf5f;color:#eaffea;border-radius:8px;
+  padding:8px 12px;font:700 11px 'Trebuchet MS',sans-serif;cursor:pointer;white-space:nowrap}
+.arc-buy:disabled{background:#2a2016;border-color:#4a3a22;color:#6a5a44;cursor:not-allowed}
+.arc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.arc-card{background:#1e1409;border:1px solid #3a2a16;border-radius:9px;padding:9px 11px}
+.arc-card.got{border-color:#e8b53a;background:linear-gradient(180deg,#2c1e0c,#170f06)}
+.arc-card .t{font:700 12px 'Trebuchet MS',sans-serif;color:#e8c07a}
+.arc-card.got .t{color:#ffd54f}
+.arc-card .d{font-size:11px;color:#9a8a6a;margin-top:3px;line-height:1.35}
+.arc-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#c8b89a;
+  padding:7px 10px;border-bottom:1px solid #2a1e10}
+.arc-row b{color:#f0c14b}
+.arc-codex{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.arc-boss{background:#1a1108;border:1px solid #3a2a16;border-radius:10px;padding:10px;text-align:center}
+.arc-boss img{width:88px;height:88px;image-rendering:auto;filter:drop-shadow(0 3px 6px #000)}
+.arc-boss.locked img{filter:grayscale(1) brightness(.35) drop-shadow(0 0 0 #000)}
+.arc-boss .n{font:700 12px 'Trebuchet MS',sans-serif;color:#ffd54f;margin-top:6px}
+.arc-boss .r{font-size:10px;color:#8a7a5a;letter-spacing:.1em;text-transform:uppercase}
+.arc-boss .l{font-size:11px;color:#9a8a6a;margin-top:5px;line-height:1.35}
+
+/* Title key art behind the main menu */
+#menu{background-image:linear-gradient(rgba(10,6,3,.55),rgba(10,6,3,.86)),url('/art/keyart.png');background-size:cover;background-position:center 38%}
+@media (max-width:600px){#menu{background-position:center 30%}}
