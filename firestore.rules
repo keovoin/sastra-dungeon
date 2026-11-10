@@ -25,12 +25,12 @@ service cloud.firestore {
       return data.keys().hasAll([
           'uid', 'displayName', 'photoURL', 'cls', 'level', 'wave',
           'kills', 'gold', 'bestWave', 'bestKills', 'bestLevel',
-          'bestClass', 'savePayload', 'titlesUnlocked', 'createdAt', 'updatedAt'
+          'bestClass', 'savePayload', 'titlesUnlocked', 'meta', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
           'uid', 'displayName', 'photoURL', 'cls', 'level', 'wave',
           'kills', 'gold', 'bestWave', 'bestKills', 'bestLevel',
-          'bestClass', 'savePayload', 'titlesUnlocked', 'createdAt', 'updatedAt'
+          'bestClass', 'savePayload', 'titlesUnlocked', 'meta', 'createdAt', 'updatedAt'
         ])
         && data.uid == request.auth.uid
         && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
@@ -47,6 +47,13 @@ service cloud.firestore {
         && data.bestClass is string && data.bestClass.size() >= 1 && data.bestClass.size() <= 40
         && data.savePayload is map && data.savePayload.keys().size() <= 40
         && data.titlesUnlocked is map && data.titlesUnlocked.keys().size() <= 80
+        && data.meta is map && data.meta.keys().size() <= 12
+        && data.meta.souls is number && data.meta.souls >= 0 && data.meta.souls <= 100000000
+        && data.meta.earned is number && data.meta.earned >= 0 && data.meta.earned <= 100000000
+        && data.meta.shop is map && data.meta.shop.keys().size() <= 8
+        && data.meta.ach is map && data.meta.ach.keys().size() <= 60
+        && data.meta.codex is map && data.meta.codex.keys().size() <= 60
+        && data.meta.runs is list && data.meta.runs.size() <= 10
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }

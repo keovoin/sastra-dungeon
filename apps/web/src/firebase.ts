@@ -144,10 +144,77 @@ export function onUserChange(cb: (user: User | null) => void) {
   return onAuthStateChanged(auth, cb);
 }
 
+
+function sanitizeMeta(meta?: Record<string, any> | null): Record<string, any> | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const out: Record<string, any> = {};
+  out.souls = clampNum(meta.souls, 0, 100000000, 0);
+  out.earned = clampNum(meta.earned, 0, 100000000, 0);
+  const shop: Record<string, number> = {};
+  for (const k of ['hp', 'dmg', 'atk', 'fort']) shop[k] = clampNum(meta.shop?.[k], 0, 5, 0);
+  out.shop = shop;
+  const ach: Record<string, boolean> = {};
+  for (const k of Object.keys(meta.ach || {}).slice(0, 60)) if (meta.ach[k]) ach[cleanId(k, '', 40)] = true;
+  out.ach = ach;
+  const codex: Record<string, boolean> = {};
+  for (const k of Object.keys(meta.codex || {}).slice(0, 60)) if (meta.codex[k]) codex[cleanId(k, '', 40)] = true;
+  out.codex = codex;
+  const st = meta.stats || {};
+  out.stats = {
+    runs: clampNum(st.runs, 0, 1000000, 0),
+    kills: clampNum(st.kills, 0, 100000000, 0),
+    bestWave: clampNum(st.bestWave, 0, 10000, 0),
+    bestScore: clampNum(st.bestScore, 0, 100000000, 0),
+    bestKills: clampNum(st.bestKills, 0, 10000000, 0),
+  };
+  const runs: any[] = [];
+  for (const r of (Array.isArray(meta.runs) ? meta.runs.slice(0, 10) : [])) {
+    runs.push({
+      cls: cleanId(r?.cls, 'warrior', 40),
+      wave: clampNum(r?.wave, 0, 10000, 0),
+      kills: clampNum(r?.kills, 0, 10000000, 0),
+      score: clampNum(r?.score, 0, 100000000, 0),
+      date: clampNum(r?.date, 0, 9999999999999, 0),
+      diff: cleanId(r?.diff, 'normal', 16),
+      won: !!r?.won,
+    });
+  }
+  out.runs = runs;
+  return out;
+}
+/* Cloud + local meta merge: lifetimes take the max, unlocks take the union. */
+function mergeMeta(prev: any, incoming: any): any {
+  if (!prev) return incoming || null;
+  if (!incoming) return prev;
+  const out: any = { ...prev, ...incoming };
+  out.souls = Math.max(clampNum(prev.souls, 0, 1e8, 0), clampNum(incoming.souls, 0, 1e8, 0));
+  out.earned = Math.max(clampNum(prev.earned, 0, 1e8, 0), clampNum(incoming.earned, 0, 1e8, 0));
+  out.shop = {};
+  for (const k of ['hp', 'dmg', 'atk', 'fort'])
+    out.shop[k] = Math.max(clampNum(prev.shop?.[k], 0, 5, 0), clampNum(incoming.shop?.[k], 0, 5, 0));
+  out.ach = { ...(prev.ach || {}), ...(incoming.ach || {}) };
+  out.codex = { ...(prev.codex || {}), ...(incoming.codex || {}) };
+  const ps = prev.stats || {}, is = incoming.stats || {};
+  out.stats = {
+    runs: Math.max(ps.runs || 0, is.runs || 0),
+    kills: Math.max(ps.kills || 0, is.kills || 0),
+    bestWave: Math.max(ps.bestWave || 0, is.bestWave || 0),
+    bestScore: Math.max(ps.bestScore || 0, is.bestScore || 0),
+    bestKills: Math.max(ps.bestKills || 0, is.bestKills || 0),
+  };
+  const seen = new Set<string>();
+  out.runs = [...(incoming.runs || []), ...(prev.runs || [])]
+    .filter((r: any) => { const k = `${r.date}-${r.cls}-${r.wave}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a: any, b: any) => (b.date || 0) - (a.date || 0))
+    .slice(0, 10);
+  return out;
+}
+
 export async function syncSaveToCloud(
   saveObj: Record<string, any> | null,
   titlesUnlocked: Record<string, boolean>,
-  bestRun: { wave?: number; kills?: number; level?: number; cls?: string } | null
+  bestRun: { wave?: number; kills?: number; level?: number; cls?: string } | null,
+  meta?: Record<string, any> | null
 ): Promise<boolean> {
   const user = auth.currentUser;
   if (!user || !user.emailVerified) return false;
@@ -169,6 +236,10 @@ export async function syncSaveToCloud(
       }
     }
   }
+
+  /* Meta progression (souls, shrine ranks, achievements, bestiary, history).
+     Sanitised the same way as the save: fixed key sets, clamped numbers. */
+  const safeMeta = sanitizeMeta(meta);
 
   const safeTitles: Record<string, boolean> = {};
   if (titlesUnlocked && typeof titlesUnlocked === 'object') {
@@ -204,6 +275,7 @@ export async function syncSaveToCloud(
     bestClass,
     savePayload: safeSavePayload,
     titlesUnlocked: safeTitles,
+    meta: safeMeta,
   };
 
   try {
@@ -216,7 +288,7 @@ export async function syncSaveToCloud(
       });
     } else {
       const prev = existingSnap.data();
-      await updateDoc(docRef, {
+      const payload: Record<string, any> = {
         displayName: baseData.displayName,
         photoURL: baseData.photoURL,
         cls: baseData.cls,
@@ -230,8 +302,17 @@ export async function syncSaveToCloud(
         bestClass: baseData.bestClass,
         savePayload: Object.keys(safeSavePayload).length > 0 ? safeSavePayload : (prev?.savePayload || {}),
         titlesUnlocked: { ...(prev?.titlesUnlocked || {}), ...safeTitles },
+        meta: mergeMeta(prev?.meta, safeMeta),
         updatedAt: serverTimestamp(),
-      });
+      };
+      try {
+        await updateDoc(docRef, payload);
+      } catch (e) {
+        /* An older ruleset may not know the meta field. Never lose the save
+           over a meta write — retry without it. */
+        delete payload.meta;
+        await updateDoc(docRef, payload);
+      }
     }
     return true;
   } catch (error) {
@@ -243,6 +324,7 @@ export async function loadSaveFromCloud(): Promise<{
   savePayload: Record<string, any> | null;
   titlesUnlocked: Record<string, boolean>;
   bestRun: { wave: number; kills: number; level: number; cls: string } | null;
+  meta: Record<string, any> | null;
 } | null> {
   const user = auth.currentUser;
   if (!user || !user.emailVerified) return null;
@@ -261,6 +343,7 @@ export async function loadSaveFromCloud(): Promise<{
         level: d.bestLevel || 1,
         cls: d.bestClass || 'ironclad',
       },
+      meta: (d.meta as Record<string, any>) || null,
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);

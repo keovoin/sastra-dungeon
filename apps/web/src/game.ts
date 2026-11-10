@@ -66,6 +66,26 @@ function loadMeta(){
   }catch(e){}
 }
 function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(META)); }catch(e){} }
+/* Merge a cloud meta blob into the local one. Lifetimes take the max, unlocks
+   take the union, history is unioned and trimmed to ten newest. */
+function applyCloudMeta(cloud){
+  if(!cloud || typeof cloud!=='object') return false;
+  const before = JSON.stringify([META.souls, META.shop, Object.keys(META.ach).length, Object.keys(META.codex).length]);
+  META.souls = Math.max(META.souls||0, cloud.souls||0);
+  META.earned = Math.max(META.earned||0, cloud.earned||0);
+  for(const k of ['hp','dmg','atk','fort']) META.shop[k] = Math.max(META.shop[k]||0, (cloud.shop&&cloud.shop[k])||0);
+  Object.assign(META.ach, cloud.ach||{});
+  Object.assign(META.codex, cloud.codex||{});
+  const cs = cloud.stats||{};
+  for(const k of ['runs','kills','bestWave','bestScore','bestKills'])
+    META.stats[k] = Math.max(META.stats[k]||0, cs[k]||0);
+  const seen = new Set((META.runs||[]).map(r=>`${r.date}-${r.cls}-${r.wave}`));
+  const extra = (cloud.runs||[]).filter(r=>{const k=`${r.date}-${r.cls}-${r.wave}`; if(seen.has(k))return false; seen.add(k); return true;});
+  META.runs = [...(META.runs||[]), ...extra].sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,10);
+  saveMeta();
+  const after = JSON.stringify([META.souls, META.shop, Object.keys(META.ach).length, Object.keys(META.codex).length]);
+  return before !== after;
+}
 loadMeta();
 
 const SOUL_TRACKS = [
@@ -1367,7 +1387,7 @@ function queueCloudSync() {
     if (!save) return;
     let best: any = null;
     try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
-    syncSaveToCloud(save, TITLES_UNLOCKED, best).catch(() => {});
+    syncSaveToCloud(save, TITLES_UNLOCKED, best, META).catch(() => {});
   }, 2500);
 }
 function saveGame() {
@@ -6814,6 +6834,7 @@ function initFirebaseUI() {
       try {
         const cloud = await loadSaveFromCloud();
         if (cloud) {
+          try{ if (cloud.meta && applyCloudMeta(cloud.meta)) console.log('meta merged from cloud'); }catch(e){}
           if (cloud.titlesUnlocked && Object.keys(cloud.titlesUnlocked).length) {
             TITLES_UNLOCKED = { ...TITLES_UNLOCKED, ...cloud.titlesUnlocked };
             saveTitles();
@@ -6844,7 +6865,7 @@ function initFirebaseUI() {
         let best = null;
         try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
         if (curLocal) {
-          await syncSaveToCloud(curLocal, TITLES_UNLOCKED, best);
+          await syncSaveToCloud(curLocal, TITLES_UNLOCKED, best, META);
         }
         if (best && CLASSES[best.cls]) {
           const C = CLASSES[best.cls];
@@ -6902,7 +6923,7 @@ function initFirebaseUI() {
     let best = null;
     try { best = JSON.parse(localStorage.getItem('sd_best') || 'null'); } catch {}
     if (curLocal) {
-      const ok = await syncSaveToCloud(curLocal, TITLES_UNLOCKED, best);
+      const ok = await syncSaveToCloud(curLocal, TITLES_UNLOCKED, best, META);
       if (ok) addToast('☁ GAME SYNCED TO CLOUD', '#7aff9a', `Level ${curLocal.level || 1} · Wave ${curLocal.wave || 1}`);
     } else {
       addToast('☁ CLOUD CHECKED', '#ffd54f', 'Start a run to save progress to the cloud');
