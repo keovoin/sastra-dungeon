@@ -290,7 +290,7 @@
 @keyframes fhp{from{box-shadow:0 0 10px #ffd54f;transform:scale(1)}to{box-shadow:0 0 34px #ff8f2e;transform:scale(1.07)}}
 #victoryCard{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:17;pointer-events:none;text-align:center;opacity:0;transition:opacity 1.2s;background:radial-gradient(ellipse at center,rgba(40,25,0,.55),rgba(0,0,0,.2) 70%);font-family:Georgia,serif;text-shadow:0 3px 10px #000}
 #victoryCard.on{opacity:1}
-#victoryCard .vk{font-size:64px;letter-spacing:16px;color:#ffd54f;text-shadow:0 0 40px rgba(255,180,40,.8),0 4px 0 #000}
+#victoryCard .vk{font-size:clamp(26px,9vw,64px);letter-spacing:clamp(2px,1.6vw,16px);max-width:100%;overflow-wrap:break-word;color:#ffd54f;text-shadow:0 0 40px rgba(255,180,40,.8),0 4px 0 #000}
 #victoryCard .vt{font-size:20px;letter-spacing:6px;color:#f0e0b8;margin-top:10px}
 #victoryCard .vs{font-size:14px;font-style:italic;color:#c8b89a;margin-top:12px}
 
@@ -568,3 +568,5 @@ body.touch #touchUI{display:block}
   #enOrb::after{content:'EN'}
 }
 
+
+html,body{max-width:100%;overflow-x:hidden}
