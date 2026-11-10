@@ -2727,9 +2727,9 @@ const BIOMES = [
     torchColor:'#a060ff', edge:'rgba(8,2,15,0.55)',
     enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' }
 ];
-export function getBiomeForWave(w){const i=Math.min(BIOMES.length-1,Math.floor((w-1)/8));return BIOMES[i]}
-function isBossWave(w){return w%8===0}
-function isEliteWave(w){return w%4===0&&!isBossWave(w)}
+export function getBiomeForWave(w){const i=Math.min(BIOMES.length-1,Math.floor((w-1)/10));return BIOMES[i]}
+function isBossWave(w){return w%10===0}
+function isEliteWave(w){return w%5===0&&!isBossWave(w)}
 
 const ENEMY_TYPES = {
   fallen:{hp:46,speed:118,dmg:8,r:13,color:'#9b59b6',dark:'#5b2c6f',xp:12,range:30,atkCd:0.95,behavior:'melee'},
@@ -4948,7 +4948,7 @@ function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(
    around every real light (hero, torches, bosses, projectiles, orbs, sigils),
    then composites it back — the additive glows underneath now actually read as
    illumination instead of decals. */
-const LIGHT_AMB = { crypt:0.54, caverns:0.52, frost:0.46, volcano:0.50, shadow:0.58 };
+const LIGHT_AMB = { crypt:0.46, caverns:0.46, frost:0.42, volcano:0.45, shadow:0.52 };
 const LIGHT = { c:null, x:null };
 const LIGHT_SCALE = 2;   /* light is a soft gradient — half-res buffer, smooth upscale */
 function ensureLightBuf(){
@@ -5133,7 +5133,7 @@ function render(){
     }
   }
   const biome=getBiomeForWave(Math.max(1,G.wave));
-  ctx.save();ctx.globalCompositeOperation='multiply';ctx.fillStyle=biome.floorTint;ctx.fillRect(0,0,WORLD.w,WORLD.h);ctx.restore();
+  ctx.save();ctx.globalCompositeOperation='multiply';ctx.globalAlpha=0.72;ctx.fillStyle=biome.floorTint;ctx.fillRect(0,0,WORLD.w,WORLD.h);ctx.restore();
   ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=0.12;ctx.fillStyle=biome.tint;ctx.fillRect(0,0,WORLD.w,WORLD.h);ctx.restore();
   ctx.save();ctx.globalCompositeOperation='lighter';
   const _tspr=torchSprite(biome.torchColor);

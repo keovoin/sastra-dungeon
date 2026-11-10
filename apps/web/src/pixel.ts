@@ -126,6 +126,8 @@ export function buildPixelFloor(x, w, h, biomeKey) {
     x.beginPath(); x.ellipse(px, py, rw, rh, hrand(i, 7, 13, 0, TAU), 0, TAU); x.fill();
   }
 
+  drawAngkorTempleLayer(x, w, h, P);
+
   // Grand Central Angkor Sacred Lotus Mandala & 4 Cardinal Sub-Mandalas
   x.save();
   x.globalAlpha = 0.55;
@@ -237,6 +239,141 @@ export function buildPixelFloor(x, w, h, biomeKey) {
 }
 
 /* ===== Perimeter Angkor Temple Walls, Bayon Face Towers & Naga Gopura Gates ===== */
+
+/* ── Angkor temple layer: causeway, naga balustrades, gallery pillars, lotus
+      ponds. Drawn over the sandstone floor so a realm reads as temple grounds
+      rather than an open tile plaza. ── */
+function drawAngkorTempleLayer(x, w, h, P) {
+  const cx = w / 2, cy = h / 2;
+
+  /* 1. processional causeway — brighter than the floor, hard-edged, with a
+        lotus medallion row down the centre so it reads as raised stonework */
+  const cH = 250;
+  x.save();
+  x.fillStyle = 'rgba(0,0,0,0.55)';
+  x.fillRect(0, cy - cH / 2 - 14, w, cH + 28);
+  const base = [P.worn[0] + 26, P.worn[1] + 22, P.worn[2] + 12];
+  for (let px = 0; px < w; px += 60) {
+    const v = hrand(px, 9, 61, -6, 6);
+    x.fillStyle = rgb([base[0] + v, base[1] + v, base[2] + v]);
+    x.fillRect(px + 2, cy - cH / 2, 56, cH);
+    x.fillStyle = 'rgba(255,248,215,0.16)';
+    x.fillRect(px + 2, cy - cH / 2, 56, 4);
+    x.fillStyle = 'rgba(0,0,0,0.30)';
+    x.fillRect(px + 2, cy + cH / 2 - 5, 56, 5);
+  }
+  /* raised kerbs */
+  for (const ey of [cy - cH / 2, cy + cH / 2]) {
+    /* three stepped shadow bands = readable elevation */
+    x.fillStyle = 'rgba(0,0,0,0.28)'; x.fillRect(0, ey - 26, w, 26);
+    x.fillStyle = 'rgba(0,0,0,0.45)'; x.fillRect(0, ey - 12, w, 12);
+    x.fillStyle = 'rgba(0,0,0,0.68)'; x.fillRect(0, ey - 5, w, 12);
+    x.fillStyle = rgb([P.worn[0] + 40, P.worn[1] + 34, P.worn[2] + 20]);
+    x.fillRect(0, ey - 2, w, 5);
+    x.fillStyle = P.trim; x.fillRect(0, ey - 2, w, 2);
+    x.fillStyle = 'rgba(255,250,225,0.45)'; x.fillRect(0, ey - 2, w, 1);
+  }
+  /* lotus medallions along the axis */
+  for (let px = 120; px < w; px += 190) {
+    x.strokeStyle = P.trim; x.lineWidth = 3;
+    x.beginPath(); x.arc(px, cy, 22, 0, TAU); x.stroke();
+    x.fillStyle = 'rgba(240,195,90,0.20)';
+    x.beginPath(); x.arc(px, cy, 22, 0, TAU); x.fill();
+    x.fillStyle = P.accent;
+    x.beginPath(); x.arc(px, cy, 6, 0, TAU); x.fill();
+  }
+  x.restore();
+
+  /* 2. naga balustrades — squat serpent bodies with five raised hoods */
+  for (let px = 170; px < w - 100; px += 320) {
+    for (const py of [cy - cH / 2 - 58, cy + cH / 2 + 12]) {
+      const bw = 62, bh = 44;
+      x.fillStyle = 'rgba(0,0,0,0.62)';
+      x.fillRect(px - bw / 2 + 6, py + 8, bw, bh);
+      x.fillStyle = rgb([P.wall[0] + 26, P.wall[1] + 19, P.wall[2] + 9]);
+      x.fillRect(px - bw / 2, py, bw, bh);
+      x.fillStyle = 'rgba(255,245,210,0.14)';
+      x.fillRect(px - bw / 2, py, 6, bh);
+      x.fillStyle = 'rgba(0,0,0,0.32)';
+      x.fillRect(px + bw / 2 - 6, py, 6, bh);
+      /* five hoods, clearly fanned and outlined */
+      for (let k = -2; k <= 2; k++) {
+        const hx = px + k * 12, lift = Math.abs(k) * 3;
+        x.fillStyle = 'rgba(0,0,0,0.55)';
+        x.beginPath(); x.arc(hx, py - 4 - lift, 12, Math.PI, TAU); x.fill();
+        x.fillStyle = P.trim;
+        x.beginPath(); x.arc(hx, py - 6 - lift, 11, Math.PI, TAU); x.fill();
+        x.fillStyle = 'rgba(255,240,200,0.25)';
+        x.beginPath(); x.arc(hx - 3, py - 9 - lift, 4, Math.PI, TAU); x.fill();
+        /* eyes */
+        x.fillStyle = '#1a1208';
+        x.fillRect(hx - 4, py - 12 - lift, 2, 2);
+        x.fillRect(hx + 2, py - 12 - lift, 2, 2);
+      }
+      /* curled body under the hoods */
+      x.strokeStyle = P.trim; x.lineWidth = 5;
+      x.beginPath(); x.moveTo(px - 26, py + 6); x.quadraticCurveTo(px, py - 6, px + 26, py + 6); x.stroke();
+      x.fillStyle = P.accent;
+      x.fillRect(px - 3, py - 22 - 3, 6, 8);
+    }
+  }
+
+  /* 3. colonnade flanking the causeway (in view from the spawn point) */
+  for (let px = 60; px < w - 60; px += 240) {
+    for (const py of [cy - 330, cy + 250]) {
+      x.fillStyle = 'rgba(0,0,0,0.5)';
+      x.fillRect(px + 8, py + 12, 34, 70);
+      x.fillStyle = rgb([P.wall[0] + 30, P.wall[1] + 22, P.wall[2] + 10]);
+      x.fillRect(px, py, 30, 66);
+      x.fillStyle = 'rgba(255,245,210,0.16)';
+      x.fillRect(px, py, 6, 66);
+      x.fillStyle = 'rgba(0,0,0,0.35)';
+      x.fillRect(px + 24, py, 6, 66);
+      x.fillStyle = P.trim;
+      x.fillRect(px - 4, py - 10, 38, 11);
+      x.fillRect(px - 4, py + 64, 38, 10);
+      x.fillStyle = P.accent;
+      x.fillRect(px + 11, py - 7, 8, 5);
+    }
+  }
+
+  /* 4. lotus ponds close enough to read at spawn */
+  const ponds = [[cx - 560, cy - 300], [cx + 560, cy - 300], [cx - 560, cy + 300], [cx + 560, cy + 300]];
+  for (const [px, py] of ponds) {
+    if (px < 170 || px > w - 170 || py < 170 || py > h - 170) continue;
+    x.fillStyle = 'rgba(0,0,0,0.5)';
+    x.beginPath(); x.ellipse(px, py, 134, 88, 0, 0, TAU); x.fill();
+    x.fillStyle = 'rgba(34,86,92,0.92)';
+    x.beginPath(); x.ellipse(px, py, 126, 80, 0, 0, TAU); x.fill();
+    const g = x.createLinearGradient(px, py - 80, px, py + 80);
+    g.addColorStop(0, 'rgba(170,235,235,0.22)');
+    g.addColorStop(0.5, 'rgba(40,110,120,0.10)');
+    g.addColorStop(1, 'rgba(4,24,34,0.45)');
+    x.fillStyle = g;
+    x.beginPath(); x.ellipse(px, py, 126, 80, 0, 0, TAU); x.fill();
+    /* stone kerb */
+    x.strokeStyle = rgb([P.worn[0] + 10, P.worn[1] + 8, P.worn[2] + 4]); x.lineWidth = 9;
+    x.beginPath(); x.ellipse(px, py, 131, 85, 0, 0, TAU); x.stroke();
+    x.strokeStyle = P.trim; x.lineWidth = 2;
+    x.beginPath(); x.ellipse(px, py, 127, 81, 0, 0, TAU); x.stroke();
+    /* pads + blooms */
+    for (let i = 0; i < 11; i++) {
+      const a = hrand(i, px, 71, 0, TAU), rr = hrand(i, py, 73, 18, 100);
+      const lx = px + Math.cos(a) * rr, ly = py + Math.sin(a) * rr * 0.6;
+      x.fillStyle = 'rgba(92,150,96,0.95)';
+      x.beginPath(); x.ellipse(lx, ly, 12, 9, 0, 0, TAU); x.fill();
+      x.fillStyle = 'rgba(0,0,0,0.25)';
+      x.beginPath(); x.ellipse(lx, ly + 3, 10, 5, 0, 0, TAU); x.fill();
+      if (i % 3 === 0) {
+        x.fillStyle = '#ffd9e8';
+        x.beginPath(); x.arc(lx, ly - 3, 4, 0, TAU); x.fill();
+        x.fillStyle = P.accent;
+        x.beginPath(); x.arc(lx, ly - 3, 1.6, 0, TAU); x.fill();
+      }
+    }
+  }
+}
+
 export function drawPixelWalls(x, w, h, biomeKey) {
   const P = PIX[biomeKey] || PIX.crypt;
   const rim = 60, BW = 24, BH = 12;
