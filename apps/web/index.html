@@ -73,6 +73,7 @@
       <button id="langBtn" title="Switch language">EN · ខ្មែរ</button>
       <button id="titlesBtn" title="Unlockable titles" class="titlesBtn">🏆 TITLES <span id="titlesCount">0/10</span></button>
       <button id="dailyBtn" class="titlesBtn" title="Seeded run — same rolls for every player today">🗓 DAILY TRIAL</button>
+      <button id="weeklyBtn" class="titlesBtn" title="One attempt, fixed seed, hard mode — resets Monday">📅 WEEKLY</button>
       <button id="settingsBtn" class="titlesBtn" title="Settings &amp; accessibility">⚙ SETTINGS</button>
       <button id="archiveBtn" class="titlesBtn" title="Soul shrine, achievements, history, bestiary">📜 ARCHIVE</button>
       <div id="diffSel" title="Difficulty">
@@ -176,6 +177,15 @@
     <div class="set-row">
       <div class="set-label">Music<small>biome loop · M toggles</small></div>
       <div class="set-ctl"><input type="range" id="setMusic" min="0" max="100" step="5"><b id="setMusicVal">80</b></div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">Colour assistance<small>display filter for colour-vision differences</small></div>
+      <div class="set-ctl"><select id="setProfile" class="set-select">
+        <option value="default">Default</option>
+        <option value="deutan">Deuteranopia</option>
+        <option value="tritan">Tritanopia</option>
+        <option value="contrast">High contrast</option>
+      </select></div>
     </div>
     <div class="set-row">
       <div class="set-label">Reduce flashing<small>boss deaths, crits &amp; cutscenes drop to 20%</small></div>

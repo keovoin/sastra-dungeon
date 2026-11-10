@@ -145,7 +145,7 @@ function buySoulTrack(id){
 /* ===== Player settings (persisted to localStorage 'sd_settings_v1') =====
    Accessibility + mix controls. `flash` and `shake` gate the full-screen white
    flashes and camera shake that every boss death, crit and cutscene produces. */
-const SETTINGS = { sfxVol:0.85, musicVol:0.80, flash:true, shake:true, vfx:true, autoPause:true };
+const SETTINGS: any = { sfxVol:0.85, musicVol:0.80, flash:true, shake:true, vfx:true, autoPause:true, profile:'default' };
 function loadSettings(){
   try{
     const s=JSON.parse(localStorage.getItem('sd_settings_v1')||'{}');
@@ -158,6 +158,17 @@ function applySettings(){
   try{(window as any).SD_MUSIC_VOL=SETTINGS.musicVol}catch(e){}
   try{sfxSetVolume(SETTINGS.sfxVol)}catch(e){}
   try{GFX.shadows=SETTINGS.vfx;GFX.sparks=SETTINGS.vfx}catch(e){}
+  applyColorProfile(SETTINGS.profile);
+}
+/* Colour assistance: these are display filters for the canvas, not a simulation
+   of CVD. High contrast also lifts the HUD text so damage numbers stay legible. */
+function applyColorProfile(p){
+  const b=document.body;
+  if(!b)return;
+  ['cp-deutan','cp-tritan','cp-contrast'].forEach(c=>b.classList.remove(c));
+  if(p==='deutan')b.classList.add('cp-deutan');
+  else if(p==='tritan')b.classList.add('cp-tritan');
+  else if(p==='contrast')b.classList.add('cp-contrast');
 }
 const FL = (a:number) => SETTINGS.flash ? a : a*0.2;   /* flash multiplier */
 const SHK = (a:number) => SETTINGS.shake ? a : a*0.22; /* shake multiplier */
@@ -7048,6 +7059,38 @@ function tutorialTick(dt){
 let dailyRun: {key:string;cls:string;seed:number}|null = null;
 let pendingDaily = false;   /* set before the intro-wrapped startGame runs */
 
+
+/* Weekly challenge: a fixed seed + class + mandatory hard mode for the ISO week,
+   so every player faces the same run for seven days. */
+function weeklyInfo(){
+  const d=new Date();
+  const t=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day=t.getUTCDay()||7;
+  t.setUTCDate(t.getUTCDate()+4-day);
+  const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+  const wk=Math.ceil((((t.getTime()-y0.getTime())/86400000)+1)/7);
+  const key=t.getUTCFullYear()+'-W'+String(wk).padStart(2,'0');
+  let h=2166136261>>>0;
+  for(let i=0;i<key.length;i++){ h^=key.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+  const keys=Object.keys(CLASSES);
+  return { key, seed:h, cls:keys[(h>>>3)%keys.length] };
+}
+function startWeeklyRun(){
+  const info=weeklyInfo();
+  try{
+    if(localStorage.getItem('sd_weekly_last')===info.key){
+      addToast('📅 WEEKLY ALREADY CLEARED','#ffd54f','New challenge next Monday · '+info.key);
+      return;
+    }
+  }catch(e){}
+  setDiff('hard');
+  setSeed(info.seed);
+  try{ localStorage.setItem('sd_weekly_last',info.key) }catch(e){}
+  try{ const wg=(window as any).startGame; if(typeof wg==='function') wg(info.cls); else startGame(info.cls); }
+  catch(e){ console.error('❌ weekly start:',e); }
+  setTimeout(()=>addToast('📅 WEEKLY CHALLENGE · '+info.key,'#ff8f2e','Hard mode · '+CLASSES[info.cls].name+' · one attempt'),900);
+}
+
 function dailyInfo(){
   const d=new Date();
   const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -7194,6 +7237,8 @@ document.querySelectorAll('.arc-tab').forEach(b=>b.addEventListener('click',()=>
   bindToggle('setVfx',(on)=>{ SETTINGS.vfx=on; });
   bindToggle('setAutoPause',(on)=>{ SETTINGS.autoPause=on; });
   document.getElementById('dailyBtn')?.addEventListener('click',()=>{ sfx.ui(); startDailyRun(); });
+  document.getElementById('weeklyBtn')?.addEventListener('click',()=>{ sfx.ui(); startWeeklyRun(); });
+  document.getElementById('setProfile')?.addEventListener('change',(ev)=>{ const v=(ev.target as HTMLSelectElement).value; SETTINGS.profile=v; applyColorProfile(v); saveSettings(); });
   try{
     const last=localStorage.getItem('sd_daily_last');
     const info=dailyInfo();

@@ -612,3 +612,11 @@ html,body{max-width:100%;overflow-x:hidden}
 /* Title key art behind the main menu */
 #menu{background-image:linear-gradient(rgba(10,6,3,.55),rgba(10,6,3,.86)),url('/art/keyart.png');background-size:cover;background-position:center 38%}
 @media (max-width:600px){#menu{background-position:center 30%}}
+
+/* Colour assistance filters (display-only) */
+body.cp-deutan #game{filter:saturate(1.35) hue-rotate(-12deg) contrast(1.05)}
+body.cp-tritan #game{filter:saturate(1.25) hue-rotate(14deg) contrast(1.04)}
+body.cp-contrast #game{filter:contrast(1.28) brightness(1.08) saturate(1.1)}
+body.cp-contrast #game{outline:2px solid rgba(255,220,120,.35);outline-offset:-2px}
+.set-select{background:#241708;border:1px solid #4a3a22;color:#e8c07a;border-radius:7px;
+  padding:6px 9px;font:600 12px 'Trebuchet MS',sans-serif}
