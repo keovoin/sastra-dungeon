@@ -166,7 +166,7 @@ function realm1(s){
   for(let i=0;i<9;i++)sk(34+i*30,GY+12+(i%3)*9,ez(cl((s-3-i*.45)/1.2)),s,i);
   for(let i=0;i<8;i++){const x=((i*53+s*10*(1+i%3))%360)-20,y=40+i*10+Math.sin(s*2+i)*6;R(x,y,3,5,'rgba(180,255,200,.35)');R(x+1,y+5,1,2,'rgba(180,255,200,.2)')}
   R(0,GY-6,W,10,'rgba(96,255,144,.05)');
-  ctx.restore();banner(fade(s,2,6.5),'REALM I','THE CRYPT','#e04040');banner(fade(s,15,20),'RULER','CRYPT LORD','#e04040');post(fl)}
+  ctx.restore();banner(fade(s,2,6.5),'REALM I','THE CRYPT','#e04040');banner(fade(s,15,20),'RULER','NAGA RAJA','#e04040');post(fl)}
 const blk=(x,y,w,h,t)=>{R(x,y,w,h,'#2e211a');R(x,y,w,2,'#5a4436');R(x,y,2,h,'#4a382c');R(x+w-3,y,3,h,'#1c120d');
   const r=rng(w*7+h);for(let i=0;i<w*h/150;i++){const cx=x+3+r()*(w-8)|0,cy=y+3+r()*(h-8)|0,l=3+r()*6|0;R(cx,cy,1,l,'rgba(255,170,50,'+(.5+.4*Math.sin(t*3+i))+')')}};
 function titan(x,by,eyes,roar,t){
@@ -185,7 +185,7 @@ function realm2(s){
   ctx.save();ctx.beginPath();ctx.rect(0,0,W,GY+12);ctx.clip();titan(235,GY+14+(1-rise)*108,cl((s-10)/1.5),roar,s);ctx.restore();
   for(let j=0;j<7;j++){const p=((s*.5+j/7)%1),x=(j*47+20)%W,y=p*GY*1.1;R(x,y-6,1,6,'rgba(120,90,60,.4)');R(x,y,4,4,'#4a382c');R(x,y,4,1,'#6a5444')}
   ash(40+s,1);
-  ctx.restore();banner(fade(s,2,6.5),'REALM II','THE DEEP CAVERNS','#e8b060');banner(fade(s,15,20),'RULER','CAVERN TITAN','#e8b060');post(fl)}
+  ctx.restore();banner(fade(s,2,6.5),'REALM II','THE DEEP CAVERNS','#e8b060');banner(fade(s,15,20),'RULER','KUMBHAKARNA','#e8b060');post(fl)}
 /* ===== realms III-V + the hero's oath ===== */
 const FXP=Array.from({length:90},()=>({x:rn()*340,y:rn()*170,sp:6+rn()*20,ph:rn()*6}));
 const rgb=(c,a)=>{const[r,g,b]=hex(c);return`rgba(${r},${g},${b},${a})`};
@@ -213,7 +213,7 @@ function realm3(s){
   for(let j=0;j<8;j++){const p=cl((s-7-j*.2)/1.6);if(p>0&&p<1)R(236+(j-4)*9*p,GY+10-Math.sin(p*Math.PI)*50,3,3,'#e8f8ff')}
   for(const cx of[30,64,300,276]){const pu=.7+.3*Math.sin(s*3+cx);spike(cx,GY+10,.3,-1,26,7,'#8fdcff',0);spike(cx+5,GY+10,.5,-1,16,5,'#e8f8ff',0);disc(cx,GY-6,16,`rgba(120,210,255,${.08*pu})`)}
   FXP.forEach((p,i)=>{const x=((p.x-s*p.sp*.6+Math.sin(s+p.ph)*4)%340+340)%340-10,y=(p.y+s*p.sp*1.4)%170;R(x,y,i%3?1:2,i%3?1:2,'rgba(240,250,255,.8)')});
-  ctx.restore();banner(fade(s,2,6.5),'REALM III','FROZEN PEAKS','#8fdcff');banner(fade(s,15,20),'RULER','FROST WYRM','#8fdcff');post(fl)}
+  ctx.restore();banner(fade(s,2,6.5),'REALM III','FROZEN PEAKS','#8fdcff');banner(fade(s,15,20),'RULER','GARUDA','#8fdcff');post(fl)}
 function behemoth(x,by,rise,eyes,roar,t){
   const y0=by+(1-rise)*115,fy=y0-16-roar*58,pu=.6+.4*Math.sin(t*4);
   for(const sd of[-1,1]){for(let i=0;i<=8;i++){const u=i/8;disc(Math.round(x+sd*lp(34,44,u)),Math.round(lp(y0-56,fy,u)),Math.round(lp(13,9,u)),'#2a0e08')}
@@ -236,7 +236,7 @@ function realm4(s){
   for(let y=GY+18;y<GY+34;y+=2)for(let x=0;x<W;x+=2){const v=Math.sin(x*.08+s*2+y*.5);R(x,y,2,2,v>.3?'#ffd060':v>-.3?'#ff7a20':'#c43a10')}
   for(const cx of[30,64,300,276]){spike(cx,GY+12,.2,-1,24,8,'#1a0804',0);disc(cx,GY-4,14,`rgba(255,120,30,${.08*(.7+.3*Math.sin(s*3+cx))})`)}
   FXP.forEach((p,i)=>{const x=(p.x+Math.sin(s+p.ph)*8+340)%340,y=170-(p.y+s*p.sp*1.6)%170;R(x,y,2,2,i%2?'#ff8a30':'#ffd060')});
-  ctx.restore();banner(fade(s,2,6.5),'REALM IV','THE EMBER DEPTHS','#ff7030');banner(fade(s,15,20),'RULER','EMBER BEHEMOTH','#ff7030');post(fl)}
+  ctx.restore();banner(fade(s,2,6.5),'REALM IV','THE EMBER DEPTHS','#ff7030');banner(fade(s,15,20),'RULER','KALA','#ff7030');post(fl)}
 function prince(x,by,rise,eyes,roar,t){
   const Hh=Math.round(lp(30,62,rise)),rim='#7a38c8',pu=.6+.4*Math.sin(t*4),hy=by-Hh-6;
   for(let i=-4;i<=4;i++){const L=74-Math.abs(i)*8;spike(x+i*10,by-4,i*.16,-1,L,9,'#0e0518',0);spike(x+i*10-3,by-4,i*.16,-1,L-2,2,'#4a1c80',0)}
@@ -261,7 +261,7 @@ function realm5(s){
   R(175,GY+6,120,10,'#1a0a30');R(175,GY+6,120,2,'#7a38c8');
   prince(235,GY+6,rise,cl((s-10)/1.5),roar,s);
   for(let j=0;j<30;j++){const p=(s*.25+j/30)%1;R((j*37)%W+Math.sin(s+j)*6,GY+30-p*GY,1,3,rgb('#c080ff',.5*(1-p)))}
-  ctx.restore();banner(fade(s,2,6.5),'REALM V','THE SHADOW REALM','#c080ff');banner(fade(s,15,20),'RULER','SHADOW PRINCE','#c080ff');post(fl)}
+  ctx.restore();banner(fade(s,2,6.5),'REALM V','THE SHADOW REALM','#c080ff');banner(fade(s,15,20),'RULER','KRONG REAP','#c080ff');post(fl)}
 const FIVE=['#e04040','#e8b060','#8fdcff','#ff7030','#c080ff'],PX=[28,92,160,226,292];
 function heroOath(x,y,t,k,rs,gl){
   const C=HC.c,Cd=HC.d,Cl=HC.l,dy=Math.round(k*7),bw=k>.5,hh=16-Math.round(dy*.5),bx=Math.round(k*2),by=Math.round(k*3);

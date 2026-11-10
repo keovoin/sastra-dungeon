@@ -2119,7 +2119,7 @@ function startCryptLordCutscene(g) {
       { at: 0.3,  fn: () => showCutsceneDialogue('???', 'The air grows cold...', '👁', 1.8) },
       { at: 2.0,  fn: spawnSlimes },
       { at: 3.4,  fn: spawnBoss },
-      { at: 3.6,  fn: () => showCutsceneDialogue('Crypt Lord', 'More flesh...', '💀', 1.2) },
+      { at: 3.6,  fn: () => showCutsceneDialogue('Naga Raja', 'More flesh to feed five heads...', '💀', 1.2) },
       { at: 4.8,  fn: () => walkBossTo(slimePos[0]) },
       { at: 5.8,  fn: () => eatSlime(0) },
       { at: 6.5,  fn: () => walkBossTo(slimePos[1]) },
@@ -2129,8 +2129,8 @@ function startCryptLordCutscene(g) {
       { at: 9.9,  fn: () => walkBossTo(slimePos[3]) },
       { at: 10.9, fn: () => eatSlime(3) },
       { at: 11.6, fn: () => walkBossTo(bossFinal) },
-      { at: 12.8, fn: () => showCutsceneDialogue('Crypt Lord', 'Let me eat you. Become one with me.', '💀', 3.2) },
-      { at: 16.0, fn: () => showCutsceneDialogue('Crypt Lord', 'Your flesh will complete me!', '💀', 1.8) },
+      { at: 12.8, fn: () => showCutsceneDialogue('Naga Raja', 'Coil yourself into my sanctuary. Forever.', '💀', 3.2) },
+      { at: 16.0, fn: () => showCutsceneDialogue('Naga Raja', 'Five heads. Five hungers. One of you.', '💀', 1.8) },
       { at: 17.8, fn: () => endCutscene() }
     ],
     callbacks: {
@@ -2138,7 +2138,7 @@ function startCryptLordCutscene(g) {
         const bx = bossActor ? bossActor.x : stageX;
         const by = bossActor ? bossActor.y : stageY + 160;
         spawnEnemy('BOSS:cryptLord', g, bx, by);
-        addToast('BOSS: CRYPT LORD', '#ff5c5c', 'The feast begins');
+        addToast('BOSS: NAGA RAJA', '#ff5c5c', 'The causeway is sealed');
       }
     }
   });
@@ -2156,7 +2156,7 @@ function csBoss(key,x,y,o){const t=BOSS_TYPES[key];
 function csRise(a,dt,from,len){a.rise=Math.min(1,(a.rise||0)+dt/len);const u=a.rise*a.rise*(3-2*a.rise);a.alpha=Math.min(1,u*2.2);a.sc=lerp(from,1,u);a.dropY=(1-u)*70}
 function csFinish(key,toast,sub,getBoss,g){return{callbacks:{onEnd:()=>{const b=getBoss();spawnEnemy('BOSS:'+key,g,b.x,b.y);addToast(toast,'#ff5c5c',sub)}}}}
 
-/* II - Cavern Titan: the stones assemble themselves */
+/* II - Kumbhakarna: the asura assembles out of the stones */
 function startTitanCutscene(g){
   const st=csStage(g),sx=st.x,sy=st.y;let boss;
   const rocks=Array.from({length:16},(_,i)=>{const a=i/16*TAU+rand(-.2,.2),d=rand(300,540);return{ox:sx+Math.cos(a)*d,oy:sy+Math.sin(a)*d*.7,r:rand(7,16),ph:rand(0,TAU),t:0,go:2.6+i*.28}});
@@ -2169,12 +2169,12 @@ function startTitanCutscene(g){
   const stomp=()=>{if(boss){G.shake=Math.max(G.shake,11);csRing(boss.x,boss.y+30,230,'#ffb040');csBurst(boss.x,boss.y+40,10,['#8a7a68','#d8b878'],200,60)}};
   startCutscene(Object.assign({duration:17.2,cameraTarget:{x:sx,y:sy+40},script:[
     {at:.4,fn:()=>showCutsceneDialogue('???','The stones... are stirring.','🪨',2.2)},
-    {at:8.0,fn:()=>{boss=csBoss('cavernTitan',sx,sy+20,{alpha:0,sc:.55,tick:(a,dt)=>{if(!a.go)return;csRise(a,dt,.55,2.6)}});boss.go=1;G.shake=16;csRing(sx,sy+30,300,'#ffb040');csBurst(sx,sy+30,40,['#8a7a68','#ffb040','#d8b878'],320,80);showCutsceneDialogue('Cavern Titan','WHO... WAKES... THE DEEP?','🗿',3)}},
+    {at:8.0,fn:()=>{boss=csBoss('cavernTitan',sx,sy+20,{alpha:0,sc:.55,tick:(a,dt)=>{if(!a.go)return;csRise(a,dt,.55,2.6)}});boss.go=1;G.shake=16;csRing(sx,sy+30,300,'#ffb040');csBurst(sx,sy+30,40,['#8a7a68','#ffb040','#d8b878'],320,80);showCutsceneDialogue('Kumbhakarna','WHO... WAKES... THE COLOSSUS?','🗿',3)}},
     {at:11.6,fn:()=>{boss.speed=90;boss.walkTo={x:sx,y:sy+150}}},{at:12.1,fn:stomp},{at:12.7,fn:stomp},{at:13.3,fn:stomp},
-    {at:14.2,fn:()=>showCutsceneDialogue('Cavern Titan','Nothing survives the deep!','🗿',2.4)},{at:16.8,fn:endCutscene}]},
-    csFinish('cavernTitan','BOSS: CAVERN TITAN','The deep awakens',()=>boss||{x:sx,y:sy+150},g)))}
+    {at:14.2,fn:()=>showCutsceneDialogue('Kumbhakarna','I slept ten thousand years. You wake me for this?','🗿',2.4)},{at:16.8,fn:endCutscene}]},
+    csFinish('cavernTitan','BOSS: KUMBHAKARNA','The asura stirs',()=>boss||{x:sx,y:sy+150},g)))}
 
-/* III - Frost Wyrm: frozen in ice, then it shatters free */
+/* III - Garuda: frozen in ice, then it shatters free */
 function startWyrmCutscene(g){
   const st=csStage(g),sx=st.x,sy=st.y;let boss,orbit=0,shat=false;const FIN={x:sx,y:sy+150};
   boss=csBoss('frostWyrm',sx,sy+20,{alpha:0,sc:1,tick:(a,dt)=>{const e=cutscene.elapsed;
@@ -2189,13 +2189,13 @@ function startWyrmCutscene(g){
     ctx.globalAlpha=.5*k;ctx.beginPath();ctx.moveTo(-40,-60);ctx.lineTo(10,-10);ctx.lineTo(-10,40);ctx.moveTo(10,-10);ctx.lineTo(50,-30);ctx.stroke();ctx.restore()}});
   startCutscene(Object.assign({duration:16.6,cameraTarget:{x:sx,y:sy+40},script:[
     {at:.4,fn:()=>showCutsceneDialogue('???','The wind... has stopped.','❄',2.2)},
-    {at:6.4,fn:()=>showCutsceneDialogue('Frost Wyrm','Ten thousand winters I have slept...','🐉',2.4)},
+    {at:6.4,fn:()=>showCutsceneDialogue('Garuda','Ten thousand winters on the peak... and still I hunger','🐉',2.4)},
     {at:8.4,fn:()=>{shat=true;boss.alpha=1;orbit=.01;G.shake=18;csRing(sx,sy+30,320,'#bfeaff');csRing(sx,sy+30,160,'#ffffff');csBurst(sx,sy,60,['#e8f8ff','#7fd4ff','#bfeaff'],420,120)}},
     {at:12.3,fn:()=>{orbit=0;boss.dropY=0;boss.speed=420;boss.walkTo=FIN;csRing(FIN.x,FIN.y+30,240,'#bfeaff');G.shake=Math.max(G.shake,10)}},
-    {at:13.2,fn:()=>showCutsceneDialogue('Frost Wyrm','Freeze. Forever.','🐉',2.4)},{at:16.2,fn:endCutscene}]},
-    csFinish('frostWyrm','BOSS: FROST WYRM','The winter returns',()=>({x:orbit?FIN.x:boss.x,y:orbit?FIN.y:boss.y}),g)))}
+    {at:13.2,fn:()=>showCutsceneDialogue('Garuda','I ate the sun once. You are smaller.','🐉',2.4)},{at:16.2,fn:endCutscene}]},
+    csFinish('frostWyrm','BOSS: GARUDA','The sky-king descends',()=>({x:orbit?FIN.x:boss.x,y:orbit?FIN.y:boss.y}),g)))}
 
-/* IV - Ember Behemoth: the ground cracks, meteors fall, it rises from the lava */
+/* IV - Kala: the ground cracks, meteors fall, the face rises from the lava */
 function startBehemothCutscene(g){
   const st=csStage(g),sx=st.x,sy=st.y;let boss,nm=0;const balls=[];
   csActor({upd(a,dt){const e=cutscene.elapsed;if(e>1&&e<9.6)G.shake=Math.max(G.shake,2+Math.min(e,7)*.4);
@@ -2210,12 +2210,12 @@ function startBehemothCutscene(g){
   boss=csBoss('volcanoBehemoth',sx,sy+20,{alpha:0,sc:.5,tick:(a,dt)=>{if(cutscene.elapsed>7)csRise(a,dt,.5,2.8)}});
   startCutscene(Object.assign({duration:16.4,cameraTarget:{x:sx,y:sy+40},script:[
     {at:.4,fn:()=>showCutsceneDialogue('???','The ground... is burning.','🌋',2.2)},
-    {at:7.3,fn:()=>{G.shake=18;csBurst(sx,sy+20,50,['#ff5020','#ffb040','#ffe082'],380,260);csRing(sx,sy+30,320,'#ff7020');showCutsceneDialogue('Ember Behemoth','I RISE FROM THE MOLTEN HEART!','🔥',3)}},
+    {at:7.3,fn:()=>{G.shake=18;csBurst(sx,sy+20,50,['#ff5020','#ffb040','#ffe082'],380,260);csRing(sx,sy+30,320,'#ff7020');showCutsceneDialogue('Kala','THE FORGE FEEDS. THE FACE AWAKENS.','🔥',3)}},
     {at:10.8,fn:()=>{boss.speed=80;boss.walkTo={x:sx,y:sy+150}}},{at:11.2,fn:stomp},{at:12.0,fn:stomp},{at:12.8,fn:stomp},
-    {at:13.6,fn:()=>showCutsceneDialogue('Ember Behemoth','Ash is all that remains. BURN!','🔥',2.2)},{at:16.0,fn:endCutscene}]},
-    csFinish('volcanoBehemoth','BOSS: EMBER BEHEMOTH','The mountain burns',()=>boss,g)))}
+    {at:13.6,fn:()=>showCutsceneDialogue('Kala','Time devours all. I am its teeth.','🔥',2.2)},{at:16.0,fn:endCutscene}]},
+    csFinish('volcanoBehemoth','BOSS: KALA','The time-eater opens its jaws',()=>boss,g)))}
 
-/* V - Shadow Prince: born from the hero's own shadow */
+/* V - Krong Reap: born from the hero's own shadow */
 function startPrinceCutscene(g){
   const st=csStage(g),sx=st.x,sy=st.y,px=g.player.x,py=g.player.y;let boss;const FIN={x:sx,y:sy+90},clones=[];
   boss=csBoss('shadowPrince',px,py,{alpha:0,sc:.7,tick:(a,dt)=>{const e=cutscene.elapsed;if(e>5.4&&!a.walkTo&&!a.moved)csRise(a,dt,.7,2.4);if(e>8&&a.alpha>.9&&rng()<.02)a.alpha=.4;else if(a.rise>=1&&a.alpha<1)a.alpha=Math.min(1,a.alpha+dt*4)}});
@@ -2227,13 +2227,13 @@ function startPrinceCutscene(g){
   csActor({draw(){const e=cutscene.elapsed,a=clamp((e-1)/5,0,.55)*(e>13?clamp(1-(e-13)/1.8,.25,1):1);ctx.save();ctx.setTransform(1,0,0,1,0,0);const gr=ctx.createRadialGradient(canvas.width/2,canvas.height/2,canvas.height*.15,canvas.width/2,canvas.height/2,canvas.width*.65);gr.addColorStop(0,`rgba(20,0,40,${a*.45})`);gr.addColorStop(1,`rgba(5,0,15,${a*1.4})`);ctx.fillStyle=gr;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore()}});
   startCutscene(Object.assign({duration:16.2,cameraTarget:{x:(px+sx)/2,y:sy+20},script:[
     {at:.4,fn:()=>showCutsceneDialogue('???','Your shadow... grows longer.','🌑',2.4)},
-    {at:5.4,fn:()=>{G.shake=12;csRing(px,py+16,200,'#a060ff');csBurst(px,py+10,30,['#a060ff','#2a0a4a','#d09aff'],260,80);showCutsceneDialogue('Shadow Prince','At last. The one who walks in my light.','👑',3)}},
-    {at:8.4,fn:()=>{boss.moved=1;boss.speed=170;boss.walkTo=FIN;showCutsceneDialogue('Shadow Prince','Five thrones. I sit upon them all.','👑',2.6)}},
+    {at:5.4,fn:()=>{G.shake=12;csRing(px,py+16,200,'#a060ff');csBurst(px,py+10,30,['#a060ff','#2a0a4a','#d09aff'],260,80);showCutsceneDialogue('Krong Reap','At last. The one who walks in my shadow.','👑',3)}},
+    {at:8.4,fn:()=>{boss.moved=1;boss.speed=170;boss.walkTo=FIN;showCutsceneDialogue('Krong Reap','Ten heads. Ten thrones. All mine.','👑',2.6)}},
     {at:11.8,fn:()=>{G.shake=14;csRing(sx,sy+60,300,'#d09aff')}},
-    {at:13.0,fn:()=>showCutsceneDialogue('Shadow Prince','You were never real.','👑',2.4)},{at:15.8,fn:endCutscene}]},
-    csFinish('shadowPrince','BOSS: SHADOW PRINCE','The last throne',()=>boss,g)))}
+    {at:13.0,fn:()=>showCutsceneDialogue('Krong Reap','Ten heads, ten hungers. Which will you feed?','👑',2.4)},{at:15.8,fn:endCutscene}]},
+    csFinish('shadowPrince','BOSS: KRONG REAP','The last throne',()=>boss,g)))}
 
-/* ===== FINAL STAND: after the Shadow Prince falls ===== */
+/* ===== FINAL STAND: after Krong Reap falls ===== */
 const FIN_ORDER=['cryptLord','frostWyrm','shadowPrince','volcanoBehemoth','cavernTitan'];
 const FIN_LINES={cryptLord:['I am not finished feeding.','💀'],frostWyrm:['Winter never ends.','🐉'],shadowPrince:['I am the Rift. I cannot fall.','👑'],volcanoBehemoth:['Burn... again.','🔥'],cavernTitan:['The deep remembers you.','🗿']};
 const csRgba=(c,a)=>{const n=parseInt(c.slice(1),16);return`rgba(${n>>16},${n>>8&255},${n&255},${a})`};
@@ -2324,7 +2324,7 @@ function startMageFinisher(g){
     ...[3,4,5,6].map((t,n)=>({at:t,fn:()=>{G.shake=Math.max(G.shake,5+n*3);for(const b of bs)if(!b.dead)csRing(b.x,b.y+20,140+n*40,n<2?'#9fe0ff':'#ff6a30')}})),
     {at:9.2,fn:()=>showCutsceneDialogue(C.name,'Cold... and then fire.',C.icon,1.4)},{at:10.5,fn:endCutscene}],
     callbacks:{onEnd:()=>{bs.forEach((b,i)=>land(i));finaleWin(g)}}})}
-/* ===== Boss defeat cutscenes (Cavern Titan, Frost Wyrm, Ember Behemoth). Crypt Lord & Shadow Prince have their own. ===== */
+/* ===== Boss defeat cutscenes (Kumbhakarna, Garuda, Kala). Naga Raja & Krong Reap have their own. ===== */
 function defeatEnd(g,b){b.sink=0;b.lift=0;b.ghost=undefined;b._defeatDone=true;b.hp=0;for(const en of g.enemies)if(!en.dead&&!en.boss)killEnemy(en,g);killEnemy(b,g)}
 function defeatCracks(b,k,col,glow,seed){if(k<=0)return;ctx.save();ctx.translate(b.x,b.y);ctx.strokeStyle=col;ctx.lineWidth=3;ctx.shadowColor=glow;ctx.shadowBlur=14;ctx.lineJoin='round';ctx.globalAlpha=clamp(k*1.5,0,1);
   const n=Math.max(1,Math.ceil(9*k));for(let i=0;i<n;i++){const an=i/9*TAU+seed;ctx.beginPath();ctx.moveTo(0,-b.r*.2);for(let j=1;j<=5;j++){const w=Math.sin(j*2.7+i*1.9+seed)*.35,d=b.r*1.15*j/5*Math.min(1,k*1.4);ctx.lineTo(Math.cos(an+w)*d,-b.r*.2+Math.sin(an+w)*d*.9)}ctx.stroke()}ctx.restore()}
@@ -2348,10 +2348,10 @@ function startTitanDefeat(g,b){
       csScreen((W,H)=>{const a=clamp(e/1.2,0,1)*(1-clamp((e-7.5)/1.5,0,1)),gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(20,12,4,${.55*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
         if(flash>0){ctx.fillStyle=`rgba(255,235,200,${FL(flash*.6)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:9.6,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
-    {at:.2,fn:()=>showCutsceneDialogue('Cavern Titan','Impossible... I am the DEEP...','🗿',2.4)},
+    {at:.2,fn:()=>showCutsceneDialogue('Kumbhakarna','Impossible... I am the COLOSSUS...','🗿',2.4)},
     {at:1.0,fn:()=>{G.shake=Math.max(G.shake,8);csRing(bx,gy,200,'#ffb040')}},
-    {at:3.2,fn:()=>showCutsceneDialogue('Cavern Titan','The mountain... does not break...','🗿',2.2)},
-    {at:5.0,fn:()=>{G.shake=Math.max(G.shake,14);showCutsceneDialogue('Cavern Titan','The deep... will remember you.','🗿',1.6)}},
+    {at:3.2,fn:()=>showCutsceneDialogue('Kumbhakarna','The age... does not break...','🗿',2.2)},
+    {at:5.0,fn:()=>{G.shake=Math.max(G.shake,14);showCutsceneDialogue('Kumbhakarna','The Reamker... will remember you.','🗿',1.6)}},
     {at:T_CR,fn:()=>{done=true;b.sink=1;flash=1;G.shake=32;csBurst(bx,by,80,[b.color,b.dark,'#8a7a6a','#c9b9a0'],560,200);csRing(bx,gy,360,'#c9b9a0');csRing(bx,gy,200,'#ffb040');ch.add(bx,by,20,[b.color,b.dark,'#8a7a6a'],520,22,gy,false)}},
     {at:7.2,fn:()=>showCutsceneDialogue(pc.name,'The deep can rest now.',pc.icon,1.8)},{at:9.4,fn:endCutscene}],
     callbacks:{onEnd:()=>defeatEnd(g,b)}})}
@@ -2368,10 +2368,10 @@ function startWyrmDefeat(g,b){
       csScreen((W,H)=>{const a=clamp(e/1,0,1)*(1-clamp((e-7.5)/1.5,0,1));ctx.fillStyle=`rgba(120,190,255,${.16*a})`;ctx.fillRect(0,0,W,H);const gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(200,240,255,${.45*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
         if(flash>0){ctx.fillStyle=`rgba(235,250,255,${FL(flash*.7)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:9.6,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
-    {at:.2,fn:()=>showCutsceneDialogue('Frost Wyrm','The cold... betrays me?!','🐉',2.4)},
+    {at:.2,fn:()=>showCutsceneDialogue('Garuda','Cold... betrays me?!','🐉',2.4)},
     {at:1.0,fn:()=>{G.shake=Math.max(G.shake,6);csRing(bx,gy,220,'#bfeaff')}},
-    {at:3.2,fn:()=>{csRing(bx,gy,260,'#ffffff');showCutsceneDialogue('Frost Wyrm','Ten thousand winters... undone...','🐉',2.2)}},
-    {at:5.2,fn:()=>{G.shake=Math.max(G.shake,12);showCutsceneDialogue('Frost Wyrm','Winter... ends.','🐉',1.2)}},
+    {at:3.2,fn:()=>{csRing(bx,gy,260,'#ffffff');showCutsceneDialogue('Garuda','A thousand skies... stolen...','🐉',2.2)}},
+    {at:5.2,fn:()=>{G.shake=Math.max(G.shake,12);showCutsceneDialogue('Garuda','The sky... empties.','🐉',1.2)}},
     {at:T_SH,fn:()=>{done=true;b.sink=1;flash=1;G.shake=32;csBurst(bx,by,90,['#eafaff','#7fd4ff','#bfeaff','#ffffff'],620,220);csRing(bx,gy,380,'#bfeaff');csRing(bx,gy,200,'#ffffff');ch.add(bx,by,26,['#eafaff','#bfeaff','#7fd4ff'],600,20,gy,true)}},
     {at:7.4,fn:()=>showCutsceneDialogue(pc.name,'The thaw begins.',pc.icon,1.8)},{at:9.4,fn:endCutscene}],
     callbacks:{onEnd:()=>defeatEnd(g,b)}})}
@@ -2392,10 +2392,10 @@ function startBehemothDefeat(g,b){
       csScreen((W,H)=>{const a=clamp(e/1.2,0,1)*(1-clamp((e-T_ER-.6)/1.6,0,1));ctx.fillStyle=`rgba(80,15,0,${.22*a})`;ctx.fillRect(0,0,W,H);const gr=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,W*.7);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,`rgba(255,70,10,${.4*a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
         if(flash>0){ctx.fillStyle=`rgba(255,200,120,${FL(flash*.65)})`;ctx.fillRect(0,0,W,H)}})}});
   startCutscene({duration:9.8,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
-    {at:.2,fn:()=>showCutsceneDialogue('Ember Behemoth','The fire... DIES?!','🔥',2.2)},
+    {at:.2,fn:()=>showCutsceneDialogue('Kala','The furnace... dies?!','🔥',2.2)},
     {at:1.0,fn:()=>{G.shake=Math.max(G.shake,8);csRing(bx,gy,240,'#ff7020')}},
-    {at:2.6,fn:()=>{csRing(bx,gy,300,'#ffb040');showCutsceneDialogue('Ember Behemoth','I am the MOUNTAIN... I cannot...','🔥',2.0)}},
-    {at:T_S0+.4,fn:()=>{G.shake=Math.max(G.shake,16);showCutsceneDialogue('Ember Behemoth','Let me... burn... out...','🔥',2.0)}},
+    {at:2.6,fn:()=>{csRing(bx,gy,300,'#ffb040');showCutsceneDialogue('Kala','I am the FURNACE... I cannot...','🔥',2.0)}},
+    {at:T_S0+.4,fn:()=>{G.shake=Math.max(G.shake,16);showCutsceneDialogue('Kala','Let time... swallow me...','🔥',2.0)}},
     {at:T_ER,fn:()=>{done=true;b.sink=1;flash=1;G.shake=34;csBurst(bx,gy,90,['#ff5020','#ffb040','#ffe082'],640,240);csRing(bx,gy,380,'#ff7020');csRing(bx,gy,200,'#ffe082')}},
     {at:7.8,fn:()=>showCutsceneDialogue(pc.name,'The fire is out.',pc.icon,1.8)},{at:9.6,fn:endCutscene}],
     callbacks:{onEnd:()=>defeatEnd(g,b)}})}
@@ -2660,7 +2660,7 @@ function startCryptDefeatCutscene(g, boss) {
     for (const en of g.enemies) if (!en.dead && !en.boss) killEnemy(en, g);
     gainXP(boss.xp, g);
     dropGold(g, boss.x, boss.y, Math.round((boss.gold || 300) * 2));
-    addToast('THE CRYPT LORD FLEES', '#ffd54f', 'He will be back...');
+    addToast('THE NAGA RAJA WITHDRAWS', '#ffd54f', 'The heads will return...');
   };
   const spawnBatch = () => {
     for (let i = 0; i < 10; i++) {
@@ -2671,10 +2671,10 @@ function startCryptDefeatCutscene(g, boss) {
   };
   const script = [
     { at: 0.1, fn: () => { cutscene.camera.targetX = (px + boss.x) / 2; cutscene.camera.targetY = (py + boss.y) / 2; } },
-    { at: 0.3, fn: () => showCutsceneDialogue('Crypt Lord', 'Impossible... a mortal dares wound ME?!', '💀', 2.4) },
+    { at: 0.3, fn: () => showCutsceneDialogue('Naga Raja', 'Impossible... a mortal dares wound MY FIVE HEADS?!', '💀', 2.4) },
     { at: 2.8, fn: () => { boss._redAura = true; g.shake = 12; g.fx.push({ type: 'ring', x: boss.x, y: boss.y, r: 200, life: .7, max: .7, color: '#ff2a1a' }); } },
-    { at: 3.2, fn: () => { g.shake = 16; showCutsceneDialogue('Crypt Lord', 'I WILL GET YOU!!!', '💀', 2.2); } },
-    { at: 5.6, fn: () => { showCutsceneDialogue('Crypt Lord', 'Rise, my children! A hundred thousand strong!', '💀', 2.6); cutscene.camera.targetX = px; cutscene.camera.targetY = py; } },
+    { at: 3.2, fn: () => { g.shake = 16; showCutsceneDialogue('Naga Raja', 'THE FIVE HEADS WILL FIND YOU!!!', '💀', 2.2); } },
+    { at: 5.6, fn: () => { showCutsceneDialogue('Naga Raja', 'Rise, my brood! A hundred thousand strong!', '💀', 2.6); cutscene.camera.targetX = px; cutscene.camera.targetY = py; } },
     { at: 6.0, fn: () => addToast('THE SWARM', '#4aff8a', '100,000 slimes!') }
   ];
   for (let i = 0; i < 14; i++) script.push({ at: 6.0 + i * 0.22, fn: spawnBatch });
@@ -2693,7 +2693,7 @@ function startCryptDefeatCutscene(g, boss) {
         for (const a of cutscene.actors) if (a.type === 'slime' && !a.dead) a.vanishDelay = Math.hypot(a.x - gx, a.y - gy) / 900;
         for (const en of g.enemies) if (!en.dead && !en.boss) killEnemy(en, g);
         cutscene.camera.targetX = (gx + boss.x) / 2; cutscene.camera.targetY = (gy + boss.y) / 2; } },
-    { at: 17.2, fn: () => showCutsceneDialogue('Crypt Lord', 'Curse you... this is NOT over! I WILL GET YOU!', '💀', 2.4) },
+    { at: 17.2, fn: () => showCutsceneDialogue('Naga Raja', 'Curse you... the heads do NOT die! I WILL FIND YOU!', '💀', 2.4) },
     { at: 19.8, fn: () => {
         g.portals.push({ x: boss.x, y: boss.y, life: 1.1, max: 1.1, color: '#ff3030', r: 70, rot: 0 });
         g.fx.push({ type: 'ring', x: boss.x, y: boss.y, r: 160, life: .6, max: .6, color: '#ff3030' });
@@ -3638,7 +3638,7 @@ const BIOME_LORE={
   caverns:{n:'II',c:'#e8b060',t:'Beneath the ancient banyan roots of Ta Prohm, the earth groans. Far below, the Stone Titan awakens.',r:'GUARDIAN: TA PROHM TITAN'},
   frost:{n:'III',c:'#8fdcff',t:'Atop the sacred cliff sanctuary of Preah Vihear, celestial winds freeze under the Naga Wyrm\u2019s breath.',r:'GUARDIAN: CELESTIAL WYRM'},
   volcano:{n:'IV',c:'#ff7030',t:'The pink sandstone citadel of Banteay Srei blazes with divine fire. The Behemoth rises from the molten forge.',r:'GUARDIAN: AGNI BEHEMOTH'},
-  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, the Shadow Prince sits upon the Five Thrones of Angkor.',r:'RULER: BAYON SHADOW PRINCE'}};
+  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, the Shadow Prince sits upon the Five Thrones of Angkor.',r:'RULER: KRONG REAP, TEN-HEADED'}};
 function showLore(b){const L=BIOME_LORE[b.key];if(!L)return;const el=document.getElementById('loreCard');
   el.innerHTML='<div class="lr">REALM '+L.n+'</div><div class="ln" style="color:'+L.c+'">'+b.name.toUpperCase()+'</div><div class="lt">'+L.t+'</div><div class="lk" style="color:'+L.c+'">'+L.r+'</div>';
   el.classList.add('on');clearTimeout(showLore._t);showLore._t=setTimeout(()=>el.classList.remove('on'),7000)}

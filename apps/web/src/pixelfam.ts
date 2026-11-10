@@ -545,7 +545,7 @@ put('charger', {
 
 /* ================= bosses ================= */
 
-/* ---------- CRYPT LORD: crowned skeleton, 16w x 18h ---------- */
+/* ---------- NAGA RAJA (unused: bosses draw procedurally) ---------- */
 put('cryptLord', {
   name: 'cryptLord', w: 17,
   frames: [
@@ -571,7 +571,7 @@ put('cryptLord', {
   pal: (c, d, B) => ({ ...P_bone(c, d, B), F: '#d4af37', E: '#ff3a3a' }),
 });
 
-/* ---------- CAVERN TITAN: rock golem with crystals, 16w x 14h ---------- */
+/* ---------- KUMBHAKARNA (unused) ---------- */
 put('cavernTitan', {
   name: 'cavernTitan', w: 17,
   frames: [
@@ -589,7 +589,7 @@ put('cavernTitan', {
   pal: (c, d, B) => ({ o: OUT, R: c, r: shade(c, -0.5), C: '#6ad8ff', F: '#ffb040', E: '#ffb040' }),
 });
 
-/* ---------- FROST WYRM: serpent, 20w x 11h ---------- */
+/* ---------- GARUDA (unused) ---------- */
 put('frostWyrm', {
   name: 'frostWyrm', w: 24,
   frames: [
@@ -630,7 +630,7 @@ put('volcanoBehemoth', {
   pal: () => ({ o: OUT, B: '#8a2a10', D: '#4a1005', E: '#ffd54f', F: '#ff7a30', G: '#2a0a00' }),
 });
 
-/* ---------- SHADOW PRINCE: robed figure, 14w x 17h ---------- */
+/* ---------- KRONG REAP (unused) ---------- */
 put('shadowPrince', {
   name: 'shadowPrince', w: 14, lift: 2,
   frames: [
