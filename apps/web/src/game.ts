@@ -3638,7 +3638,7 @@ const BIOME_LORE={
   caverns:{n:'II',c:'#e8b060',t:'Beneath the ancient banyan roots of Ta Prohm, the earth groans. Far below, the Stone Titan awakens.',r:'GUARDIAN: TA PROHM TITAN'},
   frost:{n:'III',c:'#8fdcff',t:'Atop the sacred cliff sanctuary of Preah Vihear, celestial winds freeze under the Naga Wyrm\u2019s breath.',r:'GUARDIAN: CELESTIAL WYRM'},
   volcano:{n:'IV',c:'#ff7030',t:'The pink sandstone citadel of Banteay Srei blazes with divine fire. The Behemoth rises from the molten forge.',r:'GUARDIAN: AGNI BEHEMOTH'},
-  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, the Shadow Prince sits upon the Five Thrones of Angkor.',r:'RULER: KRONG REAP, TEN-HEADED'}};
+  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, Krong Reap sits upon the Five Thrones of Angkor.',r:'RULER: KRONG REAP, TEN-HEADED'}};
 function showLore(b){const L=BIOME_LORE[b.key];if(!L)return;const el=document.getElementById('loreCard');
   el.innerHTML='<div class="lr">REALM '+L.n+'</div><div class="ln" style="color:'+L.c+'">'+b.name.toUpperCase()+'</div><div class="lt">'+L.t+'</div><div class="lk" style="color:'+L.c+'">'+L.r+'</div>';
   el.classList.add('on');clearTimeout(showLore._t);showLore._t=setTimeout(()=>el.classList.remove('on'),7000)}
@@ -6029,11 +6029,33 @@ const drawEnemyBody=(function(){
   /* Kala — the devouring face carved over every temple gate */
   S.volcanoBehemoth=o=>{const{t}=o;const jaw=0.5+0.5*Math.sin(t*2.2);
     ctx.save();
-    /* flame mane */
-    for(let i=0;i<11;i++){
-      const a=Math.PI+ (i/10)*Math.PI;
-      const len=13+Math.sin(t*3+i)*4;
-      poly([[Math.cos(a)*14,Math.sin(a)*14-12],[Math.cos(a)*(14+len),Math.sin(a)*(14+len)-12],[Math.cos(a+0.16)*15,Math.sin(a+0.16)*15-12]],'#a02a10');
+    /* flame mane: curled tongues, hot core -> orange -> dark edge, with a
+       slight upward bias so it reads as fire instead of a spiked halo */
+    const tongue=(a,len,wid,fill)=>{
+      const bx=Math.cos(a)*12.5, by=Math.sin(a)*12.5-12;
+      const tx=Math.cos(a)*(12.5+len), ty=Math.sin(a)*(12.5+len)-12-1.5;
+      const nx=-Math.sin(a), ny=Math.cos(a);
+      ctx.beginPath();
+      ctx.moveTo(bx+nx*wid, by+ny*wid);
+      ctx.quadraticCurveTo((bx+tx)/2+nx*wid*1.9, (by+ty)/2+ny*wid*1.9, tx, ty);
+      ctx.quadraticCurveTo((bx+tx)/2-nx*wid*1.1, (by+ty)/2-ny*wid*1.1, bx-nx*wid, by-ny*wid);
+      ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
+    };
+    ctx.save(); ctx.shadowColor='#ff6a20'; ctx.shadowBlur=13;
+    for(let i=0;i<9;i++){
+      const a=Math.PI+0.06+(i/8)*(Math.PI-0.12);
+      const up=0.55+0.45*Math.max(0,-Math.sin(a));       /* longer at the top */
+      const flick=Math.sin(t*3.2+i*1.9)*0.18;
+      const len=(15*up+6)*(1+flick);
+      tongue(a,len,4.6,i%2?'#8f2408':'#a82c0a');
+      tongue(a,len*0.72,3.1,i%2?'#e2521a':'#ef6a20');
+      tongue(a,len*0.38,1.8,'#ffc45a');
+    }
+    ctx.restore();
+    /* embers drifting out of the mouth */
+    for(let i=0;i<6;i++){
+      const ph=(t*0.8+i/6)%1;
+      circ(Math.sin(i*2.1+t)*9, -2+ph*16, 1.6*(1-ph), 'rgba(255,150,60,'+(0.85*(1-ph)).toFixed(2)+')');
     }
     /* face plate */
     circ(0,-12,17,'#6a2a14');
