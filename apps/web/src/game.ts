@@ -2727,6 +2727,7 @@ const BIOMES = [
     torchColor:'#a060ff', edge:'rgba(8,2,15,0.55)',
     enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' }
 ];
+/* dev hook declared inside the engine bundle */
 export function getBiomeForWave(w){const i=Math.min(BIOMES.length-1,Math.floor((w-1)/10));return BIOMES[i]}
 function isBossWave(w){return w%10===0}
 function isEliteWave(w){return w%5===0&&!isBossWave(w)}
@@ -2749,18 +2750,18 @@ const ENEMY_TYPES = {
   charger:{hp:95,speed:100,dmg:22,r:16,color:'#8a4a2a',dark:'#4a1e0a',xp:34,range:38,atkCd:1.4,behavior:'charger',chargeCd:2.8,chargeSpeed:900}
 };
 const BOSS_TYPES = {
-  cryptLord:{name:'Crypt Lord',hp:950,speed:62,dmg:36,r:38,color:'#e74c3c',dark:'#7b1b13',xp:320,range:62,attacks:['groundPound','summonSkeletons','darkBolt'],attackCd:2.4,phase:1},
-  cavernTitan:{name:'Cavern Titan',hp:1300,speed:52,dmg:44,r:46,color:'#5a4a3a',dark:'#2a1e14',xp:420,range:72,attacks:['stomp','rockThrow','enrage'],attackCd:2.6,phase:1},
-  frostWyrm:{name:'Frost Wyrm',hp:1500,speed:68,dmg:48,r:42,color:'#7fd4ff',dark:'#2a4a6a',xp:520,range:84,attacks:['iceBreath','iceShards','teleport'],attackCd:2.4,phase:1},
-  volcanoBehemoth:{name:'Ember Behemoth',hp:1900,speed:58,dmg:56,r:48,color:'#ff5020',dark:'#8a2a10',xp:640,range:86,attacks:['lavaPool','fireWave','charge'],attackCd:2.3,phase:1},
-  shadowPrince:{name:'Shadow Prince',hp:2600,speed:76,dmg:62,r:50,color:'#a060ff',dark:'#4a1a7a',xp:900,range:90,attacks:['shadowBeam','cloneSummon','darkNova','teleportDodge'],attackCd:2.0,phase:1}
+  cryptLord:{name:'Naga Raja',hp:950,speed:62,dmg:36,r:38,color:'#e74c3c',dark:'#7b1b13',xp:320,range:62,attacks:['groundPound','summonSkeletons','darkBolt'],attackCd:2.4,phase:1},
+  cavernTitan:{name:'Kumbhakarna',hp:1300,speed:52,dmg:44,r:46,color:'#5a4a3a',dark:'#2a1e14',xp:420,range:72,attacks:['stomp','rockThrow','enrage'],attackCd:2.6,phase:1},
+  frostWyrm:{name:'Garuda',hp:1500,speed:68,dmg:48,r:42,color:'#7fd4ff',dark:'#2a4a6a',xp:520,range:84,attacks:['iceBreath','iceShards','teleport'],attackCd:2.4,phase:1},
+  volcanoBehemoth:{name:'Kala',hp:1900,speed:58,dmg:56,r:48,color:'#ff5020',dark:'#8a2a10',xp:640,range:86,attacks:['lavaPool','fireWave','charge'],attackCd:2.3,phase:1},
+  shadowPrince:{name:'Krong Reap',hp:2600,speed:76,dmg:62,r:50,color:'#a060ff',dark:'#4a1a7a',xp:900,range:90,attacks:['shadowBeam','cloneSummon','darkNova','teleportDodge'],attackCd:2.0,phase:1}
 };
 const BOSS_TAUNTS = {
-  cryptLord:'"Your bones will join my feast!"',
-  cavernTitan:'"Nothing survives the deep!"',
-  frostWyrm:'"Freeze. Forever."',
-  volcanoBehemoth:'"BURN!"',
-  shadowPrince:'"You were never real."'
+  cryptLord:'"The five heads have tasted a thousand kingdoms."',
+  cavernTitan:'"I slept ten thousand years. You wake me for this?"',
+  frostWyrm:'"The sky belongs to the wings that ate the sun."',
+  volcanoBehemoth:'"Time devours all. I am its teeth."',
+  shadowPrince:'"Ten heads, ten hungers. Which will you feed?"'
 };
 
 /* Items */
@@ -5844,6 +5845,158 @@ const drawEnemyBody=(function(){
     for(let i=0;i<3;i++){const a=t*1.8+i*TAU/3,x=Math.cos(a)*28,y=Math.sin(a)*11-6;
       ctx.save();ctx.shadowColor='#a060ff';ctx.shadowBlur=14;circ(x,y,5,'#2a0a4a');ctx.restore()}};
 
+
+  /* ── Angkor-era mythical bosses. These override the generic silhouettes
+        below: Naga Raja, Kumbhakarna, Garuda, Kala, Krong Reap. ── */
+
+  /* Naga Raja — five-hooded serpent sovereign of the causeway */
+  S.cryptLord=o=>{const{t}=o;const sway=Math.sin(t*1.6)*2;
+    ctx.save();
+    /* coiled lower body */
+    ell(0,18,15,7,'#2e1a10');ell(7,13,12,6,'#3a2214');ell(-6,9,11,6,'#452a18');
+    /* body arching up to the hoods */
+    poly([[-8,10],[-6,-8],[-2,-20],[6,-20],[7,2],[8,14]],'#4a2c18');
+    poly([[-6,-6],[-3,-18],[4,-18],[5,-4]],'#6b4020');
+    /* scale banding */
+    for(let i=0;i<6;i++){line(-7+i*2.4,8-i*4,6+i*1.6,10-i*4,'rgba(0,0,0,0.35)',1.4)}
+    /* five hoods fanned */
+    const heads=[[-19,-30,-16],[-10,-38,-6],[0,-44,0],[10,-38,6],[19,-30,16]];
+    for(const [hx,hy,rot] of heads){
+      ctx.save();ctx.translate(hx+sway*0.3,hy);ctx.rotate(rot*Math.PI/180);
+      ell(0,0,7,9,'#3f2513');            /* hood */
+      ell(0,-1,5.2,7,'#b06f2c');         /* hood highlight */
+      ell(0,3,4.2,4,'#d08c46');          /* snout */
+      eye(-2.1,-2.4,1.5,'#ffd54f');eye(2.1,-2.4,1.5,'#ffd54f');
+      line(-0.6,5,0,9,'#e04040',1.4);line(0.6,5,1.4,9,'#e04040',1.4);  /* tongue */
+      ctx.restore();
+    }
+    /* gold crown on the centre head */
+    poly([[-6,-51],[6,-51],[5,-46],[-5,-46]],'#e8b53a');
+    line(-3,-51,-3,-54,'#e8b53a',1.4);line(0,-51,0,-55,'#e8b53a',1.4);line(3,-51,3,-54,'#e8b53a',1.4);
+    /* naga crest fins */
+    poly([[-13,-24],[-20,-32],[-11,-29]],'#a8501e');poly([[13,-24],[20,-32],[11,-29]],'#a8501e');
+    ctx.restore();};
+
+  /* Kumbhakarna — the asura colossus, temple-crushing club and all */
+  S.cavernTitan=o=>{const{t}=o;const br=Math.sin(t*1.2)*1.2;
+    ctx.save();
+    /* legs + loincloth */
+    poly([[-11,24],[-4,24],[-3,10],[-12,10]],'#3a2414');
+    poly([[11,24],[4,24],[3,10],[12,10]],'#3a2414');
+    poly([[-10,12],[10,12],[13,22],[0,25],[-13,22]],'#8a2f1a');
+    /* torso: broad shoulders over a heavy gut */
+    poly([[-19,-14],[-13,-24],[13,-24],[19,-14],[16,2],[10,10],[-10,10],[-16,2]],'#6a4020');
+    ell(0,2,11+br*0.4,9,'#7d4c26');               /* belly */
+    ell(0,2,7,5.5,'#94602f');
+    /* pecs + abs shading */
+    line(-6,-8,6,-8,'rgba(0,0,0,0.3)',1.6);
+    line(0,-4,0,8,'rgba(0,0,0,0.25)',1.4);
+    /* arms */
+    line(-17,-12,-24,2,'#6a4020',5);line(-24,2,-22,12,'#5a351a',4);
+    line(17,-12,24,-4,'#6a4020',5);line(24,-4,21,8,'#5a351a',4);
+    /* club */
+    line(22,6,30,-30,'#5a3a18',4);
+    ell(31,-34,7,8,'#7d5a2a');ell(31,-34,4,5,'#9a7440');
+    /* head, tusks, crown */
+    circ(0,-30,8.5,'#7d4c26');
+    poly([[-8,-30],[-3,-38],[0,-42],[3,-38],[8,-30]],'#3a2414');  /* hair */
+    ell(0,-27,6,5,'#a06a38');                                     /* muzzle */
+    eye(-3,-31.5,1.6,'#ff7a2e');eye(3,-31.5,1.6,'#ff7a2e');
+    poly([[-5,-25],[-3,-25],[-4,-21]],'#f0e6c8');poly([[5,-25],[3,-25],[4,-21]],'#f0e6c8');  /* tusks */
+    poly([[-7,-39],[7,-39],[6,-35],[-6,-35]],'#c8952e');          /* crown */
+    ctx.restore();};
+
+  /* Garuda — bird-king of the sky peak, wings spread */
+  S.frostWyrm=o=>{const{t}=o;const flap=Math.sin(t*2.4)*0.14;
+    ctx.save();
+    /* tail feathers */
+    poly([[-4,20],[-9,30],[0,24],[4,20]],'#2a5a7a');poly([[4,20],[9,30],[0,24]],'#2a5a7a');
+    /* wings: layered primaries, animated */
+    for(const dir of [-1,1]){
+      ctx.save();ctx.rotate(dir*flap*0.5);
+      poly([[dir*6,-16],[dir*34,-30],[dir*42,-18],[dir*30,-12],[dir*36,-4],[dir*24,0],[dir*28,8],[dir*10,6]],'#2f6f96');
+      poly([[dir*7,-14],[dir*28,-24],[dir*34,-14],[dir*22,-8]],'#4b93bd');
+      poly([[dir*8,-8],[dir*24,-2],[dir*20,8],[dir*9,6]],'#6fb6dc');
+      ctx.restore();
+    }
+    /* body */
+    ell(0,-4,9,15,'#3d7fa6');
+    ell(0,2,6,9,'#e8e0c8');                        /* pale chest */
+    /* talons */
+    line(-4,12,-6,20,'#d8a53a',2.4);line(4,12,6,20,'#d8a53a',2.4);
+    line(-6,20,-9,23,'#d8a53a',1.8);line(-6,20,-3,24,'#d8a53a',1.8);
+    line(6,20,9,23,'#d8a53a',1.8);line(6,20,3,24,'#d8a53a',1.8);
+    /* head, beak, crest */
+    circ(0,-28,7.5,'#4b93bd');
+    poly([[-6,-31],[-2,-33],[0,-46],[2,-33],[6,-31]],'#e8b53a');   /* crest */
+    poly([[-2,-27],[2,-27],[0,-20]],'#e8b53a');                    /* beak */
+    eye(-3.4,-30,1.7,'#ffffff');eye(3.4,-30,1.7,'#ffffff');
+    /* third eye jewel */
+    circ(0,-34,1.8,'#7ff0ff');
+    ctx.restore();};
+
+  /* Kala — the devouring face carved over every temple gate */
+  S.volcanoBehemoth=o=>{const{t}=o;const jaw=0.5+0.5*Math.sin(t*2.2);
+    ctx.save();
+    /* flame mane */
+    for(let i=0;i<11;i++){
+      const a=Math.PI+ (i/10)*Math.PI;
+      const len=13+Math.sin(t*3+i)*4;
+      poly([[Math.cos(a)*14,Math.sin(a)*14-12],[Math.cos(a)*(14+len),Math.sin(a)*(14+len)-12],[Math.cos(a+0.16)*15,Math.sin(a+0.16)*15-12]],'#a02a10');
+    }
+    /* face plate */
+    circ(0,-12,17,'#6a2a14');
+    circ(0,-12,14,'#8a3a18');
+    /* brows + eyes */
+    poly([[-12,-22],[-3,-25],[-2,-20],[-11,-18]],'#3a1408');
+    poly([[12,-22],[3,-25],[2,-20],[11,-18]],'#3a1408');
+    ell(-6,-16,3.6,2.8,'#ffd54f');ell(6,-16,3.6,2.8,'#ffd54f');
+    circ(-6,-16,1.3,'#2a0a04');circ(6,-16,1.3,'#2a0a04');
+    /* gaping mouth with fangs */
+    ell(0,-3,12,6+jaw*4,'#2a0804');
+    ell(0,-3,9,4+jaw*3,'#5a0e06');
+    for(let i=-2;i<=2;i++){
+      poly([[i*4-1.6,-7],[i*4+1.6,-7],[i*4,-2.5]],'#f5eccf');
+      poly([[i*4-1.4,2.5],[i*4+1.4,2.5],[i*4,6]],'#f5eccf');
+    }
+    line(0,-14,0,-9,'#c8952e',1.6);                 /* nose ridge */
+    /* crown of skulls */
+    poly([[-8,-27],[8,-27],[6,-23],[-6,-23]],'#e8b53a');
+    for(let i=-1;i<=1;i++){circ(i*5,-30,2.2,'#f0e6c8')}
+    ctx.restore();};
+
+  /* Krong Reap — ten-headed demon king of the shadow sanctum */
+  S.shadowPrince=o=>{const{t}=o;const sw=Math.sin(t*1.4)*0.08;
+    ctx.save();
+    /* cloak */
+    poly([[-14,-18],[14,-18],[22,22],[8,16],[0,26],[-8,16],[-22,22]],'#2a0f4a');
+    poly([[-11,-14],[11,-14],[15,20],[0,14],[-15,20]],'#3d1668');
+    /* staff with a skull finial */
+    line(-17,10,-19,-30,'#6a4a20',3);
+    circ(-19,-33,4.5,'#c8952e');circ(-19,-33,2.2,'#1a0a24');
+    /* ten heads: two fanned rows of five */
+    const rows=[[-30,8],[-40,10]];
+    rows.forEach(([ry,rr],ri)=>{
+      for(let i=-2;i<=2;i++){
+        const hx=i*rr*0.9+sw*10*(ri?1:-1), hy=ry-Math.abs(i)*3.4;
+        ell(hx,hy,4.6,5.6,ri?'#2a0f4a':'#3d1668');
+        eye(hx-1.5,hy-0.6,1.05,'#d09aff');eye(hx+1.5,hy-0.6,1.05,'#d09aff');
+        /* fangs */
+        poly([[hx-1.6,hy+4],[hx-0.4,hy+4],[hx-1,hy+6.4]],'#f0e6c8');
+        poly([[hx+1.6,hy+4],[hx+0.4,hy+4],[hx+1,hy+6.4]],'#f0e6c8');
+      }
+    });
+    /* central crown spire */
+    poly([[0,-46],[-4,-56],[0,-52],[4,-56]],'#e8b53a');
+    /* arms */
+    line(-12,-10,-24,2,'#2a0f4a',4);line(12,-10,24,2,'#2a0f4a',4);
+    /* aura orbs */
+    for(let i=0;i<4;i++){
+      const a=t*1.5+i*TAU/4;
+      circ(Math.cos(a)*27,Math.sin(a)*10-10,3.2,'rgba(160,96,255,0.5)');
+    }
+    ctx.restore();};
+
   const AMB={crypt:['#9a6aff','#7aff9a'],caverns:['#ffb040','#d8b878'],frost:['#7fd4ff','#ffffff'],volcano:['#ff6a20','#ffd54f'],shadow:['#a060ff','#d09aff']};
   return function(e,wob){
     const B=G.currentBiomeKey||'crypt',t=G.time,am=AMB[B]||AMB.crypt,r=e.r,boss=e.boss;
@@ -5851,7 +6004,7 @@ const drawEnemyBody=(function(){
     ctx.save();ctx.globalCompositeOperation='lighter';
     const gr=r*(boss?2.4:1.8),gl=ctx.createRadialGradient(0,0,r*0.2,0,0,gr);
     gl.addColorStop(0,am[0]);gl.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.globalAlpha=boss?0.16:0.10;ctx.fillStyle=gl;ctx.beginPath();ctx.arc(0,0,gr,0,TAU);ctx.fill();ctx.restore();
+    ctx.globalAlpha=boss?0.10:0.10;ctx.fillStyle=gl;ctx.beginPath();ctx.arc(0,0,gr,0,TAU);ctx.fill();ctx.restore();
     if(e.elite&&!boss){ctx.save();ctx.globalAlpha=0.3+0.12*Math.sin(t*6);ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.arc(0,0,r*1.7,0,TAU);ctx.fill();ctx.restore()}
     const sg=ctx.createRadialGradient(0,r*1.05,1,0,r*1.05,r*1.25);
     sg.addColorStop(0,'rgba(0,0,0,0.6)');sg.addColorStop(1,'rgba(0,0,0,0)');
@@ -5865,7 +6018,7 @@ const drawEnemyBody=(function(){
       ctx.save();ctx.translate(0,wob*0.4+feet*sc);ctx.rotate(lean);
       ctx.scale(sc*(e._face||1)*(1-b*0.6),sc*(1+b));ctx.translate(0,-feet);
       const key=boss?e.bossKey:e.type;
-      if(hasPx(key)){
+      if(hasPx(key)&&!boss){
         const def=PIXFAM.SPRITES[key],n=def.frames.length;
         drawPxSprite(ctx,key,e.color,e.dark,B,0,feet,(boss?42:44)/def.w,0,Math.floor(t*7+e.wobble)%n);
       }else if(fn)fn({B,t,c:e.color,d:e.dark,e});else circ(0,0,15,e.color);
