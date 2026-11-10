@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "npm run dev -w @sastra-dungeon/web",
     "build": "npm run build -w @sastra-dungeon/web",
-    "preview": "npm run preview -w @sastra-dungeon/web"
+    "preview": "npm run preview -w @sastra-dungeon/web",
+    "test:smoke": "node tests/smoke.mjs",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
     "firebase": "^13.1.0"
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
-    "eslint": "^10.14.0"
+    "eslint": "^10.14.0",
+    "playwright": "^1.49.0"
   }
 }

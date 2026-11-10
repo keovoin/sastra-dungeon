@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/web/package.json
+
+      # No lockfile is committed yet (a Windows-generated one breaks npm ci on
+      # Linux), so resolve fresh. Add a lockfile once it can be generated on Linux.
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck + build
+        run: npm run build
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Preview production build
+        run: |
+          npx vite preview --port 4173 --strictPort --outDir apps/web/dist &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4173/ > /dev/null; then echo "preview up"; break; fi
+            sleep 1
+          done
+
+      - name: Smoke test
+        env:
+          SMOKE_URL: http://localhost:4173
+        run: npm run test:smoke

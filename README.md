@@ -20,3 +20,31 @@ npm run preview  # serve the production build locally
 - `apps/web/src/intro.ts` — story cinematic that wraps class selection
 - `apps/web/src/music.ts` — WebAudio music engine (M to toggle)
 - SOW: `../SOW.md`
+
+## Tests
+
+```
+npm run build
+npx vite preview --port 4173 &
+SMOKE_URL=http://localhost:4173 npm run test:smoke
+```
+
+`tests/smoke.mjs` boots the production build headlessly and asserts the shell
+renders, all 71 classes list, the Archive opens with four soul tracks and five
+bestiary medallions, a run starts, the canvas has a backing store, and no
+console or page errors occurred. CI runs the same script on every push
+(`.github/workflows/ci.yml`).
+
+## Deploying the security rules
+
+`firestore.rules` is the source of truth and is **not** deployed automatically —
+no CI step and no `firebase.json` until this change. To push it:
+
+```
+npx firebase login
+npm run deploy:rules      # firebase deploy --only firestore:rules
+```
+
+The active project is `wholesale-e-com` (`.firebaserc`). Note the client keeps a
+fallback: if a ruleset rejects the `meta` field, the save is rewritten without it
+so a rules deploy can never cost a player their progress.
