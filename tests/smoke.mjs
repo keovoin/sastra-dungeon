@@ -51,11 +51,13 @@ await page.waitForTimeout(300);
 // instead of sampling immediately (this is what made the check flaky on live)
 await page.waitForFunction(() => {
   const imgs = [...document.querySelectorAll('.arc-boss img')];
-  return imgs.length === 5 && imgs.every((i) => i.complete);
+  return imgs.length >= 5 && imgs.every((i) => i.complete);
 }, null, { timeout: 10000 }).catch(() => {});
 const codexImgs = await page.evaluate(() =>
   [...document.querySelectorAll('.arc-boss img')].map((i) => i.complete && i.naturalWidth > 0));
-ok('bestiary art loads', codexImgs.length === 5 && codexImgs.every(Boolean), JSON.stringify(codexImgs));
+// the guardian roster grew to six with the celestial realm, so assert the
+// contract (every medallion loads) rather than a hard-coded count
+ok('bestiary art loads', codexImgs.length >= 5 && codexImgs.every(Boolean), `${codexImgs.length} medallions ${JSON.stringify(codexImgs)}`);
 await page.locator('#archiveClose').click();
 
 // 4. a run starts and the canvas keeps rendering
