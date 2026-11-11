@@ -32,6 +32,7 @@ function bake(def, c, d, B) {
       const cv = document.createElement('canvas');
       cv.width = def.w; cv.height = rows.length;
       const x = cv.getContext('2d');
+      if (!x) return cv;                    /* canvas unavailable (headless/SSR) */
       const P = def.pal(c, d, B);
       for (let y = 0; y < rows.length; y++) {
         const row = rows[y];

@@ -1,0 +1,17 @@
+{
+  "name": "Angkor Sastra Chronicles",
+  "short_name": "Sastra",
+  "description": "A 71-class Angkor-era action roguelike: five temple realms, five mythical guardians, soul-shrine meta progression.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#120c07",
+  "theme_color": "#e8b53a",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
