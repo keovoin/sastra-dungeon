@@ -47,6 +47,12 @@ const imgs = await page.evaluate(() =>
   [...document.querySelectorAll('.arc-boss img')].map((i) => i.complete && i.naturalWidth > 0));
 await page.locator('.arc-tab[data-tab="codex"]').click();
 await page.waitForTimeout(300);
+// images are network-bound on a real deployment, so wait for them to settle
+// instead of sampling immediately (this is what made the check flaky on live)
+await page.waitForFunction(() => {
+  const imgs = [...document.querySelectorAll('.arc-boss img')];
+  return imgs.length === 5 && imgs.every((i) => i.complete);
+}, null, { timeout: 10000 }).catch(() => {});
 const codexImgs = await page.evaluate(() =>
   [...document.querySelectorAll('.arc-boss img')].map((i) => i.complete && i.naturalWidth > 0));
 ok('bestiary art loads', codexImgs.length === 5 && codexImgs.every(Boolean), JSON.stringify(codexImgs));

@@ -1,0 +1,5 @@
+package-lock.json
+apps/web/package-lock.json
+tests
+.github
+*.md
