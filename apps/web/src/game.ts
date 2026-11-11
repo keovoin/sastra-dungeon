@@ -2637,7 +2637,58 @@ function startBehemothDefeat(g,b){
     {at:T_ER,fn:()=>{done=true;b.sink=1;flash=1;G.shake=34;csBurst(bx,gy,90,['#ff5020','#ffb040','#ffe082'],640,240);csRing(bx,gy,380,'#ff7020');csRing(bx,gy,200,'#ffe082')}},
     {at:7.8,fn:()=>showCutsceneDialogue(pc.name,'The fire is out.',pc.icon,1.8)},{at:9.6,fn:endCutscene}],
     callbacks:{onEnd:()=>defeatEnd(g,b)}})}
-const DEFEAT_CS={cavernTitan:startTitanDefeat,frostWyrm:startWyrmDefeat,volcanoBehemoth:startBehemothDefeat};
+
+/* Airavata's fall: the storm leaves it one bolt at a time, and the hide goes
+   from slate to ash as each head lowers. */
+function startAiravaDefeat(g,b){
+  const p=g.player,bx=b.x,by=b.y,gy=by+b.r*.55,pc=defeatWho(g);
+  const T_S0=4.2,T_S1=6.8,T_ER=7.0,T_END=10.0;
+  let flash=0,done=false,bolts=0;
+  csActor({
+    upd(a,dt){
+      const e=cutscene.elapsed; flash=Math.max(0,flash-dt*2.2);
+      if(e>.6&&e<T_ER){
+        G.shake=Math.max(G.shake,2+e*.8);
+        /* a bolt lands on the boss roughly twice a second */
+        const want=Math.floor((e-.6)*2);
+        if(want>bolts){ bolts=want; flash=1; G.shake=Math.max(G.shake,10);
+          csBurst(bx+rand(-b.r,b.r),by-rand(0,b.r*1.4),10,['#bfe8ff','#ffffff','#ffe9a8'],260,90);
+          if(rng()<.5) csRing(bx,gy,b.r*2.2,'#bfe8ff');
+        }
+      }
+      if(e>T_S0&&!done) b.sink=csEase(clamp((e-T_S0)/(T_S1-T_S0),0,1));
+      if(e>T_ER) b.color='#8a9098';
+    },
+    draw(){
+      const e=cutscene.elapsed;
+      /* storm draining out of the body */
+      const k=clamp((e-.6)/(T_ER-.6),0,1);
+      if(k<=0||k>=1) return;
+      ctx.save();ctx.globalAlpha=.55*(1-k);
+      for(let i=0;i<7;i++){
+        const a=i/7*TAU+e*1.6;
+        ctx.strokeStyle='#e8f6ff';ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.moveTo(bx+Math.cos(a)*b.r*1.1,by+Math.sin(a)*b.r*.8);
+        ctx.lineTo(bx+Math.cos(a)*b.r*(1.1+1.4*(1-k)),by+Math.sin(a)*b.r*(.8+1.2*(1-k)));
+        ctx.stroke();
+      }
+      ctx.restore();
+      if(flash>0){ctx.save();ctx.fillStyle=`rgba(200,240,255,${FL(flash*.5)})`;ctx.fillRect(0,0,W,H);ctx.restore()}
+    }
+  });
+  startCutscene({duration:T_END,cameraTarget:{x:(p.x+bx)/2,y:(p.y+by)/2},script:[
+    {at:.2,fn:()=>showCutsceneDialogue('Airavata','The storm... is leaving me.','🐘',2.2)},
+    {at:1.2,fn:()=>{G.shake=Math.max(G.shake,9);csRing(bx,gy,240,'#bfe8ff')}},
+    {at:3.0,fn:()=>showCutsceneDialogue('Airavata','Three heads... and none of them afraid.','🐘',2.4)},
+    {at:T_S0+.3,fn:()=>{G.shake=Math.max(G.shake,15);showCutsceneDialogue('Airavata','The summit... remembers you.','🐘',2.2)}},
+    {at:T_ER,fn:()=>{done=true;b.sink=1;flash=1;G.shake=34;
+      csBurst(bx,gy,90,['#bfe8ff','#ffffff','#ffe9a8'],620,220);csRing(bx,gy,380,'#bfe8ff');csRing(bx,gy,200,'#ffffff')}},
+    {at:8.2,fn:()=>showCutsceneDialogue(pc.name,'The sky is quiet again.',pc.icon,1.8)},
+    {at:9.8,fn:endCutscene}],
+    callbacks:{onEnd:()=>defeatEnd(g,b)}})}
+
+const DEFEAT_CS={cavernTitan:startTitanDefeat,frostWyrm:startWyrmDefeat,volcanoBehemoth:startBehemothDefeat,airava:startAiravaDefeat};
 
 /* ===== Class finishers: dispatched by roleTag (see FINISHERS table) ===== */
 const csEase=k=>k*k*(3-2*k);
