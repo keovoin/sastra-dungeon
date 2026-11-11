@@ -2449,7 +2449,7 @@ function csCircle(x,y,r,t,col,a){ctx.save();ctx.translate(x,y+r*.35);ctx.scale(1
   ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.stroke();ctx.setLineDash([14,10]);ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,r*.78,0,TAU);ctx.stroke();ctx.setLineDash([]);
   ctx.rotate(t*1.2);ctx.beginPath();for(let i=0;i<6;i++){const a2=i/6*TAU;ctx.lineTo(Math.cos(a2)*r*.7,Math.sin(a2)*r*.7)}ctx.closePath();ctx.stroke();ctx.restore()}
 function finaleWin(g){const f=g.finale;f.done=true;g._finaleDone=true;addToast('THE FIVE THRONES HAVE FALLEN','#ffd54f','The Rift is sealed');
-  try{ recordMetaRun(g, computeHeroScore(g.wave||1,g.kills||0,(g.player&&g.player.level)||1,diffKey||'normal'), true); }catch(e){}
+  try{ recordMetaRun(g, computeHeroScore(g.wave||1,g.kills||0,(g.player&&g.player.level)||1,Math.floor((g.player&&g.player.gold)||0),diffKey||'normal'), true); }catch(e){}
   try{ checkAchievements(); }catch(e){}
   const v=document.getElementById('victoryCard');if(v){v.classList.add('on');setTimeout(()=>v.classList.remove('on'),7000)}}
 /* Mage finisher: ABSOLUTE ZERO -> 4-3-2-1 -> meteors */
@@ -3856,7 +3856,7 @@ function endBossRush(g){
   g.rush=false;
   const bonus=120;
   META.souls+=bonus; META.earned+=bonus; saveMeta();
-  recordMetaRun(g, computeHeroScore(g.wave||1,g.kills||0,(g.player&&g.player.level)||1,diffKey||'normal'), true);
+  recordMetaRun(g, computeHeroScore(g.wave||1,g.kills||0,(g.player&&g.player.level)||1,Math.floor((g.player&&g.player.gold)||0),diffKey||'normal'), true);
   addToast('⚔ BOSS RUSH CLEARED','#ffd54f','+'+bonus+' souls banked');
   g._finaleDone=true;
   try{ showVictoryScreen(); }catch(e){}
@@ -6815,7 +6815,7 @@ function gameOver(){
   hideSkillTooltip();hideTreeTooltip();
   const p=G.player;
   const C=CLASSES[p.cls];
-  const score = computeHeroScore(G.wave||1, G.kills||0, p.level||1, diffKey||'normal');
+  const score = computeHeroScore(G.wave||1, G.kills||0, p.level||1, Math.floor(p.gold||0), diffKey||'normal');
   const soulsGained = recordMetaRun(G, score, false);
   document.getElementById('deathStats').innerHTML=
     `<div>Reached <b style="color:#f0c14b">Level ${p.level}</b> · Score <b style="color:#7aff9a">${score.toLocaleString()}</b></div>
