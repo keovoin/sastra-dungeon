@@ -105,7 +105,29 @@ const ACHIEVEMENTS = [
   { id:'kill500',     name:'Deathbringer',        desc:'500 kills in a single run', test:()=>(META.stats.bestKills||0)>=500 },
   { id:'runs10',      name:'Pilgrim',             desc:'Complete 10 runs',          test:()=>META.stats.runs>=10 },
   { id:'soul500',     name:'Soulkeeper',          desc:'Bank 500 souls',            test:()=>META.earned>=500 },
+  { id:'naturalist',  name:'Naturalist',          desc:'Discover 10 creatures',     test:()=>Object.keys(META.codex).filter(k=>k.indexOf('e_')===0).length>=10 },
 ];
+
+/* Bestiary copy for the regular creatures. Names are Khmer-temple flavoured so
+   the codex reads as part of the world rather than a debug list. */
+const ENEMY_LORE = {
+  fallen:        { name:'Fallen Acolyte',   note:'A temple servant whose vows outlived him.' },
+  skeleton:      { name:'Bone Guardian',    note:'Laterite dust and old oaths, still on duty.' },
+  archer:        { name:'Temple Archer',    note:'Guarding a lintel that collapsed centuries ago.' },
+  brute:         { name:'Laterite Brute',   note:'Carved muscle given an appetite.' },
+  spider:        { name:'Silk Widow',       note:'Banyan silk. Patient, and patient again.' },
+  golem:         { name:'Stone Golem',      note:'A guardian that forgot what it guards.' },
+  bomber:        { name:'Firepot Thrower',  note:'Carries the forge around in a clay jar.' },
+  sniper:        { name:'Sky Marksman',     note:'Aims down from a peak nobody can reach.' },
+  iceElemental:  { name:'Frost Elemental',  note:'The mountain’s breath, given a shape.' },
+  fireImp:       { name:'Ember Imp',        note:'A spark that learned to want.' },
+  wraith:        { name:'Shadow Wraith',    note:'What Bayon’s smile leaves behind.' },
+  healer:        { name:'Apsara Mender',    note:'She dances, and the wounds close.' },
+  shaman:        { name:'Kru Shaman',       note:'Chants older than the temple walls.' },
+  mage:          { name:'Pale Caster',      note:'Reads the stone like a page.' },
+  charger:       { name:'Horned Charger',   note:'Runs as if the causeway were a race.' },
+};
+
 const CODEX_BOSSES = [
   { key:'cryptLord',       img:'naga',      name:'Naga Raja',   realm:'I · ANGKOR SANKRANTI CRYPT',      line:'Five-headed sovereign of the causeway. It has tasted a thousand kingdoms.' },
   { key:'cavernTitan',     img:'kumbha',    name:'Kumbhakarna', realm:'II · TA PROHM ROOT CAVERNS',      line:'The asura colossus of the Reamker, woken by the roots of the banyan.' },
@@ -3914,6 +3936,10 @@ function spawnEnemy(type,g,forcedX:any=null,forcedY:any=null){
   let isEliteSpawn=false,isBossSpawn=false,bossKey=null;
   if(type==='elite'){isEliteSpawn=true;type=pick(getBiomeForWave(g.wave).enemies)}
   else if(type.startsWith('BOSS:')){isBossSpawn=true;bossKey=type.substring(5)}
+  /* record the creature for the bestiary (flat key, same one renderArchive reads) */
+  if(!isBossSpawn && type && ENEMY_LORE[type] && !META.codex['e_'+type]){
+    META.codex['e_'+type]=true; saveMeta();
+  }
   let t,name;
   if(isBossSpawn){t=BOSS_TYPES[bossKey];name=t.name}
   else{t=ENEMY_TYPES[type];name=type}
@@ -7307,7 +7333,25 @@ function renderArchive(tab){
           <div class="n">${b.name}${killed?' ⚔':''}</div><div class="r">${b.realm}</div><div class="l">${b.line}</div></div>`;
       }
     }
-    codexEl.innerHTML=h+'</div>';
+    /* regular creatures, discovered by meeting them */
+    const realmOf = {};
+    for (const b of BIOMES) for (const k of b.enemies) if (!realmOf[k]) realmOf[k] = b.name;
+    const keys = Object.keys(ENEMY_LORE);
+    const found = keys.filter(k => !!META.codex['e_' + k]).length;
+    h += `</div><div style="display:flex;justify-content:space-between;align-items:baseline;margin:16px 2px 8px">
+            <span style="font:700 12px 'Trebuchet MS',sans-serif;color:#ffd54f;letter-spacing:.14em">CREATURES</span>
+            <span style="font-size:11px;color:#8a7a5a">${found} / ${keys.length} discovered</span></div>`;
+    h += '<div class="arc-grid">';
+    for (const k of keys) {
+      const seen = !!META.codex['e_' + k];
+      const e = ENEMY_LORE[k];
+      const where = realmOf[k] || 'Unknown realm';
+      h += seen
+        ? `<div class="arc-card got"><div class="t">${e.name}</div><div class="d">${e.note}</div>
+             <div class="d" style="color:#6a5a44;margin-top:4px">${where}</div></div>`
+        : `<div class="arc-card"><div class="t">???</div><div class="d">Not yet encountered</div></div>`;
+    }
+    codexEl.innerHTML = h + '</div>';
   }
 }
 function openArchive(tab){
