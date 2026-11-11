@@ -1737,6 +1737,38 @@ function updateAutoPlay(dt, g) {
 /* Input */
 const mouse = { x:W/2, y:H/2, down:false };
 const keys = {};
+
+/* ═══ GAMEPAD ═══
+   Left stick / d-pad move, face buttons fire skills, Start pauses. Buttons are
+   translated into the same key events the keyboard produces, so a pad can never
+   drift out of sync with the binding logic. */
+const PAD = { x:0, y:0, prev:{}, id:null, active:false };
+const PAD_MAP = { 0:'1', 1:'2', 2:'3', 3:'4', 4:'q', 5:'q', 9:'escape' };
+function pollGamepad(){
+  const list = (navigator.getGamepads ? navigator.getGamepads() : []) || [];
+  let gp = null;
+  for (const p of list) if (p && p.connected) { gp = p; break; }
+  if (!gp){ PAD.x = 0; PAD.y = 0; PAD.active = false; return; }
+  if (!PAD.active){ PAD.active = true; PAD.id = gp.id; addToast('🎮 GAMEPAD','#7aff9a',gp.id.slice(0,42)); }
+  const dz = 0.24;
+  let x = gp.axes[0] || 0, y = gp.axes[1] || 0;
+  if (Math.hypot(x, y) < dz) { x = 0; y = 0; }
+  if (gp.buttons[14] && gp.buttons[14].pressed) x = -1;
+  if (gp.buttons[15] && gp.buttons[15].pressed) x = 1;
+  if (gp.buttons[12] && gp.buttons[12].pressed) y = -1;
+  if (gp.buttons[13] && gp.buttons[13].pressed) y = 1;
+  PAD.x = Math.max(-1, Math.min(1, x));
+  PAD.y = Math.max(-1, Math.min(1, y));
+  for (const idx in PAD_MAP){
+    const b = gp.buttons[idx];
+    const down = !!(b && b.pressed);
+    if (down && !PAD.prev[idx]) {
+      try { window.dispatchEvent(new KeyboardEvent('keydown', { key: PAD_MAP[idx], bubbles: true })); } catch(e){}
+    }
+    PAD.prev[idx] = down;
+  }
+}
+window.addEventListener('gamepadconnected', () => { PAD.active = false; try{ sfx.ui(); }catch(e){} });
 canvas.addEventListener('mousemove',e=>{
   mouse.x=e.clientX;mouse.y=e.clientY;
   if(mouse.down&&G&&G.running&&G.player&&!G.paused&&!cutscene.active){
@@ -4534,6 +4566,7 @@ function updatePlayer(dt,g){
   if(keys['s']||keys['arrowdown'])mvy+=1;
   if(keys['a']||keys['arrowleft'])mvx-=1;
   if(keys['d']||keys['arrowright'])mvx+=1;
+  mvx+=PAD.x; mvy+=PAD.y;
   if(mvx||mvy){
     const len=Math.hypot(mvx,mvy);mvx/=len;mvy/=len;
     p.x=clamp(p.x+mvx*p.speed*moveMult*dt,30,WORLD.w-30);
@@ -6567,6 +6600,7 @@ function stepWorld(dt){
     const px0=G.player.x,py0=G.player.y;
     if (autoPlay.enabled) updateAutoPlay(dt, G);
     tutorialTick(dt);
+    pollGamepad();
     updatePlayer(dt,G);
     stepHazards(dt,G);
     G.player.isMoving=Math.hypot(G.player.x-px0,G.player.y-py0)>0.4;
