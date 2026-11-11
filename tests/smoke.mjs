@@ -58,7 +58,36 @@ const codexImgs = await page.evaluate(() =>
 // the guardian roster grew to six with the celestial realm, so assert the
 // contract (every medallion loads) rather than a hard-coded count
 ok('bestiary art loads', codexImgs.length >= 5 && codexImgs.every(Boolean), `${codexImgs.length} medallions ${JSON.stringify(codexImgs)}`);
+
+// the guardian roster is the campaign's spine: six realms, six guardians
+const bossCards = await page.locator('.arc-boss').count();
+ok('six guardians in the codex', bossCards === 6, `${bossCards} cards`);
+
+// creatures were added to the codex later; make sure that grid still renders
+const creatureCards = await page.locator('#arcCodex .arc-card').count();
+ok('creature grid renders', creatureCards >= 15, `${creatureCards} creature cards`);
+
+// achievements panel
+await page.locator('.arc-tab[data-tab="ach"]').click();
+await page.waitForTimeout(300);
+const achCards = await page.locator('#arcAch .arc-card').count();
+ok('achievements render', achCards >= 10, `${achCards} achievements`);
+await page.locator('.arc-tab[data-tab="codex"]').click();
+await page.waitForTimeout(200);
 await page.locator('#archiveClose').click();
+
+// PWA: manifest and icon must be reachable, otherwise "install to home screen" silently dies
+const manifestHref = await page.getAttribute('link[rel="manifest"]', 'href').catch(() => null);
+ok('manifest linked', !!manifestHref, manifestHref || 'missing');
+if (manifestHref) {
+  // NB: this file shadows the global URL with the target string, so build it by hand
+  const manifestUrl = URL.replace(/\/$/, '') + manifestHref;
+  const mres = await page.request.get(manifestUrl);
+  ok('manifest served', mres.ok(), `status ${mres.status()}`);
+  const mjson = mres.ok() ? await mres.json() : null;
+  ok('manifest has icons', !!(mjson && Array.isArray(mjson.icons) && mjson.icons.length >= 2),
+     mjson ? `${mjson.icons?.length || 0} icons` : 'no json');
+}
 
 // 4. a run starts and the canvas keeps rendering
 await page.locator('.card').first().click();
