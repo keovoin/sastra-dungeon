@@ -3639,6 +3639,14 @@ function updateOrbs(dt,g){
 }
 function killEnemy(e,g){
   if(e.dead)return;
+  /* A guardian dying while another cutscene is on screen used to start a second
+     cinematic on top of the first and wedge the run. Queue it instead: the
+     pending sequence fires as soon as the stage is clear. */
+  if(cutscene.active && e.boss && !e._defeatDone && !e.finale && (e.bossKey==='cryptLord' || DEFEAT_CS[e.bossKey])){
+    g._pendingDefeat={key:e.bossKey, boss:e};
+    e.hp=Math.max(1,Math.round(e.maxHp*0.1));
+    return;
+  }
   if(e.finale&&!g._finaleKill){e.hp=Math.max(1,Math.ceil(e.maxHp*.1));return}
   if(e.boss&&e.bossKey==='cryptLord'&&!e.finale){
     if(!g._cryptDefeatCs){
@@ -6789,6 +6797,14 @@ function stepWorld(dt){
     const px0=G.player.x,py0=G.player.y;
     if (autoPlay.enabled) updateAutoPlay(dt, G);
     tutorialTick(dt);
+    if(G._pendingDefeat && !cutscene.active){
+      const pd=G._pendingDefeat; G._pendingDefeat=null;
+      const b=pd.boss;
+      if(b && !b.dead && !b._defeatDone){
+        if(pd.key==='cryptLord'){ if(!G._cryptDefeatCs){ G._cryptDefeatCs=true; startCryptDefeatCutscene(G,b); } }
+        else if(DEFEAT_CS[pd.key]){ G._defeatCs=G._defeatCs||{}; if(!G._defeatCs[pd.key]){ G._defeatCs[pd.key]=true; DEFEAT_CS[pd.key](G,b); } }
+      }
+    }
     pollGamepad();
     updatePlayer(dt,G);
     stepHazards(dt,G);
