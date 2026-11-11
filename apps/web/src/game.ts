@@ -2515,6 +2515,53 @@ function startMageFinisher(g){
     ...[3,4,5,6].map((t,n)=>({at:t,fn:()=>{G.shake=Math.max(G.shake,5+n*3);for(const b of bs)if(!b.dead)csRing(b.x,b.y+20,140+n*40,n<2?'#9fe0ff':'#ff6a30')}})),
     {at:9.2,fn:()=>showCutsceneDialogue(C.name,'Cold... and then fire.',C.icon,1.4)},{at:10.5,fn:endCutscene}],
     callbacks:{onEnd:()=>{bs.forEach((b,i)=>land(i));finaleWin(g)}}})}
+
+/* VI - Airavata: the court darkens, lightning walks down the terrace, and the
+   three heads rise out of a rune of gold light. */
+function startAiravaCutscene(g){
+  const st=csStage(g),sx=st.x,sy=st.y;let boss;
+  const bolts=Array.from({length:5},(_,i)=>({t:1.2+i*0.9,done:false,ang:rand(0,TAU),len:rand(120,220)}));
+  csActor({
+    upd(a,dt){
+      const e=cutscene.elapsed;
+      for(const b of bolts){
+        if(!b.done && e>b.t){ b.done=true; G.shake=Math.max(G.shake,9);
+          csBurst(sx+Math.cos(b.ang)*80,sy+Math.sin(b.ang)*50,8,['#bfe8ff','#ffe9a8','#ffffff'],200,120); }
+      }
+    },
+    draw(){
+      const e=cutscene.elapsed,t=clamp((e-0.6)/6,0,1);
+      ctx.save();
+      /* gathering storm ring on the floor */
+      ctx.strokeStyle='rgba(255,233,168,'+(0.25+0.45*t)+')';ctx.lineWidth=3;ctx.shadowColor='#ffe9a8';ctx.shadowBlur=16;
+      ctx.beginPath();ctx.ellipse(sx,sy+34,240*t,120*t,0,0,TAU);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(sx,sy+34,150*t,74*t,0,0,TAU);ctx.stroke();
+      /* lightning ladders down the terrace */
+      for(const b of bolts){
+        const age=e-b.t; if(age<0||age>0.35) continue;
+        ctx.globalAlpha=1-age/0.35; ctx.strokeStyle='#e8f6ff'; ctx.lineWidth=2.5;
+        ctx.beginPath();
+        let x=sx+Math.cos(b.ang)*40, y=sy-260;
+        ctx.moveTo(x,y);
+        for(let k=1;k<=6;k++){ x+=rand(-18,18); y+=260/6; ctx.lineTo(x,y); }
+        ctx.stroke(); ctx.globalAlpha=1;
+      }
+      ctx.restore();
+    }
+  });
+  startCutscene(Object.assign({duration:16.4,cameraTarget:{x:sx,y:sy+20},script:[
+    {at:.4,fn:()=>showCutsceneDialogue('???','The air tastes of iron','⚡',2.0)},
+    {at:3.0,fn:()=>{G.shake=8;csRing(sx,sy+30,260,'#ffe9a8');csBurst(sx,sy+20,26,['#ffe9a8','#fff7d6','#e8b53a'],240,120);
+      showCutsceneDialogue('???','Something enormous is breathing above the court.','🐘',2.4)}},
+    {at:6.6,fn:()=>{boss=csBoss('airava',sx,sy-10,{alpha:0,sc:.5,tick:(a,dt)=>{if(!a.go)return;csRise(a,dt,.5,2.4)}});
+      boss.go=1;G.shake=18;csRing(sx,sy+30,320,'#ffe9a8');csBurst(sx,sy,44,['#bfe8ff','#ffe9a8','#ffffff'],320,140);
+      showCutsceneDialogue('Airavata','THREE HEADS, ONE STORM.','🐘',3.0)}},
+    {at:11.4,fn:()=>{if(boss){boss.speed=74;boss.walkTo={x:sx,y:sy+120}}}},
+    {at:12.6,fn:()=>showCutsceneDialogue('Airavata','The summit does not bow.','🐘',2.4)},
+    {at:16.0,fn:endCutscene}
+  ]},
+  csFinish('airava','BOSS: AIRAVATA','The storm descends',()=>boss||{x:sx,y:sy+120},g)))}
+
 /* ===== Boss defeat cutscenes (Kumbhakarna, Garuda, Kala). Naga Raja & Krong Reap have their own. ===== */
 function defeatEnd(g,b){b.sink=0;b.lift=0;b.ghost=undefined;b._defeatDone=true;b.hp=0;for(const en of g.enemies)if(!en.dead&&!en.boss)killEnemy(en,g);killEnemy(b,g)}
 function defeatCracks(b,k,col,glow,seed){if(k<=0)return;ctx.save();ctx.translate(b.x,b.y);ctx.strokeStyle=col;ctx.lineWidth=3;ctx.shadowColor=glow;ctx.shadowBlur=14;ctx.lineJoin='round';ctx.globalAlpha=clamp(k*1.5,0,1);
@@ -3901,15 +3948,20 @@ function startWave(g){
     biome=BIOMES.find(b=>b.key===r.biome)||biome;
   }
   g.currentBiomeKey=biome.key;
+  const CSC={crypt:['cryptLord',startCryptLordCutscene],caverns:['cavernTitan',startTitanCutscene],frost:['frostWyrm',startWyrmCutscene],volcano:['volcanoBehemoth',startBehemothCutscene],shadow:['shadowPrince',startPrinceCutscene],celestial:['airava',startAiravaCutscene]}[biome.key];
+  /* Every realm opens on its guardian wave, so the lore card and the boss
+     cinematic used to fire together and the card sat on top of the intro. On a
+     boss wave the cinematic is the introduction; skip the card. */
+  const willCutscene = g.rush ? false : (isBossWave(g.wave) && !!CSC && !(g._cutscenesPlayed && g._cutscenesPlayed[CSC[0]]));
   if(biome.key!==g.lastBiomeKey){
     g.lastBiomeKey=biome.key;
     setFloorForBiome(biome.key);
     respawnDustForBiome(biome.key);
-    g.realmWipe={t:0,name:biome.name,sub:'REALM '+(BIOMES.indexOf(biome)+1)+' OF '+BIOMES.length};
-    /* the realm wipe already names the biome — a toast on top of it is clutter */
-    if(!g.realmWipe) addToast('◆ '+biome.name.toUpperCase()+' ◆','#c8b89a','A new biome awaits');
+    /* the door wipe and the cinematic both introduce the realm — running both
+       puts stone panels over the intro's first two seconds */
+    if(!willCutscene) g.realmWipe={t:0,name:biome.name,sub:'REALM '+(BIOMES.indexOf(biome)+1)+' OF '+BIOMES.length};
     updateBiomeLabel();
-    showLore(biome);
+    if(!willCutscene) showLore(biome);
     saveGame();
   }
   const isBoss=g.rush?true:isBossWave(g.wave), isElite=g.rush?false:isEliteWave(g.wave);
@@ -3924,7 +3976,6 @@ function startWave(g){
     const r=RUSH_CHAIN[Math.min(g.rushIdx||0,RUSH_CHAIN.length-1)];
     g.spawnQueue.push('BOSS:'+r.boss); markCodex(r.boss,'seen');
   } else if(isBoss){ g.spawnQueue.push('BOSS:'+biome.boss); markCodex(biome.boss,'seen'); }
-  const CSC={crypt:['cryptLord',startCryptLordCutscene],caverns:['cavernTitan',startTitanCutscene],frost:['frostWyrm',startWyrmCutscene],volcano:['volcanoBehemoth',startBehemothCutscene],shadow:['shadowPrince',startPrinceCutscene]}[biome.key];
   if(isBoss&&CSC&&!(g._cutscenesPlayed&&g._cutscenesPlayed[CSC[0]])){
     g._cutscenesPlayed=g._cutscenesPlayed||{};
     g._cutscenesPlayed[CSC[0]]=true;
