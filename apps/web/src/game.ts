@@ -292,7 +292,7 @@ function spawnSkillVfx(g, p, kind, x, y, r, color, ang = 0, arc = 1.8) {
 const skLvlMult = (p) => 1 + (((p && p._castSkillLvl) || 1) - 1) * 0.22;
 const skRadMult = (p) => 1 + (((p && p._castSkillLvl) || 1) - 1) * 0.10;
 
-const M = (name, icon, mult, arc, cost, cd, color, effect) => ({
+const M = (name, icon, mult, arc, cost, cd, color, effect:any = null) => ({
   name, icon, key:'1', cost, cd, color, kindTag:'Melee Arts',
   info: { desc: name + ' — fierce Angkor martial strike that cleaves enemies in an arc.',
     calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22)), kind:'dmg'},{label:'Arc', value: Math.round(arc*57.3)+'°'},{label:'Skill Lv', value: 'Lv '+sl+'/5', kind:'util'}] },
@@ -315,7 +315,7 @@ const M = (name, icon, mult, arc, cost, cd, color, effect) => ({
   }
 });
 
-const P = (name, icon, mult, speed, cost, cd, color, opts) => ({
+const P = (name, icon, mult, speed, cost, cd, color, opts:any = null) => ({
   name, icon, key:'2', cost, cd, color, kindTag:'Projectile',
   info: { desc: name + ' — imbued ranged projectile thatchannels ancient prana.',
     calc: (p, sl=1) => [
@@ -341,7 +341,7 @@ const P = (name, icon, mult, speed, cost, cd, color, opts) => ({
   }
 });
 
-const N = (name, icon, mult, radius, cost, cd, color, effect) => ({
+const N = (name, icon, mult, radius, cost, cd, color, effect = null) => ({
   name, icon, key:'2', cost, cd, color, kindTag:'Sacred Nova',
   info: { desc: name + ' — radial mandala shockwave around your hero.',
     calc: (p, sl=1) => [{label:'Damage', value: Math.round(p.dmg*mult*(1+(sl-1)*0.22))+' in radius '+Math.round(radius*(1+(sl-1)*0.1)), kind:'dmg'},{label:'Skill Lv', value: 'Lv '+sl+'/5', kind:'util'}] },
@@ -422,7 +422,7 @@ const S = (name, icon, cost, cd, color, count, dmgMult, hpMult) => ({
   }
 });
 
-const HEAL = (name, icon, pct, cost, cd, color, extra) => ({
+const HEAL = (name, icon, pct, cost, cd, color, extra:any = null) => ({
   name, icon, key:'2', cost, cd, color, kindTag:'Lotus Blessing',
   info: { desc: name + ' — restore health with sacred lotus nectar.',
     calc: (p, sl=1) => [
@@ -443,7 +443,7 @@ const HEAL = (name, icon, pct, cost, cd, color, extra) => ({
   }
 });
 
-const B = (name, icon, kind, dur, cost, cd, color, amt) => ({
+const B = (name, icon, kind, dur, cost, cd, color, amt:any = null) => ({
   name, icon, key:'2', cost, cd, color, kindTag:'Mantra Buff',
   info: { desc: name + ' — empower yourself with an ancient Khmer war mantra.',
     calc: (p, sl=1) => [
@@ -1414,7 +1414,7 @@ function loadSaveData() {
 }
 function deleteSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
 
-function resumeFromSave(data, silent) {
+function resumeFromSave(data, silent:any = false) {
   if (!data || !CLASSES[data.cls]) return;
   window.__coreStart(data.cls);
   const p = G.player, C = CLASSES[data.cls];
@@ -2311,7 +2311,7 @@ function startCryptLordCutscene(g) {
 
 /* ===== boss intro cutscenes: realms 2-5 ===== */
 function csStage(g){return{x:clamp(g.player.x+220,320,WORLD.w-320),y:clamp(g.player.y,320,WORLD.h-320)}}
-function csBurst(x,y,n,cols,sp,up){for(let i=0;i<n;i++){const a=rand(0,TAU),s=rand(sp*.3,sp);G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-(up||0),life:rand(.4,1),max:1,size:rand(2,6),color:pick(cols)})}}
+function csBurst(x,y,n,cols,sp,up:any=0){for(let i=0;i<n;i++){const a=rand(0,TAU),s=rand(sp*.3,sp);G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-(up||0),life:rand(.4,1),max:1,size:rand(2,6),color:pick(cols)})}}
 function csRing(x,y,r,c){G.fx.push({type:'ring',x,y,r,life:.6,max:.6,color:c})}
 function csActor(o){cutscene.actors.push(o);return o}
 function csBoss(key,x,y,o){const t=BOSS_TYPES[key];
@@ -2963,7 +2963,7 @@ function rollAffix(k,w,m){switch(k){
 function weightedSlot(){const r=rng();
   if(r<0.24)return 'weapon';if(r<0.38)return 'helm';if(r<0.52)return 'chest';
   if(r<0.64)return 'gloves';if(r<0.76)return 'boots';if(r<0.88)return 'ring';return 'amulet'}
-function makeItem(wave,rarityIdx,forcedSlot){
+function makeItem(wave,rarityIdx,forcedSlot:any=null){
   const slot=forcedSlot||weightedSlot();const rar=RARITIES[rarityIdx];
   const it={id:++itemIdCounter,slot,rarity:rarityIdx,color:rar.color,
     name:`${pick(PREFIX[rarityIdx])} ${pick(BASES[slot])}`,baseDmg:0,baseArmor:0,affixes:[],
@@ -3334,7 +3334,7 @@ function addFriend(p,champ){
   const cls=pick(keys);
   p._friends.push({cls,champ:!!champ,timer:0});
 }
-function spawnAlly(f,g,silent){
+function spawnAlly(f,g,silent:any=false){
   const C=CLASSES[f.cls];if(!C)return;
   const p=g.player,sc=f.champ?2:1,lvl=p.level;
   const hp=Math.round((C.hp*0.8+lvl*16+g.wave*6)*sc);
@@ -3435,7 +3435,7 @@ function updateMinions(dt,g){
     m.x=clamp(m.x,20,WORLD.w-20);m.y=clamp(m.y,20,WORLD.h-20);
   }
 }
-function damageEnemy(e,amount,g,src,opts){
+function damageEnemy(e,amount,g,src,opts:any=null){
   if(e.dead)return;
   opts=opts||{};
   let crit=false;
@@ -3580,7 +3580,7 @@ function killEnemy(e,g){
   if(e.boss){
     g.shake=20;
     if(!e.finale)addToast('BOSS DEFEATED!','#ffd54f','+'+goldAmt+' gold · '+e.name+' has fallen');
-    if(e.bossKey==='shadowPrince'&&!e.finale&&!g._finaleStarted){g._finaleStarted=true;startFinaleCutscene(g,e)}
+    if(e.bossKey==='shadowPrince'&&!e.finale&&!g._finaleStarted){g._finaleStarted=true;startFinaleCutscene(g)}
   }
 }
 function triggerDodge(p,g){
@@ -3596,7 +3596,7 @@ function triggerDodge(p,g){
   p._dash={vx:Math.cos(ang)*len/dur,vy:Math.sin(ang)*len/dur,t:dur,acc:0};
   g.fx.push({type:'shadow',x:p.x,y:p.y,r:p.r,life:.5,max:.5});
 }
-function damagePlayer(amount,g,kind,attacker){
+function damagePlayer(amount,g,kind,attacker:any=null){
   const p=g.player;
   if(!isFinite(amount)){ amount=0; }   /* a NaN amount used to set p.hp to NaN permanently */
   if(p.invuln>0||p.hp<=0)return;
@@ -3910,7 +3910,7 @@ function startWave(g){
   else subtitle=biome.name;
   addToast(title,color,subtitle);
 }
-function spawnEnemy(type,g,forcedX,forcedY){
+function spawnEnemy(type,g,forcedX:any=null,forcedY:any=null){
   let isEliteSpawn=false,isBossSpawn=false,bossKey=null;
   if(type==='elite'){isEliteSpawn=true;type=pick(getBiomeForWave(g.wave).enemies)}
   else if(type.startsWith('BOSS:')){isBossSpawn=true;bossKey=type.substring(5)}
@@ -4898,7 +4898,7 @@ function syncPause(){if(G)G.paused=G.pauseMenu||inv.open||tree.open||upgState.op
 function closeInventory(){
   inv.open=false;inv.el.classList.add('hidden');hideTooltip();syncPause();
 }
-function toggleInventory(tab){
+function toggleInventory(tab:any=null){
   if(!G||!G.running)return;
   if(inv.open&&(!tab||invTab===tab)){closeInventory();return;}
   inv.open=true;inv.el.classList.remove('hidden');

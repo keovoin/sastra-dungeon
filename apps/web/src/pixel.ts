@@ -561,7 +561,7 @@ export function drawPixelHero(c, x, y, color, accent, walk, t) {
 }
 
 /* ===== pixel slime / guardian spirit minion ===== */
-export function drawPixelSlime(c, x, y, wobble, color) {
+export function drawPixelSlime(c, x, y, wobble, color:any = null) {
   const s = 1 + Math.sin(wobble) * 0.14;
   c.save();
   c.translate(Math.round(x), Math.round(y));
