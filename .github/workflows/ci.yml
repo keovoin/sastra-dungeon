@@ -27,8 +27,9 @@ jobs:
       - name: Typecheck + build
         run: npm run build
 
-      - name: Install Playwright chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright chromium (best effort)
+        continue-on-error: true
+        run: npx playwright install chromium
 
       - name: Preview production build
         run: |
