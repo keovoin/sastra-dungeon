@@ -101,7 +101,7 @@ const ACHIEVEMENTS = [
   { id:'wave50',      name:'Sovereign of Sastra', desc:'Reach wave 50',             test:()=>META.stats.bestWave>=50 },
   { id:'serpent',     name:'Serpent Slayer',      desc:'Defeat Naga Raja',          test:()=>!!META.codex.killed_cryptLord },
   { id:'three',       name:'Three Thrones',       desc:'Defeat three guardians',    test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=3 },
-  { id:'five',        name:'Five Thrones',        desc:'Defeat all five guardians', test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=5 },
+  { id:'five',        name:'Six Thrones',         desc:'Defeat all six guardians',  test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=6 },
   { id:'kill500',     name:'Deathbringer',        desc:'500 kills in a single run', test:()=>(META.stats.bestKills||0)>=500 },
   { id:'runs10',      name:'Pilgrim',             desc:'Complete 10 runs',          test:()=>META.stats.runs>=10 },
   { id:'soul500',     name:'Soulkeeper',          desc:'Bank 500 souls',            test:()=>META.earned>=500 },
@@ -134,6 +134,7 @@ const CODEX_BOSSES = [
   { key:'frostWyrm',       img:'garuda',    name:'Garuda',      realm:'III · PREAH VIHEAR SKY PEAK',     line:'The bird-king who ate the sun and still hungers for the peak.' },
   { key:'volcanoBehemoth', img:'kala',      name:'Kala',        realm:'IV · BANTEAY SREI SACRED FORGE',  line:'The devouring face carved above every gate. Time made teeth.' },
   { key:'shadowPrince',    img:'krongreap', name:'Krong Reap',  realm:'V · BAYON SHADOW SANCTUM',        line:'Ten heads, ten hungers, one throne in the heart of Bayon.' },
+  { key:'airava',          img:'airava',    name:'Airavata',    realm:'VI · PHNOM BAKHENG CELESTIAL COURT', line:'Three heads, one storm. The white elephant that carries Indra\u2019s thunder.' },
 ];
 
 function checkAchievements(){
@@ -1933,7 +1934,8 @@ const BIOME_DUST = {
   caverns:{vx:[-10,10],vy:[-20,-4],size:[0.8,2.4],colors:['#7aff9a','#5ac8a0','#a8e063','#60ffb0'],glow:true},
   frost:{vx:[-25,25],vy:[10,30],size:[0.8,2.2],colors:['#eafaff','#c8f0ff','#ffffff','#a8e0ff'],glow:false},
   volcano:{vx:[-12,12],vy:[-50,-20],size:[1,3],colors:['#ff8f2e','#ff5020','#ffe082','#ffb040'],glow:true},
-  shadow:{vx:[-12,12],vy:[-25,-6],size:[1,2.5],colors:['#a060ff','#d8a8ff','#8e44ad','#b47cff'],glow:true}
+  shadow:{vx:[-12,12],vy:[-25,-6],size:[1,2.5],colors:['#a060ff','#d8a8ff','#8e44ad','#b47cff'],glow:true},
+  celestial:{vx:[-10,10],vy:[-30,-10],size:[1,2.4],colors:['#ffe9a8','#fff7d6','#e8b53a'],glow:true}
 };
 function respawnDustForBiome(biomeKey){
   if(!G)return;
@@ -2421,8 +2423,8 @@ function startPrinceCutscene(g){
     csFinish('shadowPrince','BOSS: KRONG REAP','The last throne',()=>boss,g)))}
 
 /* ===== FINAL STAND: after Krong Reap falls ===== */
-const FIN_ORDER=['cryptLord','frostWyrm','shadowPrince','volcanoBehemoth','cavernTitan'];
-const FIN_LINES={cryptLord:['I am not finished feeding.','💀'],frostWyrm:['Winter never ends.','🐉'],shadowPrince:['I am the Rift. I cannot fall.','👑'],volcanoBehemoth:['Burn... again.','🔥'],cavernTitan:['The deep remembers you.','🗿']};
+const FIN_ORDER=['cryptLord','frostWyrm','shadowPrince','volcanoBehemoth','cavernTitan','airava'];
+const FIN_LINES={airava:['The storm is mine to keep.','🐘'],cryptLord:['I am not finished feeding.','💀'],frostWyrm:['Winter never ends.','🐉'],shadowPrince:['I am the Rift. I cannot fall.','👑'],volcanoBehemoth:['Burn... again.','🔥'],cavernTitan:['The deep remembers you.','🗿']};
 const csRgba=(c,a)=>{const n=parseInt(c.slice(1),16);return`rgba(${n>>16},${n>>8&255},${n&255},${a})`};
 function finalePos(p,i){const a=-.95+i*.475;return{x:clamp(p.x+Math.cos(a)*380,120,WORLD.w-120),y:clamp(p.y+Math.sin(a)*300,120,WORLD.h-120)}}
 function finaleAllyClasses(p){const seen={},out=[],ks=Object.keys(CLASSES).filter(k=>k!==p.cls);
@@ -2914,7 +2916,10 @@ const BIOMES = [
     enemies:['fireImp','brute','bomber','charger','shaman'], boss:'volcanoBehemoth' },
   { key:'shadow', name:'Bayon Shadow Sanctum', floorTint:'rgba(150,115,195,0.20)', tint:'rgba(32,12,55,0.20)',
     torchColor:'#a060ff', edge:'rgba(8,2,15,0.55)',
-    enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' }
+    enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' },
+  { key:'celestial', name:'Phnom Bakheng Celestial Court', floorTint:'rgba(215,200,150,0.22)', tint:'rgba(60,55,30,0.10)',
+    torchColor:'#ffe9a8', edge:'rgba(30,24,8,0.40)',
+    enemies:['golem','wraith','mage','healer','sniper'], boss:'airava' }
 ];
 /* dev hook declared inside the engine bundle */
 export function getBiomeForWave(w){const i=Math.min(BIOMES.length-1,Math.floor((w-1)/10));return BIOMES[i]}
@@ -2943,6 +2948,7 @@ const BOSS_TYPES = {
   cavernTitan:{name:'Kumbhakarna',hp:1300,speed:52,dmg:44,r:46,color:'#5a4a3a',dark:'#2a1e14',xp:420,range:72,attacks:['stomp','rockThrow','enrage'],attackCd:2.6,phase:1},
   frostWyrm:{name:'Garuda',hp:1500,speed:68,dmg:48,r:42,color:'#7fd4ff',dark:'#2a4a6a',xp:520,range:84,attacks:['iceBreath','iceShards','teleport'],attackCd:2.4,phase:1},
   volcanoBehemoth:{name:'Kala',hp:1900,speed:58,dmg:56,r:48,color:'#ff5020',dark:'#8a2a10',xp:640,range:86,attacks:['lavaPool','fireWave','charge'],attackCd:2.3,phase:1},
+  airava:{name:'Airavata',hp:3200,speed:60,dmg:66,r:60,color:'#a8bcc8',dark:'#3a4a58',xp:1000,range:92,attacks:['stomp','trunkSweep','lightningCall','charge'],attackCd:2.0,phase:1},
   shadowPrince:{name:'Krong Reap',hp:2600,speed:76,dmg:62,r:50,color:'#a060ff',dark:'#4a1a7a',xp:900,range:90,attacks:['shadowBeam','cloneSummon','darkNova','teleportDodge'],attackCd:2.0,phase:1}
 };
 const BOSS_TAUNTS = {
@@ -2950,7 +2956,7 @@ const BOSS_TAUNTS = {
   cavernTitan:'"I slept ten thousand years. You wake me for this?"',
   frostWyrm:'"The sky belongs to the wings that ate the sun."',
   volcanoBehemoth:'"Time devours all. I am its teeth."',
-  shadowPrince:'"Ten heads, ten hungers. Which will you feed?"'
+  airava:'"Three heads, one storm. The summit does not bow."'
 };
 
 /* Items */
@@ -3602,7 +3608,7 @@ function killEnemy(e,g){
   if(e.boss){
     g.shake=20;
     if(!e.finale)addToast('BOSS DEFEATED!','#ffd54f','+'+goldAmt+' gold · '+e.name+' has fallen');
-    if(e.bossKey==='shadowPrince'&&!e.finale&&!g._finaleStarted){g._finaleStarted=true;startFinaleCutscene(g)}
+    if(e.bossKey===BIOMES[BIOMES.length-1].boss&&!e.finale&&!g._finaleStarted){g._finaleStarted=true;startFinaleCutscene(g)}
   }
 }
 function triggerDodge(p,g){
@@ -3848,7 +3854,8 @@ const BIOME_LORE={
   caverns:{n:'II',c:'#e8b060',t:'Beneath the ancient banyan roots of Ta Prohm, the earth groans. Far below, the Stone Titan awakens.',r:'GUARDIAN: TA PROHM TITAN'},
   frost:{n:'III',c:'#8fdcff',t:'Atop the sacred cliff sanctuary of Preah Vihear, celestial winds freeze under the Naga Wyrm\u2019s breath.',r:'GUARDIAN: CELESTIAL WYRM'},
   volcano:{n:'IV',c:'#ff7030',t:'The pink sandstone citadel of Banteay Srei blazes with divine fire. The Behemoth rises from the molten forge.',r:'GUARDIAN: AGNI BEHEMOTH'},
-  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, Krong Reap sits upon the Five Thrones of Angkor.',r:'RULER: KRONG REAP, TEN-HEADED'}};
+  shadow:{n:'V',c:'#c080ff',t:'In the heart of Bayon\u2019s smiling stone towers, Krong Reap sits upon the Five Thrones of Angkor.',r:'RULER: KRONG REAP, TEN-HEADED'},
+  celestial:{n:'VI',c:'#ffe9a8',t:'Above every tower of stone stands Phnom Bakheng, where the storm is kept in a three-headed elephant\u2019s throat.',r:'RULER: AIRAVATA, STORM-BEARER'}};
 function showLore(b){const L=BIOME_LORE[b.key];if(!L)return;const el=document.getElementById('loreCard');
   el.innerHTML='<div class="lr">REALM '+L.n+'</div><div class="ln" style="color:'+L.c+'">'+b.name.toUpperCase()+'</div><div class="lt">'+L.t+'</div><div class="lk" style="color:'+L.c+'">'+L.r+'</div>';
   el.classList.add('on');clearTimeout(showLore._t);showLore._t=setTimeout(()=>el.classList.remove('on'),7000)}
@@ -3863,6 +3870,7 @@ const RUSH_CHAIN = [
   { biome:'frost',   boss:'frostWyrm' },
   { biome:'volcano', boss:'volcanoBehemoth' },
   { biome:'shadow',  boss:'shadowPrince' },
+  { biome:'celestial', boss:'airava' },
 ];
 function startBossRush(){
   let cls='ironclad';
@@ -3872,7 +3880,7 @@ function startBossRush(){
     const wg=(window as any).startGame;
     if(typeof wg==='function') wg(cls); else startGame(cls);
   }catch(e){ (window as any).__rushPending=false; console.error('❌ boss rush start:',e); return; }
-  setTimeout(()=>addToast('⚔ BOSS RUSH','#ff5c5c','Five guardians · no trash waves · one life'),900);
+  setTimeout(()=>addToast('⚔ BOSS RUSH','#ff5c5c','Six guardians · no trash waves · one life'),900);
 }
 function endBossRush(g){
   g.rush=false;
@@ -5205,7 +5213,7 @@ function gfxPerf(){const n=performance.now();if(GFX.last){const d=n-GFX.last;if(
    around every real light (hero, torches, bosses, projectiles, orbs, sigils),
    then composites it back — the additive glows underneath now actually read as
    illumination instead of decals. */
-const LIGHT_AMB = { crypt:0.46, caverns:0.46, frost:0.42, volcano:0.45, shadow:0.52 };
+const LIGHT_AMB = { crypt:0.46, caverns:0.46, frost:0.42, volcano:0.45, shadow:0.52, celestial:0.40 };
 const LIGHT = { c:null, x:null };
 const LIGHT_SCALE = 2;   /* light is a soft gradient — half-res buffer, smooth upscale */
 function ensureLightBuf(){
@@ -6454,7 +6462,59 @@ const drawEnemyBody=(function(){
     }
     ctx.restore();};
 
-  const AMB={crypt:['#9a6aff','#7aff9a'],caverns:['#ffb040','#d8b878'],frost:['#7fd4ff','#ffffff'],volcano:['#ff6a20','#ffd54f'],shadow:['#a060ff','#d09aff']};
+
+  /* Airavata — the three-headed white elephant that carries the storm.
+     Elephant anatomy reads almost entirely from the head and trunk, so the
+     heads are spread wide with one clear curved trunk each; the body is kept
+     small behind them. */
+  S.airava=o=>{const{t}=o;const sway=Math.sin(t*1.1)*1.4;
+    ctx.save();
+    /* howdah sits behind the heads, not on top of them */
+    poly([[-16,-4],[16,-4],[13,-12],[-13,-12]],'#c8952e');
+    poly([[-19,-12],[19,-12],[14,-19],[-14,-19]],'#e8b53a');
+    circ(0,-21,3.2,'#ffe9a8');
+    /* body and legs (kept low so the heads own the silhouette) */
+    ell(0,8,20,9,'#b3c6d0');
+    ell(0,11,16,6,'#93a8b6');
+    for(const lx of [-13,-5,5,13]) line(lx,14,lx,24,'#8fa4b2',5);
+    line(-20,8,-25,15,'#8fa4b2',2.2);
+    /* one head: ears, face, trunk, tusks */
+    const head=(hx,hy,sc)=>{
+      ctx.save();ctx.translate(hx+sway*0.5,hy);ctx.scale(sc,sc);
+      ell(-9.4,-1,5.2,6.4,'#aabecb');           /* ears */
+      ell(9.4,-1,5.2,6.4,'#aabecb');
+      ell(-9.4,-1,2.9,3.4,'#8fa4b2');
+      ell(9.4,-1,2.9,3.4,'#8fa4b2');
+      circ(0,0,9,'#cfdde5');                    /* face */
+      ell(0,4.5,6,4.2,'#b9cad4');               /* brow over the trunk root */
+      /* trunk: thick at the mouth, curling forward and tapering */
+      ctx.beginPath();
+      ctx.moveTo(-2.8,5);
+      ctx.quadraticCurveTo(-2.2,13,-7.5,18);
+      ctx.lineTo(-3.6,19.6);
+      ctx.quadraticCurveTo(2.8,13.5,2.8,5);
+      ctx.closePath();
+      ctx.fillStyle='#cfdde5';ctx.fill();
+      ctx.strokeStyle='#3a4a58';ctx.lineWidth=1.2;ctx.stroke();
+      /* tusks, clearly in front of the trunk root */
+      poly([[-5.2,4.4],[-7.6,4.4],[-6.4,11]],'#fffdf0');
+      poly([[5.2,4.4],[7.6,4.4],[6.4,11]],'#fffdf0');
+      /* eyes + lotus mark */
+      eye(-3.6,-2.4,1.5,'#7a4a10');eye(3.6,-2.4,1.5,'#7a4a10');
+      circ(0,-6,2.1,'#ff6a2e');
+      ctx.restore();
+    };
+    head(-25,-5,0.86);
+    head(0,-17,1.06);
+    head(25,-5,0.86);
+    /* storm between the heads */
+    for(let i=0;i<3;i++){
+      const a=t*2.2+i*2.1;
+      line(Math.cos(a)*7,-26+Math.sin(a)*3,Math.cos(a)*7+3.5,-22+Math.sin(a)*3,'#bfe8ff',1.5);
+    }
+    ctx.restore();};
+
+  const AMB={crypt:['#9a6aff','#7aff9a'],caverns:['#ffb040','#d8b878'],frost:['#7fd4ff','#ffffff'],volcano:['#ff6a20','#ffd54f'],shadow:['#a060ff','#d09aff'],celestial:['#ffe9a8','#fff7d6']};
   return function(e,wob){
     const B=G.currentBiomeKey||'crypt',t=G.time,am=AMB[B]||AMB.crypt,r=e.r,boss=e.boss;
     const fn=S[boss?e.bossKey:e.type];
@@ -6575,6 +6635,7 @@ const HAZ_DEF = {
   frost:  {name:'Frost Shards',   dmg:0.090, r:92, period:6.6, warn:1.10, active:0.55, col:'#8fe4ff', col2:'#1a4a68'},
   volcano:{name:'Lava Vent',      dmg:0.120, r:84, period:5.0, warn:0.85, active:0.60, col:'#ff6a2e', col2:'#5a1404'},
   shadow: {name:'Shadow Pool',    dmg:0.070, r:96, period:6.4, warn:1.00, active:0.70, col:'#c070ff', col2:'#2a0850'},
+  celestial:{name:'Skyfall',      dmg:0.100, r:90, period:5.6, warn:0.95, active:0.55, col:'#ffe9a8', col2:'#6a5a20'},
 };
 
 function stepHazards(dt,g){

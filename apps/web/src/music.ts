@@ -21,7 +21,9 @@ const TR={
  volcano:{bpm:118,prog:[[45,'m'],[45,'m'],[53,'M'],[52,'M']],
   lead:mel([[69,2],[0,2],[69,2],[72,2],[76,4],[72,4],[69,2],[0,2],[69,2],[72,2],[76,4],[81,4],[77,4],[76,4],[72,4],[69,4],[68,4],[71,4],[76,8]])},
  shadow:{bpm:88,prog:[[48,'m'],[44,'M'],[46,'M'],[43,'M']],
-  lead:mel([[72,6],[75,2],[74,4],[72,4],[68,6],[72,2],[71,4],[68,4],[70,6],[74,2],[73,4],[70,4],[67,4],[71,4],[74,4],[71,4]])}
+  lead:mel([[72,6],[75,2],[74,4],[72,4],[68,6],[72,2],[71,4],[68,4],[70,6],[74,2],[73,4],[70,4],[67,4],[71,4],[74,4],[71,4]])},
+ celestial:{bpm:104,prog:[[50,'M'],[55,'M'],[57,'m'],[52,'M']],
+  lead:mel([[74,4],[79,4],[81,2],[79,2],[74,4],[71,4],[76,4],[79,4],[81,4],[86,2],[83,2],[79,4],[76,4],[74,4],[79,6],[76,2],[74,8]])}
 };
 function pulse(d){const n=32,re=new Float32Array(n),im=new Float32Array(n);for(let k=1;k<n;k++){const A=2/(k*Math.PI)*Math.sin(k*Math.PI*d);re[k]=A*Math.cos(k*Math.PI*d);im[k]=A*Math.sin(k*Math.PI*d)}return AC.createPeriodicWave(re,im)}
 function init(){try{AC=new(window.AudioContext||(window as any).webkitAudioContext)();master=AC.createGain();master.gain.value=0;master.connect(AC.destination);

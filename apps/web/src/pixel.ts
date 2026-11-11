@@ -27,6 +27,7 @@ const PIX = {
   frost:   { brick: [118,136,160], brickVar: 10, worn: [154,174,196], wall: [136,154,178], wallVar: 11, mortar: [54,68,90],  accent: '#d8f4ff', trim: '#7cc8f8' },
   volcano: { brick: [132,78,62],   brickVar: 11, worn: [168,102,72],  wall: [150,92,70],   wallVar: 12, mortar: [48,26,20],  accent: '#ffb85c', trim: '#e86830' },
   shadow:  { brick: [98,86,122],   brickVar: 9,  worn: [130,112,154], wall: [114,100,140], wallVar: 11, mortar: [36,28,52],  accent: '#d4a8ff', trim: '#9c64e8' },
+  celestial:{ brick: [188,172,128], brickVar: 8,  worn: [214,199,158], wall: [196,181,140], wallVar: 10, mortar: [78,70,48],  accent: '#ffe9a8', trim: '#e8b53a' },
 };
 
 /* Helper: Draw pixel-stepped circle outline */
