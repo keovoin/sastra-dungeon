@@ -620,3 +620,14 @@ body.cp-contrast #game{filter:contrast(1.28) brightness(1.08) saturate(1.1)}
 body.cp-contrast #game{outline:2px solid rgba(255,220,120,.35);outline-offset:-2px}
 .set-select{background:#241708;border:1px solid #4a3a22;color:#e8c07a;border-radius:7px;
   padding:6px 9px;font:600 12px 'Trebuchet MS',sans-serif}
+
+/* combo readout — canvas text was getting lost under overlays, so this lives in the HUD */
+#comboReadout{
+  position:fixed;left:50%;top:64px;transform:translateX(-50%) scale(1);
+  font:800 22px 'Trebuchet MS',sans-serif;letter-spacing:.06em;color:#ffd54f;
+  text-shadow:0 2px 0 #000,0 0 18px rgba(255,180,60,.75);pointer-events:none;z-index:40;
+  transition:transform .12s ease-out, color .12s linear;
+}
+#comboReadout.hot{color:#ff9a3c;transform:translateX(-50%) scale(1.12)}
+#comboReadout.blazing{color:#ff5c5c;transform:translateX(-50%) scale(1.22)}
+#comboReadout.hidden{display:none}

@@ -111,6 +111,19 @@ const ACHIEVEMENTS = [
 /* Bestiary copy for the regular creatures. Names are Khmer-temple flavoured so
    the codex reads as part of the world rather than a debug list. */
 const ENEMY_LORE = {
+  asuraThrall:   { name:'Asura Thrall',     note:'A failed devotee, kept as muscle for the crypt.' },
+  vaultWarden:   { name:'Vault Warden',     note:'Holds a door that no longer exists.' },
+  rootCrawler:   { name:'Root Crawler',     note:'Banyan root grown teeth. It resents the light.' },
+  mossTroll:     { name:'Moss Troll',       note:'Slow, patient, and older than the gallery it guards.' },
+  rimeShade:     { name:'Rime Shade',       note:'A breath of the peak that never warmed up.' },
+  iceAcolyte:    { name:'Ice Acolyte',      note:'Prays in a language made of cold.' },
+  ashHound:      { name:'Ash Hound',        note:'Hunts by heat. Runs on it too.' },
+  slagBrute:     { name:'Slag Brute',       note:'Poured wrong at the forge, and angry about it.' },
+  bayonWisp:     { name:'Bayon Wisp',       note:'One of the smiles, loose from the stone.' },
+  tombChan:      { name:'Tomb Chan',        note:'Tends graves that were never dug.' },
+  skyHerald:     { name:'Sky Herald',       note:'Announces a storm that already arrived.' },
+  lotusGuard:    { name:'Lotus Guardian',   note:'Carved to kneel. Never learned how.' },
+
   fallen:        { name:'Fallen Acolyte',   note:'A temple servant whose vows outlived him.' },
   skeleton:      { name:'Bone Guardian',    note:'Laterite dust and old oaths, still on duty.' },
   archer:        { name:'Temple Archer',    note:'Guarding a lintel that collapsed centuries ago.' },
@@ -3002,22 +3015,22 @@ function startCryptDefeatCutscene(g, boss) {
 const BIOMES = [
   { key:'crypt', name:'Angkor Sankranti Crypt', floorTint:'rgba(145,112,82,0.20)', tint:'rgba(55,34,14,0.12)',
     torchColor:'#ff9838', edge:'rgba(8,5,15,0.42)',
-    enemies:['fallen','skeleton','archer','spider','shaman'], boss:'cryptLord' },
+    enemies:['fallen','skeleton','archer','spider','shaman','asuraThrall','vaultWarden'], boss:'cryptLord' },
   { key:'caverns', name:'Ta Prohm Root Caverns', floorTint:'rgba(105,145,115,0.20)', tint:'rgba(20,42,28,0.14)',
     torchColor:'#ffb040', edge:'rgba(3,12,8,0.48)',
-    enemies:['brute','golem','bomber','spider','skeleton'], boss:'cavernTitan' },
+    enemies:['brute','golem','bomber','spider','skeleton','rootCrawler','mossTroll'], boss:'cavernTitan' },
   { key:'frost', name:'Preah Vihear Sky Peak', floorTint:'rgba(150,185,220,0.22)', tint:'rgba(30,50,80,0.16)',
     torchColor:'#7fd4ff', edge:'rgba(5,10,25,0.48)',
-    enemies:['iceElemental','skeleton','sniper','mage','wraith'], boss:'frostWyrm' },
+    enemies:['iceElemental','skeleton','sniper','mage','wraith','rimeShade','iceAcolyte'], boss:'frostWyrm' },
   { key:'volcano', name:'Banteay Srei Sacred Forge', floorTint:'rgba(200,115,80,0.20)', tint:'rgba(65,22,12,0.18)',
     torchColor:'#ff5020', edge:'rgba(20,3,0,0.50)',
-    enemies:['fireImp','brute','bomber','charger','shaman'], boss:'volcanoBehemoth' },
+    enemies:['fireImp','brute','bomber','charger','shaman','ashHound','slagBrute'], boss:'volcanoBehemoth' },
   { key:'shadow', name:'Bayon Shadow Sanctum', floorTint:'rgba(150,115,195,0.20)', tint:'rgba(32,12,55,0.20)',
     torchColor:'#a060ff', edge:'rgba(8,2,15,0.55)',
-    enemies:['wraith','skeleton','mage','healer','spider'], boss:'shadowPrince' },
+    enemies:['wraith','skeleton','mage','healer','spider','bayonWisp','tombChan'], boss:'shadowPrince' },
   { key:'celestial', name:'Phnom Bakheng Celestial Court', floorTint:'rgba(215,200,150,0.22)', tint:'rgba(60,55,30,0.10)',
     torchColor:'#ffe9a8', edge:'rgba(30,24,8,0.40)',
-    enemies:['golem','wraith','mage','healer','sniper'], boss:'airava' }
+    enemies:['golem','wraith','mage','healer','sniper','skyHerald','lotusGuard'], boss:'airava' }
 ];
 /* dev hook declared inside the engine bundle */
 export function getBiomeForWave(w){const i=Math.min(BIOMES.length-1,Math.floor((w-1)/10));return BIOMES[i]}
@@ -3025,6 +3038,20 @@ function isBossWave(w){return w%10===0}
 function isEliteWave(w){return w%5===0&&!isBossWave(w)}
 
 const ENEMY_TYPES = {
+  /* ── realm-signature creatures: same sprite families, own palette and stats ── */
+  asuraThrall:{hp:70,speed:126,dmg:11,r:14,color:'#c0392b',dark:'#6b1a12',xp:18,range:32,atkCd:0.9,behavior:'melee',sprite:'fallen'},
+  vaultWarden:{hp:150,speed:76,dmg:20,r:17,color:'#d8c07a',dark:'#7a6430',xp:34,range:36,atkCd:1.3,behavior:'melee',sprite:'skeleton'},
+  rootCrawler:{hp:66,speed:164,dmg:13,r:12,color:'#4a8a52',dark:'#22482a',xp:20,range:32,atkCd:0.85,behavior:'melee',sprite:'spider'},
+  mossTroll:{hp:300,speed:54,dmg:30,r:24,color:'#5f7a3a',dark:'#31401c',xp:60,range:44,atkCd:1.6,behavior:'melee',sprite:'brute'},
+  rimeShade:{hp:90,speed:112,dmg:15,r:14,color:'#9fdcff',dark:'#3a6a8a',xp:26,range:34,atkCd:1.0,behavior:'melee',sprite:'wraith'},
+  iceAcolyte:{hp:78,speed:70,dmg:16,r:13,color:'#bfe8ff',dark:'#5a8aa8',xp:28,range:320,atkCd:2.0,ranged:true,behavior:'ranged',attackType:'bolt',sprite:'mage'},
+  ashHound:{hp:110,speed:186,dmg:19,r:14,color:'#ff7a2e',dark:'#8a3208',xp:30,range:34,atkCd:0.9,behavior:'melee',sprite:'charger'},
+  slagBrute:{hp:340,speed:50,dmg:34,r:25,color:'#c2401a',dark:'#5a1a08',xp:66,range:46,atkCd:1.7,behavior:'melee',sprite:'brute'},
+  bayonWisp:{hp:74,speed:132,dmg:14,r:12,color:'#b47cff',dark:'#4a2a7a',xp:24,range:32,atkCd:0.9,behavior:'melee',sprite:'wraith'},
+  tombChan:{hp:120,speed:74,dmg:12,r:15,color:'#9a6aff',dark:'#3a1a5a',xp:32,range:300,atkCd:2.2,ranged:true,behavior:'ranged',attackType:'bolt',sprite:'healer'},
+  skyHerald:{hp:96,speed:88,dmg:18,r:14,color:'#ffe9a8',dark:'#7a6a2a',xp:34,range:330,atkCd:1.9,ranged:true,behavior:'ranged',attackType:'arrow',sprite:'sniper'},
+  lotusGuard:{hp:420,speed:46,dmg:40,r:26,color:'#e8d8a8',dark:'#7a6a3a',xp:78,range:48,atkCd:1.9,behavior:'melee',sprite:'golem'},
+
   fallen:{hp:46,speed:118,dmg:8,r:13,color:'#9b59b6',dark:'#5b2c6f',xp:12,range:30,atkCd:0.95,behavior:'melee'},
   skeleton:{hp:82,speed:88,dmg:14,r:15,color:'#bdc3c7',dark:'#6b7373',xp:20,range:34,atkCd:1.25,behavior:'melee'},
   archer:{hp:58,speed:74,dmg:12,r:13,color:'#27ae60',dark:'#145a32',xp:24,range:330,atkCd:1.9,ranged:true,behavior:'ranged',attackType:'arrow'},
@@ -3573,8 +3600,21 @@ function damageEnemy(e,amount,g,src,opts:any=null){
   if(e.markT>0)amount*=1.4;
   if(src&&src._executioner&&e.hp<e.maxHp*0.3)amount*=1.4;
   if(src&&src._aegis&&src.maxHp&&src.hp/src.maxHp<0.5)amount*=1.3;
+  /* COMBO: consecutive unbroken hits build a damage multiplier */
+  const fromPlayer = (src && g && src === g.player);
+  if (fromPlayer && g.player){
+    const p = g.player;
+    p._combo = Math.min(99, (p._combo || 0) + 1);
+    p._comboT = 3.2;
+    amount *= 1 + Math.min(0.5, p._combo * 0.01);
+  }
   amount=Math.max(1,Math.round(amount));
   e._lastCrit=!!crit;e._lastSkill=!!(opts.skill);e._lastPet=!!(opts.pet);
+  if(fromPlayer && !e.dead){
+    const base = Math.max(2, amount);
+    if(crit){ e.bleedT = 3.0; e.bleedDps = Math.max(e.bleedDps||0, base*0.10); }
+    if(opts.skill){ e.burnT = 2.5; e.burnDps = Math.max(e.burnDps||0, base*0.16); }
+  }
   if(crit&&G)G.hitStop=Math.max(G.hitStop||0,0.035);   /* brief freeze = impact weight */
   e.hp-=amount;e.hitFlash=1;
   vfxSparks(e,crit,src);
@@ -3776,6 +3816,7 @@ function damagePlayer(amount,g,kind,attacker:any=null){
     addToast('LAST STAND','#ffd54f','You refuse to fall');return;
   }
   p.hp-=amount;
+  p._combo = 0; p._comboT = 0;   /* getting hit breaks the chain */
   sfx.hurt();
   g.shake=Math.max(g.shake,7);
   g.damageFlash=Math.min(1,g.damageFlash+0.45);
@@ -4123,6 +4164,30 @@ function spawnEnemyAt(type,g,x,y,hpScale){
 
 /* Enemy AI */
 function updateEnemies(dt,g){
+  /* combo decay + elemental statuses tick on the enemy */
+  if(g.player && g.player._comboT > 0){
+    g.player._comboT -= dt;
+    if(g.player._comboT <= 0) g.player._combo = 0;
+  }
+  for(const e of g.enemies){
+    if(e.dead) continue;
+    if(e.burnT > 0){
+      e.burnT -= dt;
+      e.hp -= (e.burnDps||0) * dt;
+      if(rng() < dt*14) g.particles.push({x:e.x+rand(-e.r,e.r), y:e.y-rand(0,e.r), vx:rand(-12,12), vy:-rand(30,70),
+        life:.4, max:.4, size:rand(1.4,2.6), color:'#ff7a2e', glow:true});
+      if(e.hp <= 0){ killEnemy(e,g); continue; }
+    }
+    if(e.bleedT > 0){
+      e.bleedT -= dt;
+      e.hp -= (e.bleedDps||0) * dt;
+      if(rng() < dt*10) g.particles.push({x:e.x+rand(-e.r,e.r), y:e.y-rand(0,e.r*0.6), vx:rand(-8,8), vy:rand(10,40),
+        life:.35, max:.35, size:rand(1.2,2.2), color:'#c0392b'});
+      if(e.hp <= 0){ killEnemy(e,g); continue; }
+    }
+    if(e.burnT <= 0) e.burnDps = 0;
+    if(e.bleedT <= 0) e.bleedDps = 0;
+  }
   const p=g.player;
   for(const e of g.enemies){
     if(e.dead)continue;
@@ -4768,6 +4833,7 @@ function doBasicAttack(p,g,target){
   }
 }
 function updateHUD(g){
+  updateComboHUD(g);
   finaleTick(g);
   const p=g.player;
   document.getElementById('hpFill').style.height=clamp(p.hp/p.maxHp,0,1)*100+'%';
@@ -6644,7 +6710,7 @@ const drawEnemyBody=(function(){
     const draw=()=>{
       ctx.save();ctx.translate(0,wob*0.4+feet*sc);ctx.rotate(lean);
       ctx.scale(sc*(e._face||1)*(1-b*0.6),sc*(1+b));ctx.translate(0,-feet);
-      const key=boss?e.bossKey:e.type;
+      const key=boss?e.bossKey:(e.sprite||e.type);
       if(hasPx(key)&&!boss){
         const def=PIXFAM.SPRITES[key],n=def.frames.length;
         drawPxSprite(ctx,key,e.color,e.dark,B,0,feet,(boss?42:44)/def.w,0,Math.floor(t*7+e.wobble)%n);
@@ -6680,6 +6746,21 @@ function drawEnemy(e){
   if(e.markT>0){
     ctx.save();ctx.globalAlpha=0.6;ctx.strokeStyle='#ff8f2e';ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(0,0,e.r+6,0,TAU);ctx.stroke();ctx.restore();
+  }
+  if(e.burnT > 0 || e.bleedT > 0){
+    ctx.save();
+    const y0 = -e.r - 16;
+    if(e.burnT > 0){
+      ctx.fillStyle = '#ff7a2e';
+      ctx.beginPath();
+      ctx.moveTo(-5, y0+6); ctx.quadraticCurveTo(0, y0-6, 1, y0-1);
+      ctx.quadraticCurveTo(5, y0+3, 5, y0+6); ctx.closePath(); ctx.fill();
+    }
+    if(e.bleedT > 0){
+      ctx.fillStyle = '#c0392b';
+      ctx.beginPath(); ctx.arc(9, y0+2, 3.2, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
   }
   if(e.affix){
     ctx.save();ctx.globalAlpha=0.55+0.2*Math.sin(G.time*6+e.x);
@@ -7426,6 +7507,17 @@ function startDailyRun(){
   try{ const wg=(window as any).startGame; if(typeof wg==='function') wg(info.cls); else startGame(info.cls,{daily:true}); }
   catch(e){ console.error('❌ daily start:',e); pendingDaily=false; }
   setTimeout(()=>addToast('🗓 DAILY TRIAL · '+info.key,'#ffd54f','Seeded run · '+CLASSES[info.cls].name+' · every player gets the same rolls'),900);
+}
+
+function updateComboHUD(g){
+  const el = document.getElementById('comboReadout');
+  if(!el) return;
+  const c = (g && g.player && g.player._combo) || 0;
+  if(c < 5){ el.classList.add('hidden'); el.classList.remove('hot','blazing'); return; }
+  el.classList.remove('hidden');
+  el.classList.toggle('hot', c >= 20 && c < 45);
+  el.classList.toggle('blazing', c >= 45);
+  el.textContent = '×' + c + ' COMBO';
 }
 
 function syncSettingsUI(){

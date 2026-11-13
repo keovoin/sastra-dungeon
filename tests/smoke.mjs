@@ -89,6 +89,13 @@ if (manifestHref) {
      mjson ? `${mjson.icons?.length || 0} icons` : 'no json');
 }
 
+// combo readout exists and is hidden until the player builds a chain
+const comboState = await page.evaluate(() => {
+  const el = document.getElementById('comboReadout');
+  return el ? { present: true, hidden: el.classList.contains('hidden'), text: el.textContent } : { present: false };
+});
+ok('combo readout wired', comboState.present && comboState.hidden, JSON.stringify(comboState));
+
 // 4. a run starts and the canvas keeps rendering
 await page.locator('.card').first().click();
 await page.waitForTimeout(1200);
