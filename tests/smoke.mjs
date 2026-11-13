@@ -82,9 +82,18 @@ ok('manifest linked', !!manifestHref, manifestHref || 'missing');
 if (manifestHref) {
   // NB: this file shadows the global URL with the target string, so build it by hand
   const manifestUrl = URL.replace(/\/$/, '') + manifestHref;
-  const mres = await page.request.get(manifestUrl);
-  ok('manifest served', mres.ok(), `status ${mres.status()}`);
-  const mjson = mres.ok() ? await mres.json() : null;
+  // retry: a transient TLS reset must not fail the whole suite
+  let mres = null;
+  for (let attempt = 1; attempt <= 3 && !mres; attempt++) {
+    try { mres = await page.request.get(manifestUrl, { timeout: 15000 }); }
+    catch (e) {
+      if (attempt === 3) console.warn('manifest fetch error:', e.message.split('\n')[0]);
+      else await page.waitForTimeout(500);
+    }
+  }
+  ok('manifest served', !!(mres && mres.ok()), mres ? `status ${mres.status()}` : 'network error');
+  let mjson = null;
+  try { if (mres && mres.ok()) mjson = await mres.json(); } catch (e) { console.warn('manifest not JSON:', e.message.split('\n')[0]); }
   ok('manifest has icons', !!(mjson && Array.isArray(mjson.icons) && mjson.icons.length >= 2),
      mjson ? `${mjson.icons?.length || 0} icons` : 'no json');
 }
