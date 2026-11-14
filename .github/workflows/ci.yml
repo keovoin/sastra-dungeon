@@ -31,6 +31,9 @@ jobs:
         continue-on-error: true
         run: npx playwright install chromium
 
+      - name: Unit tests (typed modules)
+        run: npm run test:units
+
       - name: Preview production build
         run: |
           npx vite preview --port 4173 --strictPort --outDir apps/web/dist &

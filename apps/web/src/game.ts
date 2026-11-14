@@ -1,5 +1,6 @@
 // @ts-nocheck — 1:1 port of the prototype main script (JS semantics kept; typed in a later pass).
 import { setErrorContext, readErrors, clearErrors } from './telemetry';
+import { RELIC_DEFS, relicMods, relicById, relicOptions, sanitizeRelics } from './relics';
 /* Sastra Dungeon — core game engine.
    Ported from the single-file prototype main script (lines 424-5136). Changed only:
    - export keywords for CLASSES / G / cutscene / startGame (consumed by intro.ts, music.ts)
@@ -143,34 +144,10 @@ const ENEMY_LORE = {
 };
 
 
-/* ═══ RELICS ═══
-   Boss drops, three slots, run-scoped. Everything routes through recalcStats so
-   a relic can never be "just text" — if it says +12% damage, p.dmg moves. */
-const RELIC_DEFS = [
-  { id:'fang',    name:'Naga Fang',        icon:'🐍', desc:'+12% damage',              mod:{dmg:0.12} },
-  { id:'lotus',   name:'Lotus Heart',      icon:'🪷', desc:'+15% max HP',              mod:{hp:0.15} },
-  { id:'drum',    name:'Battle Drum',      icon:'🥁', desc:'+10% attack speed',        mod:{atk:0.10} },
-  { id:'sandal',  name:'Apsara Sandal',    icon:'🩰', desc:'+8% move speed',           mod:{spd:0.08} },
-  { id:'eye',     name:'Third Eye',        icon:'👁', desc:'+7% crit chance',          mod:{crit:0.07} },
-  { id:'coin',    name:'Merchant Seal',    icon:'🪙', desc:'+25% gold found',          mod:{gold:0.25} },
-  { id:'shield',  name:'Laterite Plate',   icon:'🛡', desc:'+25 armor',                mod:{armor:25} },
-  { id:'prayer',  name:'Prayer Beads',     icon:'📿', desc:'+18% energy regeneration', mod:{regen:0.18} },
-];
-function relicMods(p){
-  const out = {dmg:0,hp:0,atk:0,spd:0,crit:0,gold:0,armor:0,regen:0};
-  const list = (p && p.relics) || [];
-  for(const id of list){
-    const r = RELIC_DEFS.find(d=>d.id===id);
-    if(!r) continue;
-    for(const k in r.mod) out[k] = (out[k]||0) + r.mod[k];
-  }
-  return out;
-}
 function grantBossRelic(g, bossKey){
   const p = g && g.player; if(!p) return null;
   p.relics = p.relics || [];
-  const owned = new Set(p.relics);
-  const pool = RELIC_DEFS.filter(r=>!owned.has(r.id));
+  const pool = relicOptions(p.relics);
   if(!pool.length || p.relics.length >= 3) return null;
   const r = pick(pool);
   p.relics.push(r.id);
@@ -187,7 +164,7 @@ function syncRelicHUD(g){
   if(!list.length){ el.classList.add('hidden'); el.innerHTML=''; return; }
   el.classList.remove('hidden');
   el.innerHTML = list.map(id=>{
-    const r = RELIC_DEFS.find(d=>d.id===id);
+    const r = relicById(id);
     return r ? `<span class="relic-chip" title="${r.name} — ${r.desc}">${r.icon}</span>` : '';
   }).join('');
 }
@@ -1520,7 +1497,7 @@ function resumeFromSave(data, silent:any = false) {
   if (Array.isArray(data.skillLvls) && p.skills) {
     p.skills.forEach((s, idx) => { s.lvl = clamp(data.skillLvls[idx] || 1, 1, 5); });
   }
-  p.relics = Array.isArray(data.relics) ? data.relics.filter((r)=>RELIC_DEFS.some(d=>d.id===r)).slice(0,3) : [];
+  p.relics = sanitizeRelics(data.relics);
   p._ascended = !!data.ascended;
   if(Array.isArray(data.skillEvo) && p.skills){
     p.skills.forEach((sk, idx) => {

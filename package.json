@@ -2,13 +2,16 @@
   "name": "sastra-dungeon",
   "private": true,
   "version": "1.0.0",
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "npm run dev -w @sastra-dungeon/web",
     "build": "npm run build -w @sastra-dungeon/web",
     "preview": "npm run preview -w @sastra-dungeon/web",
     "test:smoke": "node tests/smoke.mjs",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "test:units": "npx esbuild apps/web/src/relics.ts --bundle --format=esm --platform=neutral --outfile=.tmp/relics.mjs --log-level=error && node tests/units.mjs"
   },
   "dependencies": {
     "firebase": "^13.1.0"

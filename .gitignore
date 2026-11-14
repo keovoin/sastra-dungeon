@@ -9,3 +9,4 @@ dist/
 # Generated on Windows by npm install — omits linux optional deps, breaks Vercel npm ci.
 # Regenerate on Linux (or skip committing) before enabling lockfile builds.
 package-lock.json
+.tmp/
