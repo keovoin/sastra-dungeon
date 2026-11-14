@@ -46,3 +46,10 @@ jobs:
         env:
           SMOKE_URL: http://localhost:4173
         run: npm run test:smoke
+
+      # a play-through: the shell can boot while combat is broken
+      - name: Play test (90s autoplay)
+        env:
+          PLAY_URL: http://localhost:4173
+          PLAY_MS: "60000"
+        run: npm run test:play
