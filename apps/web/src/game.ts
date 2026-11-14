@@ -4,6 +4,11 @@ import { RELIC_DEFS, relicMods, relicById, relicOptions, sanitizeRelics } from '
 import { BIOMES, ENEMY_TYPES, ENEMY_LORE, BOSS_TYPES, BOSS_TAUNTS, HAZ_DEF } from './world';
 import { ATTR_DEFS, emptyUpg } from './upgrades';
 import {
+  COSMETIC_DEFS, cosmeticsOf, cosmeticById, ownsCosmetic, isEquipped,
+  buyCosmetic, equipCosmetic, sanitizeCosmetics, emptyCosmetics,
+  type CosmeticDef, type CosmeticKind, type CosmeticState,
+} from './cosmetics';
+import {
   INV_SIZE, SLOT_ORDER, SLOT_NAMES, SLOT_ICONS, BASES, RARITIES, PREFIX, AFFIX_DEFS,
   affixPool, affixCount, rollAffix, requiredLevel, isArmorSlot,
   type Slot, type AffixKey,
@@ -4744,6 +4749,7 @@ function updatePlayer(dt,g){
 function doBasicAttack(p,g,target){
   const kind=CLASSES[p.cls].basic;
   const a=target?Math.atan2(target.y-p.y,target.x-p.x):p.facing;
+  try{ cosmeticWeaponSpark(p, a); }catch(e){}
   if(kind==='melee'){
     for(const e of g.enemies){
       if(e.dead)continue;
@@ -5749,6 +5755,8 @@ function render(){
   ctx.globalAlpha=1;
   for(const f of G.fx)drawFx(f);
   if(!cutscene.active)vfxLight(biome,G.cam.x,G.cam.y,shakeX,shakeY);
+  /* cosmetics go over the darkness pass — behind it they are invisible in crypt */
+  try{ if(G.player) drawCosmeticAura(G.player); }catch(e){}
   const p=G.player;
   if(p.autoAttack&&p._autoTarget&&!p._autoTarget.dead&&!cutscene.active){
     const et=p._autoTarget;
@@ -6113,6 +6121,120 @@ function drawTitleAura(p:any,t:number){
   }
   ctx.restore();
 }
+/* ── cosmetics ─────────────────────────────────────────────────────────────
+   Purely visual. If this file ever reads a cosmetic while computing damage,
+   the shop has become pay-to-win and this comment is a lie. */
+function equippedAura(){
+  try{ return cosmeticById(META && META.cos && META.cos.aura); }catch(e){ return undefined; }
+}
+function equippedWeaponFx(){
+  try{ return cosmeticById(META && META.cos && META.cos.weapon); }catch(e){ return undefined; }
+}
+function drawCosmeticAura(p){
+  const c = equippedAura(); if(!c || !p) return;
+  const t = G ? G.time : 0;
+  ctx.save();
+  const R = p.r + 30;
+  /* a soft wash so the aura reads on a lit floor — normal blending, or additive
+     turns the whole hero into a white blob under the crypt lighting */
+  {
+    const glow = ctx.createRadialGradient(p.x, p.y + 6, 6, p.x, p.y + 6, R * 1.35);
+    glow.addColorStop(0, c.primary);
+    glow.addColorStop(0.55, c.secondary);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.13 + 0.03 * Math.sin(t * 3.1);
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 6, R * 1.35, R * 1.0, 0, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  if(c.style === 'ring' || c.style === 'star'){
+    for(let i=0;i<3;i++){
+      const rr = R - i*7 + Math.sin(t*1.6+i)*2.5;
+      ctx.globalAlpha = 0.24 - i*0.05;
+      ctx.strokeStyle = i===0 ? c.primary : c.accent;
+      ctx.lineWidth = 2.2 - i*0.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y+4, rr, t*(0.7+i*0.25), t*(0.7+i*0.25)+TAU*0.72); ctx.stroke();
+    }
+    if(c.style === 'star'){
+      for(let i=0;i<6;i++){
+        const a = t*0.9 + i*TAU/6, d = R*0.72;
+        ctx.globalAlpha = 0.5; ctx.fillStyle = c.accent;
+        const sx = p.x+Math.cos(a)*d, sy = p.y+4+Math.sin(a)*d*0.55;
+        ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, TAU); ctx.fill();
+      }
+    }
+  } else if(c.style === 'orbit' || c.style === 'serpent'){
+    const n = c.style === 'serpent' ? 7 : 5;
+    for(let i=0;i<n;i++){
+      const a = t*(c.style==='serpent'?1.1:1.5) + i*TAU/n;
+      const d = R*0.8 + Math.sin(t*2+i)*3;
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = i%2 ? c.primary : c.accent;
+      ctx.beginPath();
+      ctx.arc(p.x+Math.cos(a)*d, p.y+4+Math.sin(a)*d*0.6, c.style==='serpent'?3.4:2.4, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 0.16; ctx.strokeStyle = c.primary; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y+6, R*0.85, R*0.52, 0, 0, TAU); ctx.stroke();
+  } else if(c.style === 'flame'){
+    for(let i=0;i<12;i++){
+      const a = i*TAU/12 + Math.sin(t*3+i)*0.14;
+      const h = 16 + Math.sin(t*7+i*1.7)*7;
+      const d = p.r + 10;
+      const bx = p.x+Math.cos(a)*d, by = p.y+8+Math.sin(a)*d*0.6;
+      ctx.globalAlpha = 0.34 + 0.14*Math.sin(t*9+i);
+      const grd = ctx.createLinearGradient(bx, by, bx, by-h);
+      grd.addColorStop(0, c.primary); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.moveTo(bx-3, by); ctx.quadraticCurveTo(bx-1, by-h*0.6, bx, by-h);
+      ctx.quadraticCurveTo(bx+1.5, by-h*0.6, bx+3, by); ctx.closePath(); ctx.fill();
+    }
+  } else if(c.style === 'lotus'){
+    for(let i=0;i<8;i++){
+      const a = t*0.8 + i*TAU/8;
+      const d = R*0.75;
+      const px = p.x+Math.cos(a)*d, py = p.y+4+Math.sin(a)*d*0.6;
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = i%2 ? c.primary : c.accent;
+      ctx.beginPath();
+      ctx.ellipse(px, py, 5.2, 2.8, a, 0, TAU);
+      ctx.fill();
+    }
+  } else if(c.style === 'storm'){
+    ctx.globalAlpha = 0.30 + 0.18*Math.sin(t*11);
+    ctx.strokeStyle = c.primary; ctx.lineWidth = 1.6;
+    for(let i=0;i<3;i++){
+      const a = t*2.2 + i*TAU/3;
+      ctx.beginPath();
+      ctx.moveTo(p.x+Math.cos(a)*(p.r+10), p.y+Math.sin(a)*(p.r+10));
+      ctx.lineTo(p.x+Math.cos(a+0.5)*(p.r+34), p.y+Math.sin(a+0.5)*(p.r+34));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+/** Called on every basic attack — coloured sparks, no gameplay effect. */
+function cosmeticWeaponSpark(p, angle){
+  const c = equippedWeaponFx(); if(!c || !G) return;
+  const g = G;
+  const n = c.style === 'trail' ? 4 : 3;
+  for(let i=0;i<n;i++){
+    const a = angle + rand(-0.5, 0.5);
+    const sp = rand(60, 190);
+    g.particles.push({
+      x: p.x + Math.cos(angle) * (p.r + 6),
+      y: p.y + Math.sin(angle) * (p.r + 6),
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: c.style === 'trail' ? 0.34 : 0.22,
+      max: c.style === 'trail' ? 0.34 : 0.22,
+      size: rand(1.4, 2.8),
+      color: i % 2 ? c.primary : c.accent,
+      glow: true,
+    });
+  }
+}
+
 function drawPlayer(p){
   const t=G.time;
   const walk=p.walkPhase||0;
@@ -7490,11 +7612,61 @@ function renderArchive(tab){
   const achEl=document.getElementById('arcAch');
   const runsEl=document.getElementById('arcRuns');
   const codexEl=document.getElementById('arcCodex');
+  const cosEl=document.getElementById('arcCos');
   if(!soulsEl)return;
   document.querySelectorAll('.arc-tab').forEach(b=>b.classList.toggle('active',b.getAttribute('data-tab')===tab));
-  [soulsEl,achEl,runsEl,codexEl].forEach(el=>el && el.classList.add('hidden'));
+  [soulsEl,achEl,runsEl,codexEl,cosEl].forEach(el=>el && el.classList.add('hidden'));
   const show=document.getElementById('arc'+tab.charAt(0).toUpperCase()+tab.slice(1));
   if(show) show.classList.remove('hidden');
+
+  if(tab==='cos'){
+    const state = (META.cos || emptyCosmetics()) as CosmeticState;
+    const souls = META.souls || 0;
+    const card = (c) => {
+      const owned = ownsCosmetic(state, c.id);
+      const worn = isEquipped(state, c.id);
+      const afford = souls >= c.price;
+      const btn = worn ? 'UNEQUIP' : owned ? 'EQUIP' : (afford ? c.price + ' ◆' : 'LOCKED');
+      const cls = worn ? 'arc-cos-card worn' : owned ? 'arc-cos-card owned' : 'arc-cos-card';
+      return `<button class="${cls}" data-cos="${c.id}" data-kind="${c.kind}" ${!owned && !afford ? 'disabled' : ''}>
+        <span class="swatch" style="background:radial-gradient(circle at 35% 30%, ${c.accent}, ${c.primary} 45%, ${c.secondary})"></span>
+        <b>${c.name}</b>
+        <small>${c.desc}</small>
+        <em>${btn}</em>
+      </button>`;
+    };
+    const auraCards = cosmeticsOf('aura').map(card).join('');
+    const weaponCards = cosmeticsOf('weapon').map(card).join('');
+    cosEl.innerHTML = `<div class="arc-soul-head"><div><div class="arc-soul-count">${souls.toLocaleString()}<small>SOULS BANKED</small></div></div>
+        <div style="text-align:right;font-size:11px;color:#9a8a6a;line-height:1.5">cosmetics only<br>never grants stats</div></div>
+      <h4 class="arc-cos-head">CELESTIAL AURAS</h4>
+      <div class="arc-cos-grid">${auraCards}</div>
+      <h4 class="arc-cos-head">WEAPON EFFECTS</h4>
+      <div class="arc-cos-grid">${weaponCards}</div>`;
+
+    cosEl.querySelectorAll('[data-cos]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-cos');
+      const def = cosmeticById(id);
+      if (!def) return;
+      const worn = isEquipped(META.cos, id);
+      if (worn) {
+        META.cos = equipCosmetic(META.cos, def.kind, null);
+        addToast('UNEQUIPPED', '#c8a0ff', def.name);
+      } else if (ownsCosmetic(META.cos, id)) {
+        META.cos = equipCosmetic(META.cos, def.kind, id);
+        addToast('EQUIPPED', '#ffd54f', def.name + ' · cosmetic only');
+      } else {
+        const res = buyCosmetic(META.cos, META.souls || 0, id);
+        if (!res) { addToast('NOT ENOUGH SOULS', '#ff8a4a', `${def.price} ◆ needed`); return; }
+        META.cos = res.state;
+        META.souls = res.souls;
+        addToast('UNLOCKED · ' + def.name, '#7aff9a', 'cosmetic only — no stats');
+      }
+      saveMeta();
+      sfx.ui();
+      renderArchive('cos');
+    }));
+  }
 
   if(tab==='souls'){
     let h=`<div class="arc-soul-head"><div><div class="arc-soul-count">${META.souls.toLocaleString()}<small>SOULS BANKED</small></div></div>

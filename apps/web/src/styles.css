@@ -653,3 +653,30 @@ body.cp-contrast #game{outline:2px solid rgba(255,220,120,.35);outline-offset:-2
   0%,100%{box-shadow:0 0 0 1px rgba(255,215,106,.55),0 0 26px rgba(255,196,60,.32),inset 0 0 22px rgba(255,190,60,.14)}
   50%{box-shadow:0 0 0 2px rgba(255,225,140,.85),0 0 46px rgba(255,196,60,.55),inset 0 0 30px rgba(255,190,60,.22)}
 }
+
+/* ── cosmetic shop ─────────────────────────────────────────────────────── */
+.arc-cos-head{
+  font-size:11px;letter-spacing:.18em;color:#c8a0ff;margin:14px 0 8px;
+  border-bottom:1px solid rgba(200,160,255,.22);padding-bottom:5px;
+}
+.arc-cos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
+.arc-cos-card{
+  display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;
+  padding:10px 11px;border-radius:10px;cursor:pointer;
+  background:linear-gradient(180deg,rgba(30,22,14,.92),rgba(16,12,8,.96));
+  border:1px solid rgba(200,160,255,.22);color:#e8dcc4;
+  font-family:inherit;transition:transform .12s ease,border-color .12s ease;
+}
+.arc-cos-card:hover:not([disabled]){transform:translateY(-2px);border-color:rgba(255,215,106,.55)}
+.arc-cos-card[disabled]{opacity:.45;cursor:not-allowed}
+.arc-cos-card b{font-size:12.5px;line-height:1.25;color:#ffe9a8}
+.arc-cos-card small{font-size:10.5px;color:#9a8a6a;line-height:1.35}
+.arc-cos-card em{font-style:normal;font-size:10px;letter-spacing:.1em;color:#c8a0ff;margin-top:2px}
+.arc-cos-card.owned{border-color:rgba(122,255,154,.4)}
+.arc-cos-card.owned em{color:#7aff9a}
+.arc-cos-card.worn{border-color:#ffd76a;box-shadow:0 0 18px rgba(255,196,60,.28)}
+.arc-cos-card.worn em{color:#ffd76a}
+.arc-cos-card .swatch{
+  width:30px;height:30px;border-radius:50%;display:block;
+  box-shadow:0 0 14px rgba(255,255,255,.18),inset 0 0 8px rgba(0,0,0,.55);
+}

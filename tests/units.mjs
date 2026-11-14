@@ -11,6 +11,7 @@ const world = await load('world.mjs');
 const meta = await load('meta.mjs');
 const items = await load('items.mjs');
 const up = await load('upgrades.mjs');
+const cos = await load('cosmetics.mjs');
 
 let pass = 0;
 let fail = 0;
@@ -371,6 +372,79 @@ check('upgrade counters match the shape the engine reads', () => {
   const empty = up.emptyUpg();
   assert.deepEqual(Object.keys(empty).sort(), [...up.UPG_KEYS].sort());
   for (const k of up.UPG_KEYS) assert.equal(empty[k], 0, `counter ${k} not zeroed`);
+});
+
+// ── cosmetics: the shop must never sell power ─────────────────────────────
+const STAT_WORDS = ['dmg', 'damage', 'hp', 'health', 'armor', 'armour', 'crit', 'speed',
+  'regen', 'leech', 'dps', 'mult', 'power', 'bonus', 'stat'];
+
+check('a cosmetic has no field that could change a stat', () => {
+  for (const c of cos.COSMETIC_DEFS) {
+    const keys = Object.keys(c).map((k) => k.toLowerCase());
+    for (const k of keys) {
+      const offending = STAT_WORDS.find((w) => k === w || k.includes(w));
+      assert.ok(!offending, `${c.id} exposes '${k}' — cosmetics must be visual only`);
+    }
+  }
+});
+
+check('cosmetic ids are unique and both shelves are stocked', () => {
+  assert.equal(new Set(cos.COSMETIC_DEFS.map((c) => c.id)).size, cos.COSMETIC_DEFS.length);
+  assert.ok(cos.cosmeticsOf('aura').length >= 6, `${cos.cosmeticsOf('aura').length} auras`);
+  assert.ok(cos.cosmeticsOf('weapon').length >= 4, `${cos.cosmeticsOf('weapon').length} weapon effects`);
+});
+
+check('every cosmetic is presentable and priced in souls', () => {
+  for (const c of cos.COSMETIC_DEFS) {
+    assert.ok(c.name && c.desc, `${c.id} missing text`);
+    assert.ok(c.price > 0 && Number.isFinite(c.price), `${c.id} price ${c.price}`);
+    for (const col of ['primary', 'secondary', 'accent']) {
+      assert.ok(/^#[0-9a-f]{6}$/i.test(c[col]), `${c.id}.${col} = ${c[col]}`);
+    }
+  }
+});
+
+check('buying deducts souls and cannot be repeated', () => {
+  const start = cos.emptyCosmetics();
+  const res = cos.buyCosmetic(start, 400, 'surya');   // 260
+  assert.ok(res, 'purchase refused with enough souls');
+  assert.equal(res.souls, 140);
+  assert.deepEqual(res.state.owned, ['surya']);
+  assert.equal(cos.buyCosmetic(res.state, 400, 'surya'), null, 'owned item could be bought twice');
+});
+
+check('a purchase is refused without enough souls', () => {
+  const poor = cos.emptyCosmetics();
+  assert.equal(cos.buyCosmetic(poor, 10, 'indra'), null);
+  assert.deepEqual(poor.owned, [], 'state mutated on a failed purchase');
+});
+
+check('only owned cosmetics can be worn', () => {
+  const empty = cos.emptyCosmetics();
+  assert.deepEqual(cos.equipCosmetic(empty, 'aura', 'kala'), empty, 'unowned aura was equipped');
+  const owned = { owned: ['kala'], aura: null, weapon: null };
+  assert.equal(cos.equipCosmetic(owned, 'aura', 'kala').aura, 'kala');
+  assert.equal(cos.equipCosmetic(owned, 'weapon', 'kala').weapon, null, 'aura worn in the weapon slot');
+  assert.equal(cos.equipCosmetic(owned, 'aura', null).aura, null, 'could not unequip');
+});
+
+check('saved cosmetics are repaired', () => {
+  const fixed = cos.sanitizeCosmetics({
+    owned: ['kala', 'kala', 'not-real', 7],
+    aura: 'surya',        // not owned in this save
+    weapon: 'lotusEdge',  // also not owned
+  });
+  assert.deepEqual(fixed.owned, ['kala']);
+  assert.equal(fixed.aura, null, 'equipped an aura the save does not own');
+  assert.equal(fixed.weapon, null);
+  assert.deepEqual(cos.sanitizeCosmetics(null), cos.emptyCosmetics());
+});
+
+check('meta keeps cosmetics across a cloud merge', () => {
+  const local = meta.sanitizeMeta({ souls: 10, cos: { owned: ['kala'], aura: 'kala' } });
+  const merged = meta.mergeMeta(local, { souls: 5, cos: { owned: ['surya', 'lotusEdge'] } }).next;
+  assert.deepEqual([...merged.cos.owned].sort(), ['kala', 'lotusEdge', 'surya']);
+  assert.equal(merged.cos.aura, 'kala', 'equipped aura lost in the merge');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

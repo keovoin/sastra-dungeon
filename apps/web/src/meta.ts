@@ -28,6 +28,8 @@ export interface MetaStats {
   bestKills: number;
 }
 
+import { emptyCosmetics, sanitizeCosmetics, type CosmeticState } from './cosmetics';
+
 export interface MetaState {
   souls: number;
   earned: number;
@@ -36,6 +38,8 @@ export interface MetaState {
   ach: Record<string, boolean>;
   codex: Record<string, boolean>;
   stats: MetaStats;
+  /** purchased auras and weapon effects — cosmetic only, never stats */
+  cos: CosmeticState;
 }
 
 export type SoulTrackId = 'hp' | 'dmg' | 'atk' | 'fort';
@@ -92,6 +96,7 @@ export function emptyMeta(): MetaState {
     ach: {},
     codex: {},
     stats: { runs: 0, kills: 0, bestWave: 0, bestScore: 0, bestKills: 0 },
+    cos: emptyCosmetics(),
   };
 }
 
@@ -139,6 +144,7 @@ export function sanitizeMeta(raw: unknown): MetaState {
   for (const t of SOUL_TRACKS) base.shop[t.id] = rank(shop[t.id], t.max);
   base.ach = boolMap(o.ach);
   base.codex = boolMap(o.codex);
+  base.cos = sanitizeCosmetics(o.cos);
   const stats = (o.stats && typeof o.stats === 'object' ? o.stats : {}) as Record<string, unknown>;
   base.stats = {
     runs: Math.max(0, Math.floor(num(stats.runs))),
@@ -172,6 +178,14 @@ export function mergeMeta(local: MetaState, cloud: unknown): { next: MetaState; 
   for (const t of SOUL_TRACKS) merged.shop[t.id] = Math.max(merged.shop[t.id] || 0, c.shop[t.id] || 0);
   Object.assign(merged.ach, c.ach);
   Object.assign(merged.codex, c.codex);
+
+  // cosmetics: purchases are permanent, so owned is a union across devices
+  const owned = [...new Set([...merged.cos.owned, ...c.cos.owned])];
+  merged.cos = sanitizeCosmetics({
+    owned,
+    aura: merged.cos.aura || c.cos.aura,
+    weapon: merged.cos.weapon || c.cos.weapon,
+  });
   merged.stats = {
     runs: Math.max(merged.stats.runs, c.stats.runs),
     kills: Math.max(merged.stats.kills, c.stats.kills),
