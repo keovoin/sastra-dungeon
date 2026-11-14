@@ -105,6 +105,10 @@ const comboState = await page.evaluate(() => {
 });
 ok('combo readout wired', comboState.present && comboState.hidden, JSON.stringify(comboState));
 
+// crash reporter: it must capture failures, and stay silent when there are none
+const crashLog = await page.evaluate(() => localStorage.getItem('sd_errors_v1'));
+ok('no crashes recorded on a clean run', !crashLog || crashLog === '[]', crashLog ? crashLog.slice(0, 120) : 'empty');
+
 // 4. a run starts and the canvas keeps rendering
 await page.locator('.card').first().click();
 await page.waitForTimeout(1200);

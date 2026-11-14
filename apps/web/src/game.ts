@@ -1,4 +1,5 @@
 // @ts-nocheck — 1:1 port of the prototype main script (JS semantics kept; typed in a later pass).
+import { setErrorContext, readErrors, clearErrors } from './telemetry';
 /* Sastra Dungeon — core game engine.
    Ported from the single-file prototype main script (lines 424-5136). Changed only:
    - export keywords for CLASSES / G / cutscene / startGame (consumed by intro.ts, music.ts)
@@ -1577,6 +1578,22 @@ function resumeFromSave(data, silent:any = false) {
   refreshShopStock(G);
   if(!silent)addToast('SAVE LOADED', '#7aff9a', `Level ${p.level} ${C.name} · Wave ${Math.max(1,data.wave||1)}`);
 }
+/* crash log: one button in settings, so a player can hand us something useful */
+try{
+  const copyBtn = document.getElementById('copyCrashes');
+  const countEl = document.getElementById('crashCount');
+  const paint = () => { try{ const n = readErrors().length; if(countEl) countEl.textContent = String(n); }catch(e){} };
+  paint();
+  if(copyBtn) copyBtn.addEventListener('click', async () => {
+    const list = readErrors();
+    const text = list.length ? JSON.stringify(list, null, 2) : 'No crashes recorded on this device.';
+    try { await navigator.clipboard.writeText(text); copyBtn.textContent = 'COPIED'; }
+    catch { console.log(text); copyBtn.textContent = 'LOGGED'; }
+    setTimeout(()=>{ copyBtn.textContent = 'COPY'; }, 1800);
+  });
+  setInterval(paint, 4000);
+}catch(e){}
+
 function refreshContinuePanel() {
   const panel = document.getElementById('continuePanel');
   if (!panel) return;
@@ -7639,6 +7656,25 @@ function initSettingsUI(){
   const close=()=>{ ov.classList.add('hidden'); saveSettings(); };
   
 /* ═══ ARCHIVE UI ═══ */
+/* hand the crash reporter a snapshot of where the player was */
+try{
+  setErrorContext(() => {
+    const p = G && G.player;
+    return {
+      wave: G ? G.wave : null,
+      biome: G ? G.biomeKey : null,
+      running: !!(G && G.running),
+      paused: !!(G && G.paused),
+      cls: p ? p.cls : null,
+      level: p ? p.level : null,
+      hp: p ? Math.round(p.hp) : null,
+      enemies: G ? (G.enemies || []).filter((x:any) => !x.dead).length : null,
+      cutscene: !!(G && G.cutscene && G.cutscene.active),
+      build: (import.meta as any).env?.VITE_BUILD || 'dev',
+    };
+  });
+}catch(e){}
+
 function renderArchive(tab){
   const soulsEl=document.getElementById('arcSouls');
   const achEl=document.getElementById('arcAch');
