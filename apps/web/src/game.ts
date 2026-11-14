@@ -2,6 +2,11 @@
 import { setErrorContext, readErrors, clearErrors } from './telemetry';
 import { RELIC_DEFS, relicMods, relicById, relicOptions, sanitizeRelics } from './relics';
 import { BIOMES, ENEMY_TYPES, ENEMY_LORE } from './world';
+import {
+  META_KEY as META_KEY_EXT, emptyMeta, sanitizeMeta, mergeMeta, soulsFromRun,
+  SOUL_TRACKS as SOUL_TRACKS_EXT, ACHIEVEMENTS as ACHIEVEMENTS_EXT,
+  newlyEarned, trackById, type MetaState,
+} from './meta';
 /* Sastra Dungeon — core game engine.
    Ported from the single-file prototype main script (lines 424-5136). Changed only:
    - export keywords for CLASSES / G / cutscene / startGame (consumed by intro.ts, music.ts)
@@ -46,70 +51,30 @@ function clearSeed(){_seeded=false;_rngImpl=Math.random}
 
 
 /* ═══════════ META PROGRESSION: souls, achievements, history, bestiary ═══════════ */
-const META_KEY = 'sd_meta_v1';
-type MetaRun = { cls:string; wave:number; kills:number; score:number; date:number; diff:string; won:boolean };
-const META: any = {
-  souls: 0, earned: 0,
-  shop: { hp:0, dmg:0, atk:0, fort:0 },
-  runs: [] as MetaRun[],
-  ach: {} as Record<string, boolean>,
-  codex: {} as Record<string, boolean>,
-  stats: { runs:0, kills:0, bestWave:0, bestScore:0, bestKills:0 },
-};
+const META_KEY = META_KEY_EXT;
+const META: any = emptyMeta();
+const SOUL_TRACKS: any = SOUL_TRACKS_EXT;
+const ACHIEVEMENTS: any = ACHIEVEMENTS_EXT;
 function loadMeta(){
-  try{
-    const raw = JSON.parse(localStorage.getItem(META_KEY) || '{}');
-    if (typeof raw.souls === 'number') META.souls = raw.souls;
-    if (typeof raw.earned === 'number') META.earned = raw.earned;
-    if (raw.shop) Object.assign(META.shop, raw.shop);
-    if (Array.isArray(raw.runs)) META.runs = raw.runs.slice(0, 10);
-    if (raw.ach) Object.assign(META.ach, raw.ach);
-    if (raw.codex) Object.assign(META.codex, raw.codex);
-    if (raw.stats) Object.assign(META.stats, raw.stats);
-  }catch(e){}
+  let parsed: unknown = null;
+  try{ parsed = JSON.parse(localStorage.getItem(META_KEY) || 'null'); }catch(e){ parsed = null; }
+  Object.assign(META, sanitizeMeta(parsed));
 }
 function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(META)); }catch(e){} }
 /* Merge a cloud meta blob into the local one. Lifetimes take the max, unlocks
    take the union, history is unioned and trimmed to ten newest. */
 function applyCloudMeta(cloud){
   if(!cloud || typeof cloud!=='object') return false;
-  const before = JSON.stringify([META.souls, META.shop, Object.keys(META.ach).length, Object.keys(META.codex).length]);
-  META.souls = Math.max(META.souls||0, cloud.souls||0);
-  META.earned = Math.max(META.earned||0, cloud.earned||0);
-  for(const k of ['hp','dmg','atk','fort']) META.shop[k] = Math.max(META.shop[k]||0, (cloud.shop&&cloud.shop[k])||0);
-  Object.assign(META.ach, cloud.ach||{});
-  Object.assign(META.codex, cloud.codex||{});
-  const cs = cloud.stats||{};
-  for(const k of ['runs','kills','bestWave','bestScore','bestKills'])
-    META.stats[k] = Math.max(META.stats[k]||0, cs[k]||0);
-  const seen = new Set((META.runs||[]).map(r=>`${r.date}-${r.cls}-${r.wave}`));
-  const extra = (cloud.runs||[]).filter(r=>{const k=`${r.date}-${r.cls}-${r.wave}`; if(seen.has(k))return false; seen.add(k); return true;});
-  META.runs = [...(META.runs||[]), ...extra].sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,10);
+  const { next, changed } = mergeMeta(META as MetaState, cloud);
+  Object.assign(META, next);
   saveMeta();
-  const after = JSON.stringify([META.souls, META.shop, Object.keys(META.ach).length, Object.keys(META.codex).length]);
-  return before !== after;
+  return changed;
 }
+
 loadMeta();
 
-const SOUL_TRACKS = [
-  { id:'hp',   name:'Laterite Vitality', desc:'+8% max HP per rank',      max:5, cost:[60,110,180,280,420] },
-  { id:'dmg',  name:'Kshatriya Fury',    desc:'+6% damage per rank',       max:5, cost:[70,130,210,320,480] },
-  { id:'atk',  name:'Apsara Tempo',      desc:'+4% attack speed per rank', max:5, cost:[80,150,240,360,540] },
-  { id:'fort', name:'Naga Fortune',      desc:'+10% gold per rank',        max:5, cost:[50,90,150,230,350] },
-];
-const ACHIEVEMENTS = [
-  { id:'first_blood', name:'First Blood',         desc:'Slay your first monster',   test:()=>META.stats.kills>=1 },
-  { id:'wave10',      name:'Causeway Walker',     desc:'Reach wave 10',             test:()=>META.stats.bestWave>=10 },
-  { id:'wave25',      name:'Temple Raider',       desc:'Reach wave 25',             test:()=>META.stats.bestWave>=25 },
-  { id:'wave50',      name:'Sovereign of Sastra', desc:'Reach wave 50',             test:()=>META.stats.bestWave>=50 },
-  { id:'serpent',     name:'Serpent Slayer',      desc:'Defeat Naga Raja',          test:()=>!!META.codex.killed_cryptLord },
-  { id:'three',       name:'Three Thrones',       desc:'Defeat three guardians',    test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=3 },
-  { id:'five',        name:'Six Thrones',         desc:'Defeat all six guardians',  test:()=>Object.keys(META.codex).filter(k=>k.indexOf('killed_')===0).length>=6 },
-  { id:'kill500',     name:'Deathbringer',        desc:'500 kills in a single run', test:()=>(META.stats.bestKills||0)>=500 },
-  { id:'runs10',      name:'Pilgrim',             desc:'Complete 10 runs',          test:()=>META.stats.runs>=10 },
-  { id:'soul500',     name:'Soulkeeper',          desc:'Bank 500 souls',            test:()=>META.earned>=500 },
-  { id:'naturalist',  name:'Naturalist',          desc:'Discover 10 creatures',     test:()=>Object.keys(META.codex).filter(k=>k.indexOf('e_')===0).length>=10 },
-];
+
+
 
 /* Bestiary copy for the regular creatures. Names are Khmer-temple flavoured so
    the codex reads as part of the world rather than a debug list. */
@@ -151,18 +116,13 @@ const CODEX_BOSSES = [
 ];
 
 function checkAchievements(){
-  let unlocked = 0;
-  for (const a of ACHIEVEMENTS){
-    if (META.ach[a.id]) continue;
-    let ok = false;
-    try { ok = !!a.test(); } catch(e){}
-    if (ok){
-      META.ach[a.id] = true; unlocked++;
-      try { addToast('🏆 ' + a.name, '#ffd54f', a.desc); } catch(e){}
-    }
+  const fresh = newlyEarned(META as MetaState);
+  for (const a of fresh){
+    META.ach[a.id] = true;
+    try { addToast('🏆 ' + a.name, '#ffd54f', a.desc); } catch(e){}
   }
-  if (unlocked) saveMeta();
-  return unlocked;
+  if (fresh.length) saveMeta();
+  return fresh.length;
 }
 function markCodex(key, kind){
   if (!key) return;
@@ -171,7 +131,7 @@ function markCodex(key, kind){
 }
 function recordMetaRun(g, score, won){
   const p = g && g.player; if (!p) return 0;
-  const soulsGain = Math.max(5, Math.round((g.wave || 1) * 2.2 + (g.kills || 0) * 0.35 + (score || 0) / 900));
+  const soulsGain = soulsFromRun(g.wave || 1, g.kills || 0, score || 0);
   META.souls += soulsGain;
   META.earned += soulsGain;
   META.stats.runs += 1;
