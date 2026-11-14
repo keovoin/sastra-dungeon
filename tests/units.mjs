@@ -440,6 +440,16 @@ check('saved cosmetics are repaired', () => {
   assert.deepEqual(cos.sanitizeCosmetics(null), cos.emptyCosmetics());
 });
 
+check('every cosmetic has a render style the engine implements', () => {
+  const styles = new Set(['orbit', 'ring', 'flame', 'lotus', 'star', 'serpent', 'storm', 'trail', 'slash', 'spark']);
+  for (const c of cos.COSMETIC_DEFS) {
+    assert.ok(styles.has(c.style), `${c.id} uses unknown style '${c.style}'`);
+  }
+  // auras must use an aura style, weapon effects a weapon style
+  const auraStyles = ['orbit', 'ring', 'flame', 'lotus', 'star', 'serpent', 'storm'];
+  for (const c of cos.cosmeticsOf('aura')) assert.ok(auraStyles.includes(c.style), `${c.id} aura uses weapon style ${c.style}`);
+});
+
 check('meta keeps cosmetics across a cloud merge', () => {
   const local = meta.sanitizeMeta({ souls: 10, cos: { owned: ['kala'], aura: 'kala' } });
   const merged = meta.mergeMeta(local, { souls: 5, cos: { owned: ['surya', 'lotusEdge'] } }).next;
