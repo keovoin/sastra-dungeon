@@ -1,7 +1,7 @@
 // @ts-nocheck — 1:1 port of the prototype main script (JS semantics kept; typed in a later pass).
 import { setErrorContext, readErrors, clearErrors } from './telemetry';
 import { RELIC_DEFS, relicMods, relicById, relicOptions, sanitizeRelics } from './relics';
-import { BIOMES, ENEMY_TYPES, ENEMY_LORE } from './world';
+import { BIOMES, ENEMY_TYPES, ENEMY_LORE, BOSS_TYPES, BOSS_TAUNTS, HAZ_DEF } from './world';
 import {
   META_KEY as META_KEY_EXT, emptyMeta, sanitizeMeta, mergeMeta, soulsFromRun,
   SOUL_TRACKS as SOUL_TRACKS_EXT, ACHIEVEMENTS as ACHIEVEMENTS_EXT,
@@ -3009,21 +3009,8 @@ function isBossWave(w){return w%10===0}
 function isEliteWave(w){return w%5===0&&!isBossWave(w)}
 
 
-const BOSS_TYPES = {
-  cryptLord:{name:'Naga Raja',hp:950,speed:62,dmg:36,r:38,color:'#e74c3c',dark:'#7b1b13',xp:320,range:62,attacks:['groundPound','summonSkeletons','darkBolt'],attackCd:2.4,phase:1},
-  cavernTitan:{name:'Kumbhakarna',hp:1300,speed:52,dmg:44,r:46,color:'#5a4a3a',dark:'#2a1e14',xp:420,range:72,attacks:['stomp','rockThrow','enrage'],attackCd:2.6,phase:1},
-  frostWyrm:{name:'Garuda',hp:1500,speed:68,dmg:48,r:42,color:'#7fd4ff',dark:'#2a4a6a',xp:520,range:84,attacks:['iceBreath','iceShards','teleport'],attackCd:2.4,phase:1},
-  volcanoBehemoth:{name:'Kala',hp:1900,speed:58,dmg:56,r:48,color:'#ff5020',dark:'#8a2a10',xp:640,range:86,attacks:['lavaPool','fireWave','charge'],attackCd:2.3,phase:1},
-  airava:{name:'Airavata',hp:3200,speed:60,dmg:66,r:60,color:'#a8bcc8',dark:'#3a4a58',xp:1000,range:92,attacks:['stomp','trunkSweep','lightningCall','charge'],attackCd:2.0,phase:1},
-  shadowPrince:{name:'Krong Reap',hp:2600,speed:76,dmg:62,r:50,color:'#a060ff',dark:'#4a1a7a',xp:900,range:90,attacks:['shadowBeam','cloneSummon','darkNova','teleportDodge'],attackCd:2.0,phase:1}
-};
-const BOSS_TAUNTS = {
-  cryptLord:'"The five heads have tasted a thousand kingdoms."',
-  cavernTitan:'"I slept ten thousand years. You wake me for this?"',
-  frostWyrm:'"The sky belongs to the wings that ate the sun."',
-  volcanoBehemoth:'"Time devours all. I am its teeth."',
-  airava:'"Three heads, one storm. The summit does not bow."'
-};
+
+
 
 /* Items */
 const INV_SIZE = 35;
@@ -6796,14 +6783,7 @@ function drawEnemy(e){
 /* ═══ REALM HAZARDS ═══
    Each realm now has one ground hazard that telegraphs, then fires. They are
    what make a realm play differently rather than just look different. */
-const HAZ_DEF = {
-  crypt:  {name:'Spike Trap',     dmg:0.085, r:80, period:5.4, warn:0.95, active:0.45, col:'#ff8a4a', col2:'#5a3218'},
-  caverns:{name:'Falling Debris', dmg:0.105, r:88, period:6.2, warn:1.05, active:0.50, col:'#ffcf6a', col2:'#4a3210'},
-  frost:  {name:'Frost Shards',   dmg:0.090, r:92, period:6.6, warn:1.10, active:0.55, col:'#8fe4ff', col2:'#1a4a68'},
-  volcano:{name:'Lava Vent',      dmg:0.120, r:84, period:5.0, warn:0.85, active:0.60, col:'#ff6a2e', col2:'#5a1404'},
-  shadow: {name:'Shadow Pool',    dmg:0.070, r:96, period:6.4, warn:1.00, active:0.70, col:'#c070ff', col2:'#2a0850'},
-  celestial:{name:'Skyfall',      dmg:0.100, r:90, period:5.6, warn:0.95, active:0.55, col:'#ffe9a8', col2:'#6a5a20'},
-};
+
 
 function stepHazards(dt,g){
   if(!g.realmHazards) { g.realmHazards=[]; g._hazT=3.0; }

@@ -206,4 +206,43 @@ check('a broken predicate cannot block the others', () => {
   assert.ok(!got.includes('broken'));
 });
 
+// ── bosses and hazards ────────────────────────────────────────────────────
+check('six guardians, six taunts', () => {
+  assert.equal(Object.keys(world.BOSS_TYPES).length, 6);
+  assert.equal(Object.keys(world.BOSS_TAUNTS).length, 6, 'a missing taunt falls back to "The boss enrages"');
+});
+
+check('every realm names a guardian that exists', () => {
+  for (const b of world.BIOMES) {
+    assert.ok(world.BOSS_TYPES[b.boss], `${b.key} points at unknown boss '${b.boss}'`);
+    assert.ok(world.BOSS_TAUNTS[b.boss], `${b.boss} has no taunt`);
+  }
+});
+
+check('guardians are fightable numbers', () => {
+  for (const [key, b] of Object.entries(world.BOSS_TYPES)) {
+    assert.ok(b.hp > 500, `${key} hp ${b.hp}`);
+    assert.ok(b.attacks.length >= 3, `${key} has ${b.attacks.length} attacks`);
+    assert.ok(b.attackCd > 0 && b.r > 0 && b.speed > 0, `${key} has a zero stat`);
+    assert.ok(b.name && b.color.startsWith('#'), `${key} missing name/colour`);
+  }
+});
+
+check('guardian stats escalate across the campaign', () => {
+  const order = world.BIOMES.map((b) => world.BOSS_TYPES[b.boss].hp);
+  for (let i = 1; i < order.length; i++) {
+    assert.ok(order[i] > order[i - 1], `guardian ${i} is not tougher than ${i - 1}`);
+  }
+});
+
+check('every realm has a hazard, and hazards are survivable', () => {
+  for (const b of world.BIOMES) {
+    const h = world.HAZ_DEF[b.key];
+    assert.ok(h, `${b.key} has no hazard`);
+    assert.ok(h.dmg > 0 && h.dmg < 0.5, `${b.key} hazard deals ${h.dmg} of max HP`);
+    assert.ok(h.warn < h.period, `${b.key} telegraph is longer than its cycle`);
+    assert.ok(h.r > 0 && h.active > 0, `${b.key} hazard has no size or duration`);
+  }
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
