@@ -141,6 +141,56 @@ const ENEMY_LORE = {
   charger:       { name:'Horned Charger',   note:'Runs as if the causeway were a race.' },
 };
 
+
+/* ═══ RELICS ═══
+   Boss drops, three slots, run-scoped. Everything routes through recalcStats so
+   a relic can never be "just text" — if it says +12% damage, p.dmg moves. */
+const RELIC_DEFS = [
+  { id:'fang',    name:'Naga Fang',        icon:'🐍', desc:'+12% damage',              mod:{dmg:0.12} },
+  { id:'lotus',   name:'Lotus Heart',      icon:'🪷', desc:'+15% max HP',              mod:{hp:0.15} },
+  { id:'drum',    name:'Battle Drum',      icon:'🥁', desc:'+10% attack speed',        mod:{atk:0.10} },
+  { id:'sandal',  name:'Apsara Sandal',    icon:'🩰', desc:'+8% move speed',           mod:{spd:0.08} },
+  { id:'eye',     name:'Third Eye',        icon:'👁', desc:'+7% crit chance',          mod:{crit:0.07} },
+  { id:'coin',    name:'Merchant Seal',    icon:'🪙', desc:'+25% gold found',          mod:{gold:0.25} },
+  { id:'shield',  name:'Laterite Plate',   icon:'🛡', desc:'+25 armor',                mod:{armor:25} },
+  { id:'prayer',  name:'Prayer Beads',     icon:'📿', desc:'+18% energy regeneration', mod:{regen:0.18} },
+];
+function relicMods(p){
+  const out = {dmg:0,hp:0,atk:0,spd:0,crit:0,gold:0,armor:0,regen:0};
+  const list = (p && p.relics) || [];
+  for(const id of list){
+    const r = RELIC_DEFS.find(d=>d.id===id);
+    if(!r) continue;
+    for(const k in r.mod) out[k] = (out[k]||0) + r.mod[k];
+  }
+  return out;
+}
+function grantBossRelic(g, bossKey){
+  const p = g && g.player; if(!p) return null;
+  p.relics = p.relics || [];
+  const owned = new Set(p.relics);
+  const pool = RELIC_DEFS.filter(r=>!owned.has(r.id));
+  if(!pool.length || p.relics.length >= 3) return null;
+  const r = pick(pool);
+  p.relics.push(r.id);
+  recalcStats(p);
+  addToast('RELIC · '+r.name, '#c8a0ff', r.desc+' · '+p.relics.length+'/3');
+  try{ syncRelicHUD(g); }catch(e){}
+  return r;
+}
+function syncRelicHUD(g){
+  const el = document.getElementById('relicBar');
+  if(!el) return;
+  const p = g && g.player;
+  const list = (p && p.relics) || [];
+  if(!list.length){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = list.map(id=>{
+    const r = RELIC_DEFS.find(d=>d.id===id);
+    return r ? `<span class="relic-chip" title="${r.name} — ${r.desc}">${r.icon}</span>` : '';
+  }).join('');
+}
+
 const CODEX_BOSSES = [
   { key:'cryptLord',       img:'naga',      name:'Naga Raja',   realm:'I · ANGKOR SANKRANTI CRYPT',      line:'Five-headed sovereign of the causeway. It has tasted a thousand kingdoms.' },
   { key:'cavernTitan',     img:'kumbha',    name:'Kumbhakarna', realm:'II · TA PROHM ROOT CAVERNS',      line:'The asura colossus of the Reamker, woken by the roots of the banyan.' },
@@ -1408,6 +1458,7 @@ function saveGamePayload(g) {
     upg: { ...(p.upg||{}) },
     attrs: { ...(p.attrs||{str:0,vit:0,agi:0,wis:0,lck:0}) },
     skillLvls: (p.skills||[]).map(s => s.lvl || 1),
+    relics: (p.relics||[]).slice(0,3),
     itemIdCounter, savedAt: Date.now()
   };
   return save;
@@ -1466,6 +1517,7 @@ function resumeFromSave(data, silent:any = false) {
   if (Array.isArray(data.skillLvls) && p.skills) {
     p.skills.forEach((s, idx) => { s.lvl = clamp(data.skillLvls[idx] || 1, 1, 5); });
   }
+  p.relics = Array.isArray(data.relics) ? data.relics.filter((r)=>RELIC_DEFS.some(d=>d.id===r)).slice(0,3) : [];
   if (data.treeMods) {
     const m = data.treeMods;
     p._critDmg = m._critDmg||2; p._executioner = !!m._executioner;
@@ -2112,13 +2164,14 @@ function recalcStats(p){
   const wisPts = (at.wis||0) + (up.cd||0);
   const lckPts = (at.lck||0) + (up.crit||0);
   const soulDmg=1+(META.shop.dmg||0)*0.06, soulHp=1+(META.shop.hp||0)*0.08, soulAtk=1+(META.shop.atk||0)*0.04;
-  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+strPts*0.14)*(1+(tb.dmg||0))*soulDmg;
-  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+vitPts*0.16)*(1+(tb.hp||0))*soulHp);
-  p.armor=p.baseStats.armor+tot.armor+vitPts*12+(at.stone||0)*12;
-  p.speed=(p.baseStats.speed+tot.speed)*(1+agiPts*0.08)*(1+(at.swift||0)*0.10)*(1+(tb.spd||0));
-  p.crit=Math.min(0.80,(p.baseStats.crit+tot.crit)+lckPts*0.05+(tb.crit||0));
-  p.energyRegen=p.baseStats.energyRegen+tot.regen+wisPts*2.5+(tb.regen||0);
-  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(at.haste||0)*0.12)*(1+(tb.atk||0))*soulAtk;
+  const RM = relicMods(p);
+  p.dmg=(p.baseStats.dmg+tot.dmg)*(1+strPts*0.14)*(1+(tb.dmg||0))*soulDmg*(1+RM.dmg);
+  p.maxHp=Math.round((p.baseStats.maxHp+tot.hp)*(1+vitPts*0.16)*(1+(tb.hp||0))*soulHp*(1+RM.hp));
+  p.armor=p.baseStats.armor+tot.armor+vitPts*12+(at.stone||0)*12+RM.armor;
+  p.speed=(p.baseStats.speed+tot.speed)*(1+agiPts*0.08)*(1+(at.swift||0)*0.10)*(1+(tb.spd||0))*(1+RM.spd);
+  p.crit=Math.min(0.80,(p.baseStats.crit+tot.crit)+lckPts*0.05+(tb.crit||0)+RM.crit);
+  p.energyRegen=(p.baseStats.energyRegen+tot.regen+wisPts*2.5+(tb.regen||0))*(1+RM.regen);
+  p.atkSpeed=(p.baseStats.atkSpeed||CL.atkSpeed||1)*(1+agiPts*0.12)*(1+(at.haste||0)*0.12)*(1+(tb.atk||0))*soulAtk*(1+RM.atk);
   p.range=(p.baseStats.range||CL.range||100)*(1+strPts*0.06+(up.range||0)*0.12);
   if(p.baseStats.maxEnergy){
     p.maxEnergy=p.baseStats.maxEnergy + wisPts*8;
@@ -3190,6 +3243,7 @@ export function startGame(clsKey, opts?:{daily?:boolean}){
         equipment:{weapon:null,helm:null,chest:null,gloves:null,boots:null,ring:null,amulet:null},
         inventory:[],
         _rerolls:1,
+        relics:[],
         maxHp:C.hp,hp:C.hp,maxEnergy:C.energy,energy:C.energy,
         dmg:C.dmg,armor:0,speed:C.speed,crit:C.crit,energyRegen:C.energyRegen,
         range:C.range,atkSpeed:C.atkSpeed,
@@ -3648,7 +3702,7 @@ function dropXP(g,x,y,amount){
 }
 function dropGold(g,x,y,amount){
   if(!amount||amount<=0)return;
-  amount=Math.round(amount*(1+(META.shop.fort||0)*0.10));
+  amount=Math.round(amount*(1+(META.shop.fort||0)*0.10)*(1+relicMods(g.player).gold));
   if(g.orbs.length>400){g.player.gold=(g.player.gold||0)+amount;return}
   const n=clamp(Math.max(1,Math.round(amount/4)),1,6);
   const part=Math.ceil(amount/n);
@@ -3704,6 +3758,7 @@ function killEnemy(e,g){
   }
   e.dead=true;g.kills++;
   if(e.boss){ markCodex(e.bossKey,'kill'); }
+  if(e.boss && g.player){ try{ grantBossRelic(g, e.bossKey); }catch(err){} }
   if(e.boss && g.rush && !e._rushCounted){
     e._rushCounted=true;
     g.rushIdx=(g.rushIdx||0)+1;
@@ -7510,6 +7565,7 @@ function startDailyRun(){
 }
 
 function updateComboHUD(g){
+  try{ syncRelicHUD(g); }catch(e){}
   const el = document.getElementById('comboReadout');
   if(!el) return;
   const c = (g && g.player && g.player._combo) || 0;

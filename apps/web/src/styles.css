@@ -631,3 +631,10 @@ body.cp-contrast #game{outline:2px solid rgba(255,220,120,.35);outline-offset:-2
 #comboReadout.hot{color:#ff9a3c;transform:translateX(-50%) scale(1.12)}
 #comboReadout.blazing{color:#ff5c5c;transform:translateX(-50%) scale(1.22)}
 #comboReadout.hidden{display:none}
+
+/* run relics — three slots, shown under the wave bar */
+#relicBar{position:fixed;left:50%;top:96px;transform:translateX(-50%);display:flex;gap:6px;z-index:40;pointer-events:none}
+#relicBar.hidden{display:none}
+.relic-chip{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:14px;
+  background:radial-gradient(circle at 35% 30%,#4a2f6a,#1a0f26);border:1px solid #a070ff;
+  box-shadow:0 0 12px rgba(160,112,255,.45),inset 0 0 6px rgba(0,0,0,.6)}
