@@ -85,6 +85,7 @@
       <button id="rushBtn" class="titlesBtn" title="Five guardians, back to back, no trash waves">⚔ BOSS RUSH</button>
       <button id="settingsBtn" class="titlesBtn" title="Settings &amp; accessibility">⚙ SETTINGS</button>
       <button id="archiveBtn" class="titlesBtn" title="Soul shrine, achievements, history, bestiary">📜 ARCHIVE</button>
+      <button id="treasuryBtn" class="titlesBtn" title="Auras and weapon effects">💎 TREASURY</button>
       <div id="diffSel" title="Difficulty">
         <button class="diff-opt" data-diff="easy">EASY</button>
         <button class="diff-opt active" data-diff="normal">NORMAL</button>
@@ -177,6 +178,32 @@
   </div>
 </div>
 
+
+<div class="overlay hidden" id="treasuryScreen">
+  <div class="panel treasury-panel">
+    <div class="tre-head">
+      <div>
+        <div class="tre-khmer">អាណាចក្រអង្គរ · ROYAL TREASURY</div>
+        <h2 class="tre-title">CELESTIAL SANCTUARY</h2>
+      </div>
+      <div class="tre-wallet">
+        <span class="tre-chip souls">◆ <b id="treSouls">0</b><small>SOULS</small></span>
+        <span class="tre-chip owned">★ <b id="treOwned">0</b><small>OWNED</small></span>
+        <button id="treasuryClose" class="tre-x" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="tre-banner">Souls are earned by playing — there is no paid currency here, and nothing on these shelves changes your damage, health or speed.</div>
+    <div class="tre-tabs">
+      <button class="tre-tab active" data-tre="aura">✦ CELESTIAL AURAS</button>
+      <button class="tre-tab" data-tre="weapon">⚔ WEAPON EFFECTS</button>
+    </div>
+    <div id="treGrid" class="tre-grid"></div>
+    <div class="tre-foot">
+      <span>Click a card to buy · click again to wear · click a worn card to remove it</span>
+      <button class="btn ghost" id="treasuryClose2">Close</button>
+    </div>
+  </div>
+</div>
 <div class="overlay hidden" id="settingsOverlay">
   <div class="panel settings-panel">
     <div class="angkor-crest">⚙ ការកំណត់ · TEMPLE SETTINGS ⚙</div>

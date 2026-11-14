@@ -680,3 +680,79 @@ body.cp-contrast #game{outline:2px solid rgba(255,220,120,.35);outline-offset:-2
   width:30px;height:30px;border-radius:50%;display:block;
   box-shadow:0 0 14px rgba(255,255,255,.18),inset 0 0 8px rgba(0,0,0,.55);
 }
+
+/* ── Royal Treasury ────────────────────────────────────────────────────── */
+.treasury-panel{
+  width:min(980px,94vw);max-height:92vh;overflow:auto;
+  background:linear-gradient(180deg,#07130f 0%,#0a1a12 40%,#0d1f16 100%);
+  border:2px solid #c9a227;
+  box-shadow:0 0 0 1px rgba(255,215,106,.25) inset,0 24px 70px rgba(0,0,0,.75),0 0 60px rgba(201,162,39,.18);
+  border-radius:14px;padding:18px 20px 16px;position:relative;
+}
+.treasury-panel::before{
+  content:"";position:absolute;inset:6px;border:1px solid rgba(201,162,39,.28);border-radius:10px;pointer-events:none;
+}
+.tre-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.tre-khmer{font-size:10px;letter-spacing:.22em;color:#7fbfa0;text-transform:uppercase}
+.tre-title{
+  margin:2px 0 0;font-size:clamp(20px,3.4vw,30px);letter-spacing:.12em;
+  color:#7dffb8;text-shadow:0 0 18px rgba(80,255,160,.45),0 2px 0 #04120c;
+}
+.tre-wallet{display:flex;align-items:center;gap:8px}
+.tre-chip{
+  display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:9px;
+  background:linear-gradient(180deg,rgba(20,40,30,.95),rgba(8,20,14,.95));
+  border:1px solid rgba(201,162,39,.45);color:#ffe9a8;font-size:12px;
+}
+.tre-chip.souls{color:#8fd8ff;border-color:rgba(120,200,255,.45)}
+.tre-chip small{font-size:9px;letter-spacing:.14em;color:#8a9a8a}
+.tre-x{
+  width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:14px;
+  background:linear-gradient(180deg,rgba(40,34,12,.95),rgba(18,16,6,.95));
+  border:1px solid #c9a227;color:#ffe9a8;
+}
+.tre-x:hover{background:linear-gradient(180deg,rgba(70,58,18,.95),rgba(30,26,8,.95))}
+.tre-banner{
+  margin:12px 0;padding:8px 12px;border-radius:8px;font-size:11.5px;color:#bfe8cf;
+  background:linear-gradient(90deg,rgba(30,90,60,.55),rgba(20,50,36,.25));
+  border-left:3px solid #4bd48a;
+}
+.tre-tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.tre-tab{
+  padding:8px 14px;border-radius:9px;cursor:pointer;font:inherit;font-size:11.5px;letter-spacing:.1em;
+  background:rgba(14,28,20,.9);border:1px solid rgba(201,162,39,.3);color:#9fb8a8;
+}
+.tre-tab.active{
+  color:#0a1a12;background:linear-gradient(180deg,#8dffc0,#3fd68a);border-color:#8dffc0;
+  box-shadow:0 0 18px rgba(80,255,160,.35);font-weight:700;
+}
+.tre-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:10px}
+.tre-card{
+  display:flex;flex-direction:column;gap:6px;text-align:left;padding:12px;border-radius:11px;cursor:pointer;
+  background:linear-gradient(180deg,rgba(18,34,26,.96),rgba(9,18,13,.98));
+  border:1px solid rgba(201,162,39,.28);color:#e6f4ea;font-family:inherit;
+  transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease;
+}
+.tre-card:hover:not([disabled]){transform:translateY(-2px);border-color:#ffd76a;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+.tre-card[disabled]{opacity:.42;cursor:not-allowed}
+.tre-card .swatch{
+  width:44px;height:44px;border-radius:50%;
+  box-shadow:0 0 20px rgba(255,255,255,.22),inset 0 0 12px rgba(0,0,0,.6);
+}
+.tre-card b{font-size:13px;color:#ffe9a8;line-height:1.25}
+.tre-card small{font-size:11.5px;color:#b9d4c4;line-height:1.4}
+.tre-card em{font-style:normal;font-size:11px;letter-spacing:.12em;color:#7dffb8;margin-top:auto;font-weight:700}
+.tre-card.owned{border-color:rgba(125,255,184,.45)}
+.tre-card.worn{border-color:#ffd76a;box-shadow:0 0 24px rgba(255,196,60,.25)}
+.tre-card.worn em{color:#ffd76a}
+.tre-foot{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;
+  padding-top:10px;border-top:1px solid rgba(201,162,39,.2);font-size:11.5px;color:#a8c4b2;
+}
+
+/* live effect preview inside treasury cards */
+.tre-card .tre-prev{
+  width:96px;height:96px;border-radius:10px;align-self:center;
+  background:radial-gradient(circle at 50% 55%, rgba(20,40,30,.9), rgba(6,12,9,.95));
+  border:1px solid rgba(201,162,39,.18);
+}

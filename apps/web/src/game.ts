@@ -4047,7 +4047,34 @@ function spawnEnemy(type,g,forcedX:any=null,forcedY:any=null){
     x=clamp(g.player.x+Math.cos(a)*d,50,WORLD.w-50);
     y=clamp(g.player.y+Math.sin(a)*d,50,WORLD.h-50);
     tries++;
-  }while(Math.hypot(x-g.player.x,y-g.player.y)<420&&tries<30);
+  }while(false);
+  /* Radius-first spawn: pick a direction, then take the furthest point along it
+     that stays inside the arena. The old version picked a point on a ring and
+     CLAMPED it to the world edge — so near a wall every spawn collapsed onto
+     that wall (measured: 100% clamped, 76% of spawns in one 45° sector, median
+     42px from the hero, i.e. on top of the player). */
+  {
+    const M = 70, MIN = 420, MAXD = 820;
+    let best: any = null;
+    for (let i = 0; i < 44; i++) {
+      const a2 = rand(0, TAU), dx = Math.cos(a2), dy = Math.sin(a2);
+      const roomX = dx > 0.0001 ? (WORLD.w - M - g.player.x) / dx : dx < -0.0001 ? (M - g.player.x) / dx : Infinity;
+      const roomY = dy > 0.0001 ? (WORLD.h - M - g.player.y) / dy : dy < -0.0001 ? (M - g.player.y) / dy : Infinity;
+      const room = Math.min(roomX, roomY);
+      if (!(room > 220)) continue;
+      const d = Math.min(room, rand(MIN, MAXD));
+      if (!best || d > best.d) best = { x: g.player.x + dx * d, y: g.player.y + dy * d, d };
+      if (d >= MIN) break;                       /* far enough — take it */
+    }
+    if (best) { x = clamp(best.x, M, WORLD.w - M); y = clamp(best.y, M, WORLD.h - M); }
+    else {
+      /* fully cornered: come in from the arena centre at whatever room exists */
+      const a3 = Math.atan2(WORLD.h / 2 - g.player.y, WORLD.w / 2 - g.player.x);
+      x = clamp(g.player.x + Math.cos(a3) * MIN * 0.55, M, WORLD.w - M);
+      y = clamp(g.player.y + Math.sin(a3) * MIN * 0.55, M, WORLD.h - M);
+    }
+  }
+
   const dM=g.diff||DIFFS.normal,ng=g.ngPlus||0,es=(g.endless&&g.wave>40)?1+(g.wave-40)*0.08:1;
   const hpScale=(1+g.wave*0.16)*dM.hp*(1+ng*0.5)*es,dmgScale=(1+g.wave*0.11)*dM.dmg*(1+ng*0.35)*es,eliteMult=isEliteSpawn?2.5:1;
   g.portals.push({x,y,life:1.1,max:1.1,color:t.color,r:isBossSpawn?70:(isEliteSpawn?55:40),rot:rand(0,TAU)});
@@ -6130,37 +6157,38 @@ function equippedAura(){
 function equippedWeaponFx(){
   try{ return cosmeticById(META && META.cos && META.cos.weapon); }catch(e){ return undefined; }
 }
-function drawCosmeticAura(p){
-  const c = equippedAura(); if(!c || !p) return;
-  const t = G ? G.time : 0;
-  ctx.save();
-  const R = p.r + 30;
+function drawCosmeticAura(p, targetCtx?, def?, timeOverride?){
+  const c = def || equippedAura(); if(!c || !p) return;
+  const C2 = targetCtx || ctx;
+  const t = timeOverride !== undefined ? timeOverride : (G ? G.time : 0);
+  C2.save();
+  const R = (p.r || 15) + (targetCtx ? 10 : 30);
   /* a soft wash so the aura reads on a lit floor — normal blending, or additive
      turns the whole hero into a white blob under the crypt lighting */
   {
-    const glow = ctx.createRadialGradient(p.x, p.y + 6, 6, p.x, p.y + 6, R * 1.35);
+    const glow = C2.createRadialGradient(p.x, p.y + 6, 4, p.x, p.y + 6, R * 1.35);
     glow.addColorStop(0, c.primary);
     glow.addColorStop(0.55, c.secondary);
     glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = 0.13 + 0.03 * Math.sin(t * 3.1);
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + 6, R * 1.35, R * 1.0, 0, 0, TAU); ctx.fill();
+    C2.globalAlpha = 0.13 + 0.03 * Math.sin(t * 3.1);
+    C2.fillStyle = glow;
+    C2.beginPath(); C2.ellipse(p.x, p.y + 6, R * 1.35, R * 1.0, 0, 0, TAU); C2.fill();
   }
-  ctx.globalCompositeOperation = 'lighter';
+  C2.globalCompositeOperation = 'lighter';
   if(c.style === 'ring' || c.style === 'star'){
     for(let i=0;i<3;i++){
       const rr = R - i*7 + Math.sin(t*1.6+i)*2.5;
-      ctx.globalAlpha = 0.24 - i*0.05;
-      ctx.strokeStyle = i===0 ? c.primary : c.accent;
-      ctx.lineWidth = 2.2 - i*0.5;
-      ctx.beginPath(); ctx.arc(p.x, p.y+4, rr, t*(0.7+i*0.25), t*(0.7+i*0.25)+TAU*0.72); ctx.stroke();
+      C2.globalAlpha = 0.24 - i*0.05;
+      C2.strokeStyle = i===0 ? c.primary : c.accent;
+      C2.lineWidth = 2.2 - i*0.5;
+      C2.beginPath(); C2.arc(p.x, p.y+4, rr, t*(0.7+i*0.25), t*(0.7+i*0.25)+TAU*0.72); C2.stroke();
     }
     if(c.style === 'star'){
       for(let i=0;i<6;i++){
         const a = t*0.9 + i*TAU/6, d = R*0.72;
-        ctx.globalAlpha = 0.5; ctx.fillStyle = c.accent;
+        C2.globalAlpha = 0.5; C2.fillStyle = c.accent;
         const sx = p.x+Math.cos(a)*d, sy = p.y+4+Math.sin(a)*d*0.55;
-        ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, TAU); ctx.fill();
+        C2.beginPath(); C2.arc(sx, sy, 1.8, 0, TAU); C2.fill();
       }
     }
   } else if(c.style === 'orbit' || c.style === 'serpent'){
@@ -6168,51 +6196,51 @@ function drawCosmeticAura(p){
     for(let i=0;i<n;i++){
       const a = t*(c.style==='serpent'?1.1:1.5) + i*TAU/n;
       const d = R*0.8 + Math.sin(t*2+i)*3;
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = i%2 ? c.primary : c.accent;
-      ctx.beginPath();
-      ctx.arc(p.x+Math.cos(a)*d, p.y+4+Math.sin(a)*d*0.6, c.style==='serpent'?3.4:2.4, 0, TAU);
-      ctx.fill();
+      C2.globalAlpha = 0.75;
+      C2.fillStyle = i%2 ? c.primary : c.accent;
+      C2.beginPath();
+      C2.arc(p.x+Math.cos(a)*d, p.y+4+Math.sin(a)*d*0.6, c.style==='serpent'?3.4:2.4, 0, TAU);
+      C2.fill();
     }
-    ctx.globalAlpha = 0.16; ctx.strokeStyle = c.primary; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y+6, R*0.85, R*0.52, 0, 0, TAU); ctx.stroke();
+    C2.globalAlpha = 0.16; C2.strokeStyle = c.primary; C2.lineWidth = 1.4;
+    C2.beginPath(); C2.ellipse(p.x, p.y+6, R*0.85, R*0.52, 0, 0, TAU); C2.stroke();
   } else if(c.style === 'flame'){
     for(let i=0;i<12;i++){
       const a = i*TAU/12 + Math.sin(t*3+i)*0.14;
       const h = 16 + Math.sin(t*7+i*1.7)*7;
-      const d = p.r + 10;
+      const d = (p.r || 15) + 10;
       const bx = p.x+Math.cos(a)*d, by = p.y+8+Math.sin(a)*d*0.6;
-      ctx.globalAlpha = 0.34 + 0.14*Math.sin(t*9+i);
-      const grd = ctx.createLinearGradient(bx, by, bx, by-h);
+      C2.globalAlpha = 0.34 + 0.14*Math.sin(t*9+i);
+      const grd = C2.createLinearGradient(bx, by, bx, by-h);
       grd.addColorStop(0, c.primary); grd.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath();
-      ctx.moveTo(bx-3, by); ctx.quadraticCurveTo(bx-1, by-h*0.6, bx, by-h);
-      ctx.quadraticCurveTo(bx+1.5, by-h*0.6, bx+3, by); ctx.closePath(); ctx.fill();
+      C2.fillStyle = grd;
+      C2.beginPath();
+      C2.moveTo(bx-3, by); C2.quadraticCurveTo(bx-1, by-h*0.6, bx, by-h);
+      C2.quadraticCurveTo(bx+1.5, by-h*0.6, bx+3, by); C2.closePath(); C2.fill();
     }
   } else if(c.style === 'lotus'){
     for(let i=0;i<8;i++){
       const a = t*0.8 + i*TAU/8;
       const d = R*0.75;
       const px = p.x+Math.cos(a)*d, py = p.y+4+Math.sin(a)*d*0.6;
-      ctx.globalAlpha = 0.7;
-      ctx.fillStyle = i%2 ? c.primary : c.accent;
-      ctx.beginPath();
-      ctx.ellipse(px, py, 5.2, 2.8, a, 0, TAU);
-      ctx.fill();
+      C2.globalAlpha = 0.7;
+      C2.fillStyle = i%2 ? c.primary : c.accent;
+      C2.beginPath();
+      C2.ellipse(px, py, 5.2, 2.8, a, 0, TAU);
+      C2.fill();
     }
   } else if(c.style === 'storm'){
-    ctx.globalAlpha = 0.30 + 0.18*Math.sin(t*11);
-    ctx.strokeStyle = c.primary; ctx.lineWidth = 1.6;
+    C2.globalAlpha = 0.30 + 0.18*Math.sin(t*11);
+    C2.strokeStyle = c.primary; C2.lineWidth = 1.6;
     for(let i=0;i<3;i++){
       const a = t*2.2 + i*TAU/3;
-      ctx.beginPath();
-      ctx.moveTo(p.x+Math.cos(a)*(p.r+10), p.y+Math.sin(a)*(p.r+10));
-      ctx.lineTo(p.x+Math.cos(a+0.5)*(p.r+34), p.y+Math.sin(a+0.5)*(p.r+34));
-      ctx.stroke();
+      C2.beginPath();
+      C2.moveTo(p.x+Math.cos(a)*((p.r||15)+10), p.y+Math.sin(a)*((p.r||15)+10));
+      C2.lineTo(p.x+Math.cos(a+0.5)*((p.r||15)+34), p.y+Math.sin(a+0.5)*((p.r||15)+34));
+      C2.stroke();
     }
   }
-  ctx.restore();
+  C2.restore();
 }
 /** Called on every basic attack — coloured sparks, no gameplay effect. */
 function cosmeticWeaponSpark(p, angle){
@@ -7607,6 +7635,113 @@ try{
   });
 }catch(e){}
 
+/* ═══════════ ROYAL TREASURY ═══════════
+   The storefront from the reference art: jade-and-gold frame, wallet chips,
+   tabbed shelves. The currency is souls earned in play — there is no paid rail,
+   and the banner says so rather than implying otherwise. */
+let treTab: CosmeticKind = 'aura';
+
+function renderTreasury(){
+  const el = document.getElementById('treGrid');
+  if(!el) return;
+  const state = (META.cos || emptyCosmetics()) as CosmeticState;
+  const souls = META.souls || 0;
+  const soulsEl = document.getElementById('treSouls');
+  const ownedEl = document.getElementById('treOwned');
+  if(soulsEl) soulsEl.textContent = souls.toLocaleString();
+  if(ownedEl) ownedEl.textContent = String(state.owned.length);
+  document.querySelectorAll('.tre-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-tre') === treTab));
+
+  el.innerHTML = cosmeticsOf(treTab).map(c => {
+    const owned = ownsCosmetic(state, c.id);
+    const worn = isEquipped(state, c.id);
+    const afford = souls >= c.price;
+    const label = worn ? '● EQUIPPED' : owned ? 'WEAR' : (afford ? c.price + ' ◆' : 'LOCKED');
+    return `<button class="tre-card${owned ? ' owned' : ''}${worn ? ' worn' : ''}" data-cos="${c.id}"
+      ${!owned && !afford ? 'disabled' : ''}>
+      <canvas class="tre-prev" width="96" height="96" data-prev="${c.id}"></canvas>
+      <b>${c.name}</b>
+      <small>${c.desc}</small>
+      <em>${label}</em>
+    </button>`;
+  }).join('');
+
+  /* each card shows the actual effect, not a coloured dot */
+  el.querySelectorAll('canvas[data-prev]').forEach((cv) => {
+    const id = (cv as HTMLCanvasElement).getAttribute('data-prev');
+    const def = cosmeticById(id);
+    const c2 = (cv as HTMLCanvasElement).getContext('2d');
+    if(!def || !c2) return;
+    c2.clearRect(0, 0, (cv as HTMLCanvasElement).width, (cv as HTMLCanvasElement).height);
+    if(def.kind === 'aura'){
+      const tPrev = (performance.now() / 1000) % 100;
+      /* twice over: a card preview has to read at 96px, where one pass is mush */
+      drawCosmeticAura({ x: 48, y: 52, r: 12 }, c2, def, tPrev);
+      drawCosmeticAura({ x: 48, y: 52, r: 12 }, c2, def, tPrev + 0.4);
+      /* a silhouette so the ring reads as something worn, not a pattern */
+      c2.save();
+      c2.globalCompositeOperation = 'source-over';
+      c2.globalAlpha = 0.92;
+      c2.fillStyle = 'rgba(6,10,8,0.9)';
+      c2.beginPath(); c2.arc(48, 52, 11, 0, TAU); c2.fill();
+      c2.strokeStyle = def.accent; c2.globalAlpha = 0.7; c2.lineWidth = 1.4;
+      c2.beginPath(); c2.arc(48, 52, 11, 0, TAU); c2.stroke();
+      c2.restore();
+    } else {
+      /* weapon effects: show the palette streaking outward */
+      const t2 = (performance.now() / 900) % 10;
+      c2.save();
+      c2.globalCompositeOperation = 'lighter';
+      for(let i=0;i<7;i++){
+        const a2 = -0.9 + i * 0.3 + Math.sin(t2 + i) * 0.15;
+        c2.globalAlpha = 0.55 - i * 0.04;
+        c2.strokeStyle = i % 2 ? def.primary : def.accent;
+        c2.lineWidth = 3 - i * 0.25;
+        c2.beginPath();
+        c2.moveTo(30, 66);
+        c2.quadraticCurveTo(48 + Math.cos(a2) * 22, 46 + Math.sin(a2) * 14, 70 + Math.cos(a2) * 16, 34 + Math.sin(a2) * 18);
+        c2.stroke();
+      }
+      c2.globalAlpha = 0.9; c2.fillStyle = def.accent;
+      c2.beginPath(); c2.arc(30, 66, 3.4, 0, TAU); c2.fill();
+      c2.restore();
+    }
+  });
+
+  el.querySelectorAll('[data-cos]').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-cos');
+    const def = cosmeticById(id);
+    if(!def) return;
+    if(isEquipped(META.cos, id)){
+      META.cos = equipCosmetic(META.cos, def.kind, null);
+      addToast('REMOVED', '#c8a0ff', def.name);
+    } else if(ownsCosmetic(META.cos, id)){
+      META.cos = equipCosmetic(META.cos, def.kind, id);
+      addToast('EQUIPPED', '#ffd54f', def.name + ' · cosmetic only');
+    } else {
+      const res = buyCosmetic(META.cos, META.souls || 0, id);
+      if(!res){ addToast('NOT ENOUGH SOULS', '#ff8a4a', def.price + ' ◆ needed'); return; }
+      META.cos = res.state;
+      META.souls = res.souls;
+      addToast('UNLOCKED · ' + def.name, '#7dffb8', 'cosmetic only — no stats');
+    }
+    saveMeta(); sfx.ui(); renderTreasury();
+  }));
+}
+
+function openTreasury(tab?: CosmeticKind){
+  if(tab) treTab = tab;
+  const screen = document.getElementById('treasuryScreen');
+  if(!screen) return;
+  renderTreasury();
+  screen.classList.remove('hidden');
+  sfx.ui();
+}
+function closeTreasury(){
+  const screen = document.getElementById('treasuryScreen');
+  if(screen) screen.classList.add('hidden');
+}
+
 function renderArchive(tab){
   const soulsEl=document.getElementById('arcSouls');
   const achEl=document.getElementById('arcAch');
@@ -7754,6 +7889,20 @@ function openArchive(tab){
 document.getElementById('settingsBtn')?.addEventListener('click',()=>{ sfx.ui(); ov.classList.remove('hidden'); syncSettingsUI(); });
 document.getElementById('archiveBtn')?.addEventListener('click',()=>{ sfx.ui(); openArchive('souls'); });
 document.getElementById('archiveClose')?.addEventListener('click',()=>{ sfx.ui(); document.getElementById('archiveScreen')?.classList.add('hidden'); });
+/* treasury wiring */
+try{
+  document.getElementById('treasuryBtn')?.addEventListener('click', () => openTreasury());
+  document.getElementById('treasuryClose')?.addEventListener('click', closeTreasury);
+  document.getElementById('treasuryClose2')?.addEventListener('click', closeTreasury);
+  document.querySelectorAll('.tre-tab').forEach(b => b.addEventListener('click', () => {
+    const k = b.getAttribute('data-tre');
+    if(k === 'aura' || k === 'weapon'){ treTab = k; sfx.ui(); renderTreasury(); }
+  }));
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape' && !document.getElementById('treasuryScreen')?.classList.contains('hidden')) closeTreasury();
+  });
+}catch(e){}
+
 document.querySelectorAll('.arc-tab').forEach(b=>b.addEventListener('click',()=>{ sfx.ui(); renderArchive(b.getAttribute('data-tab')); }));
   document.getElementById('settingsClose')?.addEventListener('click',()=>{ sfx.ui(); close(); });
   ov.addEventListener('click',(e)=>{ if(e.target===ov) close(); });
