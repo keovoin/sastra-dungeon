@@ -228,7 +228,7 @@ export async function syncSaveToCloud(
       'version', 'cls', 'level', 'xp', 'xpNext', 'tstats', 'titleName', 'titleIcon',
       'baseStats', 'treeMods', 'equipment', 'inventory', 'wave', 'kills', 'hp',
       'energy', 'gold', 'potions', 'treePoints', 'treeUnlocked', 'hasUltimate',
-      'upg', 'attrs', 'skillLvls', 'relics', 'itemIdCounter', 'savedAt'
+      'upg', 'attrs', 'skillLvls', 'skillEvo', 'ascended', 'relics', 'itemIdCounter', 'savedAt'
     ];
     for (const k of allowedSaveKeys) {
       if (saveObj[k] !== undefined) {

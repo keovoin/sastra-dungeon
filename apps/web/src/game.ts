@@ -1458,6 +1458,8 @@ function saveGamePayload(g) {
     upg: { ...(p.upg||{}) },
     attrs: { ...(p.attrs||{str:0,vit:0,agi:0,wis:0,lck:0}) },
     skillLvls: (p.skills||[]).map(s => s.lvl || 1),
+    skillEvo: (p.skills||[]).map(s => s.evo ? 1 : 0),
+    ascended: !!p._ascended,
     relics: (p.relics||[]).slice(0,3),
     itemIdCounter, savedAt: Date.now()
   };
@@ -1518,6 +1520,15 @@ function resumeFromSave(data, silent:any = false) {
     p.skills.forEach((s, idx) => { s.lvl = clamp(data.skillLvls[idx] || 1, 1, 5); });
   }
   p.relics = Array.isArray(data.relics) ? data.relics.filter((r)=>RELIC_DEFS.some(d=>d.id===r)).slice(0,3) : [];
+  p._ascended = !!data.ascended;
+  if(Array.isArray(data.skillEvo) && p.skills){
+    p.skills.forEach((sk, idx) => {
+      if(!data.skillEvo[idx]) return;
+      sk.evo = true; sk.lvl = 6; sk.evoDmg = 0.45; sk.color = '#ffd76a';
+      sk.baseCd = (sk.baseCd || 1) * 0.85;
+      if(!/^☀ /.test(sk.name)) sk.name = '☀ ' + sk.name;
+    });
+  }
   if (data.treeMods) {
     const m = data.treeMods;
     p._critDmg = m._critDmg||2; p._executioner = !!m._executioner;
@@ -3395,6 +3406,7 @@ function tryCast(i){
   p._castSkillLvl = sl;
   if(p._skillPower)p.dmg=Math.round(p.dmg*(1+p._skillPower));
   if(p.titleBonus&&p.titleBonus.skill)p.dmg=Math.round(p.dmg*(1+p.titleBonus.skill));
+  if(s.evoDmg)p.dmg=Math.round(p.dmg*(1+s.evoDmg));
   s.cast(p,G);
   try{ vfxSignature(p,s); }catch(e){}
   p.dmg=origDmg;
@@ -3937,6 +3949,20 @@ function openUpgradePanel(g){
     return;
   }
 
+  /* ASCENSION — every skill at the cap means the kit has earned a fusion */
+  let evoOpt = null;
+  if(!p._ascended && (p.skills||[]).filter(sk => (sk.lvl||1) >= 5).length >= 2){
+    const maxed = (p.skills||[]).map((sk,idx)=>({sk,idx})).filter(o => (o.sk.lvl||1) >= 5);
+    const target = maxed[0];
+    evoOpt = {
+      id:'evo_'+target.idx, kind:'evo', icon:'☀',
+      skillIdx: target.idx,
+      name: `ASCEND — ${target.sk.name}`,
+      desc: '+45% damage for this skill · -15% cooldown · gilded Angkor sigil',
+      badge: 'EVOLUTION'
+    };
+  }
+
   const pickedAttrs = availAttrs.slice().sort(()=>rng()-0.5).slice(0, 2);
   const pickedSkills = availSkills.slice().sort(()=>rng()-0.5).slice(0, 2);
   let combined = [...pickedAttrs, ...pickedSkills];
@@ -3944,7 +3970,7 @@ function openUpgradePanel(g){
     const rest = [...availAttrs, ...availSkills].filter(x => !combined.includes(x)).sort(()=>rng()-0.5);
     combined = combined.concat(rest.slice(0, 4 - combined.length));
   }
-  upgState.opts = combined.slice(0, 4);
+  upgState.opts = evoOpt ? [evoOpt, ...combined].slice(0, 4) : combined.slice(0, 4);
   upgState.open=true;upgState.token++;upgState.openAt=performance.now();
   const token=upgState.token;
   const el=document.getElementById('upgScreen');
@@ -3969,13 +3995,14 @@ function openUpgradePanel(g){
     upgState.opts.forEach((d,i)=>{
       const c=document.createElement('div');
       const isSkill = d.kind === 'skill';
-      c.className='upg-card ' + (isSkill ? 'skill-upg' : 'attr-upg');
-      c.innerHTML='<div class="upg-type-badge '+(isSkill?'skill':'attr')+'">'+d.badge+'</div>'
+      const isEvo = d.kind === 'evo';
+      c.className='upg-card ' + (isEvo ? 'evo-upg' : isSkill ? 'skill-upg' : 'attr-upg');
+      c.innerHTML='<div class="upg-type-badge '+(isEvo?'evo':isSkill?'skill':'attr')+'">'+d.badge+'</div>'
         +'<div class="upg-key">'+(i+1)+'</div>'
         +'<div class="upg-ico">'+d.icon+'</div>'
         +'<div class="upg-name">'+tr(d.name)+'</div>'
         +'<div class="upg-desc">'+tr(d.desc)+'</div>'
-        +'<div class="upg-lvl">Lv '+d.curLvl+' → Lv '+(d.curLvl+1)+'</div>';
+        +'<div class="upg-lvl">'+(isEvo ? 'Lv 5 → ASCENDED' : 'Lv '+d.curLvl+' → Lv '+(d.curLvl+1))+'</div>';
       c.addEventListener('click',()=>chooseUpgrade(i));
       wrap.appendChild(c);
     });
@@ -3996,7 +4023,24 @@ function chooseUpgrade(i){
   upgState.open=false;
   if(!p.upg)p.upg={...UPG_EMPTY};
   if(!p.attrs)p.attrs={str:0,vit:0,agi:0,wis:0,lck:0};
-  if (d.kind === 'skill') {
+  if (d.kind === 'evo') {
+    const sk = p.skills[d.skillIdx];
+    if (sk) {
+      sk.evoDmg = (sk.evoDmg || 0) + 0.45;      /* only this skill */
+      sk.baseCd = (sk.baseCd || 1) * 0.85;
+      sk.lvl = 6;
+      sk.evo = true;
+      sk.name = sk.name.replace(/^☀ /,'');
+      sk.name = '☀ ' + sk.name;
+      sk.color = '#ffd76a';
+      if (sk.lvlEl) sk.lvlEl.textContent = 'ASC';
+    }
+    p._ascended = true;
+    spawnSkillVfx(g, p, 'pillar', p.x, p.y, 160, '#ffd76a');
+    spawnSkillVfx(g, p, 'nova', p.x, p.y, 210, '#ffe9a8');
+    g.fx.push({type:'ring',x:p.x,y:p.y,r:120,life:.9,max:.9,color:'#ffd76a'});
+    addToast('ASCENSION', '#ffd76a', '☀ the kit is one again');
+  } else if (d.kind === 'skill') {
     const sk = p.skills[d.skillIdx];
     if (sk) {
       sk.lvl = Math.min(5, (sk.lvl || 1) + 1);
