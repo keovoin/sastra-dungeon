@@ -10,6 +10,7 @@ const mod = await load('relics.mjs');
 const world = await load('world.mjs');
 const meta = await load('meta.mjs');
 const items = await load('items.mjs');
+const up = await load('upgrades.mjs');
 
 let pass = 0;
 let fail = 0;
@@ -322,6 +323,54 @@ check('names are always a known prefix plus a known base', () => {
     assert.ok(items.PREFIX[r].includes(prefix), `${name} used unknown prefix`);
     assert.ok(items.BASES.weapon.includes(rest.join(' ')), `${name} used unknown base`);
   }
+});
+
+// ── level-up choices ──────────────────────────────────────────────────────
+check('eleven blessings, unique ids, all presentable', () => {
+  assert.equal(up.ATTR_DEFS.length, 11);
+  assert.equal(new Set(up.ATTR_DEFS.map((d) => d.id)).size, 11);
+  for (const d of up.ATTR_DEFS) {
+    assert.ok(d.icon && d.name && d.desc, `${d.id} is missing display text`);
+    assert.ok(d.cap > 0 && Number.isFinite(d.cap), `${d.id} cap is ${d.cap}`);
+  }
+});
+
+check('empty attributes cover every blessing', () => {
+  const empty = up.emptyAttrs();
+  for (const d of up.ATTR_DEFS) {
+    assert.equal(empty[d.id], 0, `${d.id} missing from emptyAttrs — p.attrs[id] would be undefined`);
+  }
+});
+
+check('ranks clamp to the cap and reject junk', () => {
+  const str = up.attrById('str');
+  assert.equal(up.clampRank(str, 99), str.cap);
+  assert.equal(up.clampRank(str, -3), 0);
+  assert.equal(up.clampRank(str, 'lots'), 0);
+  assert.equal(up.clampRank(str, 3.7), 3);
+});
+
+check('saved attributes are sanitized, unknown ids ignored', () => {
+  const a = up.sanitizeAttrs({ str: 4, vit: 99, nonsense: 5, agi: null });
+  assert.equal(a.str, 4);
+  assert.equal(a.vit, up.attrById('vit').cap);
+  assert.equal(a.agi, 0);
+  assert.ok(!('nonsense' in a));
+  assert.deepEqual(up.sanitizeAttrs('x'), up.emptyAttrs());
+});
+
+check('a maxed blessing stops being offered', () => {
+  const attrs = up.emptyAttrs();
+  attrs.str = up.attrById('str').cap;
+  const offered = up.availableAttrs(attrs).map((d) => d.id);
+  assert.ok(!offered.includes('str'));
+  assert.equal(offered.length, up.ATTR_DEFS.length - 1);
+});
+
+check('upgrade counters match the shape the engine reads', () => {
+  const empty = up.emptyUpg();
+  assert.deepEqual(Object.keys(empty).sort(), [...up.UPG_KEYS].sort());
+  for (const k of up.UPG_KEYS) assert.equal(empty[k], 0, `counter ${k} not zeroed`);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

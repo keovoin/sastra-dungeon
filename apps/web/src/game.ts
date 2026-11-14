@@ -2,6 +2,7 @@
 import { setErrorContext, readErrors, clearErrors } from './telemetry';
 import { RELIC_DEFS, relicMods, relicById, relicOptions, sanitizeRelics } from './relics';
 import { BIOMES, ENEMY_TYPES, ENEMY_LORE, BOSS_TYPES, BOSS_TAUNTS, HAZ_DEF } from './world';
+import { ATTR_DEFS, emptyUpg } from './upgrades';
 import {
   INV_SIZE, SLOT_ORDER, SLOT_NAMES, SLOT_ICONS, BASES, RARITIES, PREFIX, AFFIX_DEFS,
   affixPool, affixCount, rollAffix, requiredLevel, isArmorSlot,
@@ -2063,20 +2064,9 @@ function addBloodDecal(x,y){
   floorCtx.restore();
 }
 /* ═══ LEVEL-UP: ANGKOR ATTRIBUTE UPDATE OR ACTIVE SKILL UPDATE ═══ */
-const ATTR_DEFS = [
-  { id:'str', kind:'attr', icon:'⚔️', name:'Kshatriya Might (STR)', desc:'+14% Attack Damage · +6% Attack Range', cap:12 },
-  { id:'vit', kind:'attr', icon:'🪨', name:'Bayon Stoneheart (VIT)', desc:'+16% Max HP · +12 Armor · Heal 18% HP', cap:12 },
-  { id:'agi', kind:'attr', icon:'🌪️', name:'Garuda Windstep (AGI)', desc:'+12% Attack Speed · +8% Move Speed', cap:10 },
-  { id:'wis', kind:'attr', icon:'🔮', name:'Sastra Prana (WIS)', desc:'-9% Skill Cooldowns · +2.5 Energy Regen', cap:10 },
-  { id:'lck', kind:'attr', icon:'🐍', name:'Naga Fortune (LCK)', desc:'+5% Critical Chance · +18% Crit Damage', cap:10 },
-  { id:'haste', kind:'attr', icon:'⚡', name:'Apsara Haste (HASTE)', desc:'+12% Attack Speed — basics only', cap:10 },
-  { id:'swift', kind:'attr', icon:'👣', name:'Naga Stride (SWIFT)', desc:'+10% Move Speed — dodge faster', cap:8 },
-  { id:'leech', kind:'attr', icon:'🩸', name:'Rakshasa Thirst (LEECH)', desc:'+2% Life Steal on basic attacks', cap:10 },
-  { id:'mend',  kind:'attr', icon:'🌿', name:'Bodhi Mend (MEND)', desc:'+0.8 HP/s Health Regen', cap:10 },
-  { id:'stone', kind:'attr', icon:'🛡️', name:'Laterite Skin (STONE)', desc:'+12 Armor — flat damage reduction', cap:10 },
-  { id:'magnet', kind:'attr', icon:'🧲', name:'Lotus Attraction (MAGNET)', desc:'+37 pickup radius — orbs fly to you', cap:8 },
-];
-const UPG_EMPTY={dmg:0,atk:0,shots:0,spd:0,hp:0,crit:0,cd:0,range:0};
+
+
+const UPG_EMPTY: any = emptyUpg();
 const upgState={pending:0,open:false,opts:[] as any[],token:0,openAt:0};
 
 function recalcStats(p){
