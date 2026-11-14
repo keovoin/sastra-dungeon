@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-const target = process.env.UNITS_ENTRY || '.tmp/relics.mjs';
-const mod = await import(pathToFileURL(path.resolve(target)).href);
+const load = async (file) => import(pathToFileURL(path.resolve(process.env.UNITS_DIR || '.tmp', file)).href);
+const mod = await load('relics.mjs');
+const world = await load('world.mjs');
 
 let pass = 0;
 let fail = 0;
@@ -72,6 +73,49 @@ check('options never include one already carried', () => {
   const remaining = mod.relicOptions(['fang', 'shield']);
   assert.equal(remaining.length, 6);
   assert.ok(!remaining.some((r) => r.id === 'fang' || r.id === 'shield'));
+});
+
+// ── world data ────────────────────────────────────────────────────────────
+check('six realms', () => {
+  assert.equal(world.BIOMES.length, 6);
+  assert.equal(new Set(world.BIOMES.map((b) => b.key)).size, 6);
+});
+
+check('every realm has a roster of five or more', () => {
+  for (const b of world.BIOMES) {
+    assert.ok(b.enemies.length >= 5, `${b.key} has ${b.enemies.length}`);
+    assert.ok(b.boss, `${b.key} has no boss`);
+  }
+});
+
+check('no realm spawns a creature that does not exist', () => {
+  for (const b of world.BIOMES) {
+    for (const id of b.enemies) {
+      assert.ok(world.ENEMY_TYPES[id], `${b.key} spawns unknown '${id}'`);
+    }
+  }
+});
+
+check('every creature is documented', () => {
+  const missing = Object.keys(world.ENEMY_TYPES).filter((id) => !world.ENEMY_LORE[id]);
+  assert.deepEqual(missing, []);
+});
+
+check('every creature has the stats the engine reads', () => {
+  for (const [id, t] of Object.entries(world.ENEMY_TYPES)) {
+    for (const f of ['hp', 'speed', 'dmg', 'r', 'xp', 'range', 'atkCd']) {
+      assert.equal(typeof t[f], 'number', `${id}.${f} is ${typeof t[f]}`);
+      assert.ok(t[f] > 0, `${id}.${f} is ${t[f]}`);
+    }
+    assert.ok(t.color.startsWith('#'), `${id}.color = ${t.color}`);
+    assert.ok(t.behavior, `${id} has no behavior`);
+  }
+});
+
+check('palette variants point at a real sprite family', () => {
+  for (const [id, t] of Object.entries(world.ENEMY_TYPES)) {
+    if (t.sprite) assert.ok(world.ENEMY_TYPES[t.sprite], `${id} reuses unknown sprite '${t.sprite}'`);
+  }
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
