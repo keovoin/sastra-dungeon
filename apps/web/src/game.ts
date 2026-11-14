@@ -7659,7 +7659,7 @@ function renderTreasury(){
     const label = worn ? '● EQUIPPED' : owned ? 'WEAR' : (afford ? c.price + ' ◆' : 'LOCKED');
     return `<button class="tre-card${owned ? ' owned' : ''}${worn ? ' worn' : ''}" data-cos="${c.id}"
       ${!owned && !afford ? 'disabled' : ''}>
-      <canvas class="tre-prev" width="96" height="96" data-prev="${c.id}"></canvas>
+      <canvas class="tre-prev" width="188" height="86" data-prev="${c.id}"></canvas>
       <b>${c.name}</b>
       <small>${c.desc}</small>
       <em>${label}</em>
@@ -7675,17 +7675,19 @@ function renderTreasury(){
     c2.clearRect(0, 0, (cv as HTMLCanvasElement).width, (cv as HTMLCanvasElement).height);
     if(def.kind === 'aura'){
       const tPrev = (performance.now() / 1000) % 100;
-      /* twice over: a card preview has to read at 96px, where one pass is mush */
-      drawCosmeticAura({ x: 48, y: 52, r: 12 }, c2, def, tPrev);
-      drawCosmeticAura({ x: 48, y: 52, r: 12 }, c2, def, tPrev + 0.4);
+      const cw = (cv as HTMLCanvasElement).width, chh = (cv as HTMLCanvasElement).height;
+      const px = cw / 2, py = chh / 2 + 2;
+      /* twice over: a card preview has to read at this size, where one pass is mush */
+      drawCosmeticAura({ x: px, y: py, r: 18 }, c2, def, tPrev);
+      drawCosmeticAura({ x: px, y: py, r: 18 }, c2, def, tPrev + 0.4);
       /* a silhouette so the ring reads as something worn, not a pattern */
       c2.save();
       c2.globalCompositeOperation = 'source-over';
       c2.globalAlpha = 0.92;
       c2.fillStyle = 'rgba(6,10,8,0.9)';
-      c2.beginPath(); c2.arc(48, 52, 11, 0, TAU); c2.fill();
+      c2.beginPath(); c2.arc(px, py, 12, 0, TAU); c2.fill();
       c2.strokeStyle = def.accent; c2.globalAlpha = 0.7; c2.lineWidth = 1.4;
-      c2.beginPath(); c2.arc(48, 52, 11, 0, TAU); c2.stroke();
+      c2.beginPath(); c2.arc(px, py, 12, 0, TAU); c2.stroke();
       c2.restore();
     } else {
       /* weapon effects: show the palette streaking outward */
@@ -7698,12 +7700,14 @@ function renderTreasury(){
         c2.strokeStyle = i % 2 ? def.primary : def.accent;
         c2.lineWidth = 3 - i * 0.25;
         c2.beginPath();
-        c2.moveTo(30, 66);
-        c2.quadraticCurveTo(48 + Math.cos(a2) * 22, 46 + Math.sin(a2) * 14, 70 + Math.cos(a2) * 16, 34 + Math.sin(a2) * 18);
+        const cw2 = (cv as HTMLCanvasElement).width, ch2 = (cv as HTMLCanvasElement).height;
+        c2.moveTo(cw2 * 0.28, ch2 * 0.78);
+        c2.quadraticCurveTo(cw2 * 0.5 + Math.cos(a2) * 26, ch2 * 0.5 + Math.sin(a2) * 16,
+                            cw2 * 0.72 + Math.cos(a2) * 18, ch2 * 0.32 + Math.sin(a2) * 20);
         c2.stroke();
       }
       c2.globalAlpha = 0.9; c2.fillStyle = def.accent;
-      c2.beginPath(); c2.arc(30, 66, 3.4, 0, TAU); c2.fill();
+      c2.beginPath(); c2.arc((cv as HTMLCanvasElement).width * 0.28, (cv as HTMLCanvasElement).height * 0.78, 3.8, 0, TAU); c2.fill();
       c2.restore();
     }
   });
