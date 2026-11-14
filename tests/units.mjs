@@ -9,6 +9,7 @@ const load = async (file) => import(pathToFileURL(path.resolve(process.env.UNITS
 const mod = await load('relics.mjs');
 const world = await load('world.mjs');
 const meta = await load('meta.mjs');
+const items = await load('items.mjs');
 
 let pass = 0;
 let fail = 0;
@@ -242,6 +243,84 @@ check('every realm has a hazard, and hazards are survivable', () => {
     assert.ok(h.dmg > 0 && h.dmg < 0.5, `${b.key} hazard deals ${h.dmg} of max HP`);
     assert.ok(h.warn < h.period, `${b.key} telegraph is longer than its cycle`);
     assert.ok(h.r > 0 && h.active > 0, `${b.key} hazard has no size or duration`);
+  }
+});
+
+// ── gear ──────────────────────────────────────────────────────────────────
+check('every slot has a name, an icon and base names', () => {
+  for (const slot of items.SLOT_ORDER) {
+    assert.ok(items.SLOT_NAMES[slot], `${slot} has no label`);
+    assert.ok(items.SLOT_ICONS[slot], `${slot} has no icon`);
+    assert.ok(items.BASES[slot] && items.BASES[slot].length > 0, `${slot} has no base names`);
+  }
+  assert.equal(items.SLOT_ORDER.length, 7);
+});
+
+check('rarity escalates in both multiplier and affixes', () => {
+  for (let i = 1; i < items.RARITIES.length; i++) {
+    assert.ok(items.RARITIES[i].mult > items.RARITIES[i - 1].mult, `rarity ${i} is not stronger`);
+    assert.ok(items.RARITIES[i].affixes >= items.RARITIES[i - 1].affixes, `rarity ${i} rolls fewer affixes`);
+  }
+});
+
+check('every rarity has name prefixes', () => {
+  for (let i = 0; i < items.RARITIES.length; i++) {
+    assert.ok(items.PREFIX[i] && items.PREFIX[i].length > 0, `rarity ${i} has no prefix pool`);
+  }
+});
+
+check('affix pools only offer known, labelled affixes', () => {
+  for (const slot of items.SLOT_ORDER) {
+    const pool = items.affixPool(slot);
+    assert.ok(pool.length >= 4, `${slot} pool has ${pool.length}`);
+    for (const k of pool) assert.ok(items.AFFIX_DEFS[k], `${slot} can roll unlabelled '${k}'`);
+    assert.equal(new Set(pool).size, pool.length, `${slot} pool repeats a key`);
+  }
+});
+
+check('affix counts stay within the pool, so no affix is ever impossible', () => {
+  for (const slot of items.SLOT_ORDER) {
+    for (let r = 0; r < items.RARITIES.length; r++) {
+      const n = items.affixCount(slot, r);
+      assert.ok(n <= items.affixPool(slot).length, `${slot} rarity ${r} wants ${n} from a pool of ${items.affixPool(slot).length}`);
+    }
+  }
+});
+
+check('rings and amulets gamble one extra affix', () => {
+  assert.equal(items.affixCount('ring', 0), items.affixCount('helm', 0) + 1);
+  assert.equal(items.affixCount('amulet', 3), items.affixCount('chest', 3) + 1);
+});
+
+check('rolls are positive and scale with wave', () => {
+  const one = () => 0.5; // deterministic midpoint
+  const early = items.rollAffix('dmg', 1, 1, one);
+  const late = items.rollAffix('dmg', 40, 1, one);
+  assert.ok(early > 0);
+  assert.ok(late > early * 3, `wave 40 (${late}) should dwarf wave 1 (${early})`);
+  for (const k of Object.keys(items.AFFIX_DEFS)) {
+    const v = items.rollAffix(k, 10, 1, one);
+    assert.ok(v > 0, `${k} rolled ${v}`);
+  }
+});
+
+check('crit affixes stay fractional, not flat points', () => {
+  const v = items.rollAffix('crit', 50, 3.3, () => 1);
+  assert.ok(v > 0 && v < 0.2, `crit rolled ${v}`);
+});
+
+check('required level gates later gear without hard-blocking it', () => {
+  assert.equal(items.requiredLevel(1, 0), 1);
+  assert.ok(items.requiredLevel(40, 3) > items.requiredLevel(40, 0), 'legendary needs one more level');
+  assert.ok(items.requiredLevel(60, 3) < 60, 'requirement must trail the wave you find it on');
+});
+
+check('names are always a known prefix plus a known base', () => {
+  for (let r = 0; r < items.RARITIES.length; r++) {
+    const name = items.rollName(r, 'weapon', () => 0);
+    const [prefix, ...rest] = name.split(' ');
+    assert.ok(items.PREFIX[r].includes(prefix), `${name} used unknown prefix`);
+    assert.ok(items.BASES.weapon.includes(rest.join(' ')), `${name} used unknown base`);
   }
 });
 

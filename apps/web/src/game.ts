@@ -3,6 +3,11 @@ import { setErrorContext, readErrors, clearErrors } from './telemetry';
 import { RELIC_DEFS, relicMods, relicById, relicOptions, sanitizeRelics } from './relics';
 import { BIOMES, ENEMY_TYPES, ENEMY_LORE, BOSS_TYPES, BOSS_TAUNTS, HAZ_DEF } from './world';
 import {
+  INV_SIZE, SLOT_ORDER, SLOT_NAMES, SLOT_ICONS, BASES, RARITIES, PREFIX, AFFIX_DEFS,
+  affixPool, affixCount, rollAffix, requiredLevel, isArmorSlot,
+  type Slot, type AffixKey,
+} from './items';
+import {
   META_KEY as META_KEY_EXT, emptyMeta, sanitizeMeta, mergeMeta, soulsFromRun,
   SOUL_TRACKS as SOUL_TRACKS_EXT, ACHIEVEMENTS as ACHIEVEMENTS_EXT,
   newlyEarned, trackById, type MetaState,
@@ -2071,14 +2076,6 @@ const ATTR_DEFS = [
   { id:'stone', kind:'attr', icon:'🛡️', name:'Laterite Skin (STONE)', desc:'+12 Armor — flat damage reduction', cap:10 },
   { id:'magnet', kind:'attr', icon:'🧲', name:'Lotus Attraction (MAGNET)', desc:'+37 pickup radius — orbs fly to you', cap:8 },
 ];
-const UPG_DEFS=[
-  {id:'dmg',  kind:'attr', attrKey:'str', icon:'⚔️', name:'Kshatriya Might (STR)', desc:'+14% Damage · +6% Attack Range', cap:12, ranged:false},
-  {id:'hp',   kind:'attr', attrKey:'vit', icon:'🪨', name:'Bayon Stoneheart (VIT)', desc:'+16% Max HP · +12 Armor · Heals 18%', cap:12, ranged:false},
-  {id:'atk',  kind:'attr', attrKey:'agi', icon:'🌪️', name:'Garuda Windstep (AGI)', desc:'+12% Attack Speed · +8% Move Speed', cap:10, ranged:false},
-  {id:'cd',   kind:'attr', attrKey:'wis', icon:'🔮', name:'Sastra Prana (WIS)', desc:'-9% Skill Cooldowns · +2.5 Energy Regen', cap:10, ranged:false},
-  {id:'crit', kind:'attr', attrKey:'lck', icon:'🐍', name:'Naga Fortune (LCK)', desc:'+5% Crit Chance · +18% Crit Damage', cap:10, ranged:false},
-  {id:'shots',kind:'attr', attrKey:'agi', icon:'🏹', name:'Apsara Volley', desc:'+1 Projectile per basic attack', cap:3, ranged:true},
-];
 const UPG_EMPTY={dmg:0,atk:0,shots:0,spd:0,hp:0,crit:0,cd:0,range:0};
 const upgState={pending:0,open:false,opts:[] as any[],token:0,openAt:0};
 
@@ -3013,26 +3010,12 @@ function isEliteWave(w){return w%5===0&&!isBossWave(w)}
 
 
 /* Items */
-const INV_SIZE = 35;
-const SLOT_ORDER = ['helm','amulet','chest','gloves','boots','weapon','ring'];
-const SLOT_NAMES = { weapon:'Weapon',helm:'Helm',chest:'Chest',gloves:'Gloves',boots:'Boots',ring:'Ring',amulet:'Amulet' };
-const SLOT_ICONS = { weapon:'🗡️',helm:'👑',chest:'🛡️',gloves:'🧤',boots:'👢',ring:'💍',amulet:'📿' };
-const BASES = {
-  weapon:['Blade','Axe','Bow','Orb','Mace','Spear','Scepter','Cleaver','Scythe','Staff','Javelin','Lute'],
-  helm:['Helm','Crown','Hood','Casque','Visage'],chest:['Chestplate','Robe','Vest','Cuirass','Hauberk'],
-  gloves:['Gloves','Gauntlets','Grips','Handguards'],boots:['Boots','Greaves','Treads','Striders'],
-  ring:['Ring','Band','Signet','Loop'],amulet:['Amulet','Talisman','Pendant','Charm']
-};
-const RARITIES = [
-  {name:'Common',color:'#b9b0a4',mult:1.00,affixes:1},{name:'Magic',color:'#5aa9ff',mult:1.55,affixes:2},
-  {name:'Rare',color:'#f0c14b',mult:2.20,affixes:3},{name:'Legendary',color:'#ff8f2e',mult:3.30,affixes:4}
-];
-const PREFIX = {0:['Worn','Rusty','Plain','Cracked'],1:['Fine','Runed','Blessed','Keen'],2:['Ancient','Grim','Storm','Vicious'],3:['Godslayer','Eternal','Doomfang','Sunforged']};
-const AFFIX_DEFS = {
-  dmg:{label:'Damage',fmt:v=>'+'+v},hp:{label:'Max HP',fmt:v=>'+'+v},armor:{label:'Armor',fmt:v=>'+'+v},
-  speed:{label:'Move Speed',fmt:v=>'+'+v},crit:{label:'Crit Chance',fmt:v=>'+'+(v*100).toFixed(1)+'%'},
-  regen:{label:'Energy Regen',fmt:v=>'+'+v.toFixed(1)}
-};
+
+
+
+
+
+
 function rollAffix(k,w,m){switch(k){
   case 'dmg':return Math.round(rand(2,5)*m*(1+w*0.16));
   case 'hp':return Math.round(rand(10,26)*m*(1+w*0.20));
@@ -3048,14 +3031,11 @@ function makeItem(wave,rarityIdx,forcedSlot:any=null){
   const slot=forcedSlot||weightedSlot();const rar=RARITIES[rarityIdx];
   const it={id:++itemIdCounter,slot,rarity:rarityIdx,color:rar.color,
     name:`${pick(PREFIX[rarityIdx])} ${pick(BASES[slot])}`,baseDmg:0,baseArmor:0,affixes:[],
-    reqLevel:Math.max(1,Math.round(wave*0.7)+(rarityIdx===3?1:0))};
+    reqLevel:requiredLevel(wave,rarityIdx)};
   if(slot==='weapon')it.baseDmg=Math.round((7+wave*2.7)*rar.mult*rand(0.85,1.15));
-  else if(['helm','chest','gloves','boots'].includes(slot))it.baseArmor=Math.round((5+wave*2.0)*rar.mult*rand(0.85,1.15));
-  let pool;
-  if(slot==='weapon')pool=['hp','speed','crit','regen','armor'];
-  else if(slot==='ring'||slot==='amulet')pool=['dmg','hp','armor','speed','crit','regen'];
-  else pool=['hp','speed','crit','regen','dmg'];
-  const count=rar.affixes+((slot==='ring'||slot==='amulet')?1:0);
+  else if(isArmorSlot(slot))it.baseArmor=Math.round((5+wave*2.0)*rar.mult*rand(0.85,1.15));
+  const pool=affixPool(slot);
+  const count=affixCount(slot,rarityIdx);
   const used=new Set();
   for(let i=0;i<count;i++){
     let k=pick(pool),guard=0;

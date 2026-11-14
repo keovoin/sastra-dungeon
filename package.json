@@ -11,7 +11,7 @@
     "preview": "npm run preview -w @sastra-dungeon/web",
     "test:smoke": "node tests/smoke.mjs",
     "deploy:rules": "firebase deploy --only firestore:rules",
-    "test:units": "npx esbuild apps/web/src/relics.ts apps/web/src/world.ts apps/web/src/meta.ts --bundle --format=esm --platform=neutral --outdir=.tmp --out-extension:.js=.mjs --log-level=error && node tests/units.mjs"
+    "test:units": "npx esbuild apps/web/src/relics.ts apps/web/src/world.ts apps/web/src/meta.ts apps/web/src/items.ts --bundle --format=esm --platform=neutral --outdir=.tmp --out-extension:.js=.mjs --log-level=error && node tests/units.mjs"
   },
   "dependencies": {
     "firebase": "^13.1.0"
